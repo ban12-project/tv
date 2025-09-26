@@ -1,0 +1,55 @@
+{
+  "brand-name": "Ban12 TV",
+  "root-description": "เรียกดูภาพยนตร์ รายการทีวี และอื่นๆ ทั้งหมดจาก Apple TV+ รับชม Apple Originals ทั้งหมดได้ที่นี่และในแอป Apple TV บนอุปกรณ์ของคุณ",
+  "hero-section": {
+    "slide1": {
+      "title": "รับ Apple TV+ ฟรี 1 สัปดาห์",
+      "subtitle": "รับชมรายการพิเศษพร้อมตอนใหม่ทุกสัปดาห์"
+    },
+    "slide2": {
+      "title": "หัวหน้าแห่งสงคราม",
+      "subtitle": "นักรบฮาวายผู้ดุร้ายออกเดินทางในภารกิจอันยิ่งใหญ่เพื่อรวมชนชาติของเขาให้เป็นหนึ่งเดียว"
+    },
+    "slide3": {
+      "title": "สติ๊ก",
+      "subtitle": "โอเว่น วิลสัน อดีตนักกอล์ฟมืออาชีพที่กำลังพยายามครั้งใหญ่ในโอกาสครั้งที่สองของเขาในเรื่องราวการกลับมาที่น่าประทับใจนี้"
+    },
+    "pricing": "ฟรี 7 วัน จากนั้น $9.99/เดือน",
+    "badge-new": "ใหม่",
+    "genre-tv-show": "รายการทีวี",
+    "genre-drama": "ละคร",
+    "genre-action": "แอ็คชั่น",
+    "genre-comedy": "ตลก",
+    "genre-sports": "กีฬา",
+    "button-accept-free-trial": "ยอมรับการทดลองใช้ฟรี",
+    "aria-label-hero-section": "ส่วนฮีโร่",
+    "title-previous-slide": "สไลด์ก่อนหน้า",
+    "title-next-slide": "สไลด์ถัดไป",
+    "title-pause": "หยุดชั่วคราว",
+    "title-play": "เล่น",
+    "title-pause-autoplay": "หยุดเล่นอัตโนมัติชั่วคราว",
+    "title-resume-autoplay": "เล่นอัตโนมัติต่อ"
+  },
+  "video-player": {
+    "default-title": "เครื่องเล่นวิดีโอ",
+    "browser-not-support": "เบราว์เซอร์ของคุณไม่รองรับการเล่นวิดีโอ",
+    "download-video": "ดาวน์โหลดวิดีโอ"
+  },
+  "header": {
+    "alt-apple-tv": "Apple TV",
+    "alt-external-link": "ลิงก์ภายนอก",
+    "nav-apple-tv-plus": "Apple TV+",
+    "nav-mls": "MLS",
+    "search-placeholder": "ค้นหารายการ ภาพยนตร์ และอื่นๆ...",
+    "search-results-count": "{count} ผลลัพธ์",
+    "search-results-count-plural-suffix": "",
+    "search-result-emmy": "Emmy®",
+    "search-result-new": "ใหม่",
+    "search-view-all-results": "ดูทั้งหมด {count} ผลลัพธ์ →",
+    "search-no-results-found": "ไม่พบผลลัพธ์สำหรับ \"{query}\"",
+    "search-try-searching": "ลองค้นหารายการ ภาพยนตร์ นักแสดง หรือประเภท",
+    "button-sign-in": "ลงชื่อเข้าใช้",
+    "title-sign-in": "ลงชื่อเข้าใช้",
+    "brand-name-open-tv": "Open TV"
+  }
+}

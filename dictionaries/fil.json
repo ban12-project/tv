@@ -1,0 +1,55 @@
+{
+  "brand-name": "Ban12 TV",
+  "root-description": "Mag-browse ng lahat ng pelikula, palabas sa TV, at higit pa mula sa Apple TV+. Panoorin ang lahat ng Apple Originals dito at sa Apple TV app sa lahat ng iyong device.",
+  "hero-section": {
+    "slide1": {
+      "title": "Kumuha ng Apple TV+ nang libre sa loob ng 1 linggo.",
+      "subtitle": "Manood ng mga eksklusibong hit, na may mga bagong labas bawat linggo."
+    },
+    "slide2": {
+      "title": "Pinuno ng Digmaan",
+      "subtitle": "Isang mabangis na mandirigmang Hawaiian ang nagsimula sa isang epikong misyon upang pag-isahin ang kanyang mga tao."
+    },
+    "slide3": {
+      "title": "Tungkod",
+      "subtitle": "Si Owen Wilson ay isang dating pro golfer na kumukuha ng malaking swing sa kanyang pangalawang pagkakataon sa nakakatuwang kuwento ng pagbabalik na ito."
+    },
+    "pricing": "7 araw na libre, pagkatapos ay $9.99/buwan.",
+    "badge-new": "Bago",
+    "genre-tv-show": "Palabas sa TV",
+    "genre-drama": "Drama",
+    "genre-action": "Aksyon",
+    "genre-comedy": "Komedi",
+    "genre-sports": "Palakasan",
+    "button-accept-free-trial": "Tanggapin ang Libreng Pagsubok",
+    "aria-label-hero-section": "Seksyon ng Bayani",
+    "title-previous-slide": "Nakaraang Slide",
+    "title-next-slide": "Susunod na Slide",
+    "title-pause": "I-pause",
+    "title-play": "I-play",
+    "title-pause-autoplay": "I-pause ang auto-play",
+    "title-resume-autoplay": "Ipagpatuloy ang auto-play"
+  },
+  "video-player": {
+    "default-title": "Video Player",
+    "browser-not-support": "Hindi sinusuportahan ng iyong browser ang pag-playback ng video.",
+    "download-video": "I-download ang video"
+  },
+  "header": {
+    "alt-apple-tv": "Apple TV",
+    "alt-external-link": "Panlabas na link",
+    "nav-apple-tv-plus": "Apple TV+",
+    "nav-mls": "MLS",
+    "search-placeholder": "Maghanap ng mga palabas, pelikula, at higit pa...",
+    "search-results-count": "{count} Resulta",
+    "search-results-count-plural-suffix": "",
+    "search-result-emmy": "Emmy®",
+    "search-result-new": "Bago",
+    "search-view-all-results": "Tingnan ang lahat ng {count} resulta →",
+    "search-no-results-found": "Walang nakitang resulta para sa \"{query}\"",
+    "search-try-searching": "Subukang maghanap ng mga palabas, pelikula, aktor, o genre",
+    "button-sign-in": "Mag-sign In",
+    "title-sign-in": "Mag-sign In",
+    "brand-name-open-tv": "Open TV"
+  }
+}

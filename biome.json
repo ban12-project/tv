@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -11,6 +12,23 @@
     "domains": {
       "next": "recommended",
       "react": "recommended"
+    },
+    "rules": {
+      "style": {
+        "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noUnknownAtRules": "off"
+      }
     }
+  },
+  "files": {
+    "includes": [
+      "app/**/*",
+      "components/**/*",
+      "hooks/**/*",
+      "lib/**/*",
+      "!components/ui/*"
+    ]
   }
 }
