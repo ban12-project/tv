@@ -77,3 +77,31 @@ export async function getTrending() {
     return [];
   }
 }
+
+export async function getCategory(id: string) {
+  try {
+    const categories = await sourceProvider.getCategories();
+    return categories.find((c) => c.type_id.toString() === id);
+  } catch (error) {
+    console.error(`Error fetching category ${id}:`, error);
+    return null;
+  }
+}
+
+export async function getCategoryVideos(id: string, page = 1) {
+  try {
+    return await sourceProvider.getVideos({
+      t: id,
+      pg: page,
+      ac: "detail",
+    });
+  } catch (error) {
+    console.error(`Error fetching videos for category ${id}:`, error);
+    return {
+      videos: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    };
+  }
+}

@@ -30,16 +30,6 @@ export default function WatchClient({
 
   return (
     <div className="min-h-screen w-full bg-black text-white flex flex-col">
-      {/* Header / Back Button */}
-      <div className="absolute top-0 left-0 p-4 z-50">
-        <Link
-          href={`/show/${video.id}`}
-          className="flex items-center text-white/70 hover:text-white transition-colors bg-black/50 p-2 rounded-full"
-        >
-          <ArrowLeft className="w-6 h-6" />
-        </Link>
-      </div>
-
       <div className="flex-1 flex flex-col">
         {/* Main Player Area */}
         <div className="w-full bg-black relative">

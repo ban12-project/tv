@@ -2,7 +2,6 @@ import { Download, Play, Plus, Share } from "lucide-react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchVideoDetails } from "@/app/actions/content";
-import Header from "@/components/header";
 import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
 import { getDictionary } from "@/get-dictionary";
@@ -26,9 +25,7 @@ export default async function WatchPage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Header dictionary={dictionary} />
-
+    <>
       {/* Hero / Detail Area */}
       <section className="relative h-[70vh] min-h-[600px]">
         <div className="absolute inset-0">
@@ -39,8 +36,8 @@ export default async function WatchPage({ params }: Props) {
             className="object-cover"
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/80 to-transparent h-32" />
+          <div className="absolute inset-0 bg-linear-to-t from-black via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/80 to-transparent h-32" />
         </div>
 
         <div className="relative h-full flex items-end pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -141,6 +138,6 @@ export default async function WatchPage({ params }: Props) {
           </div>
         </div>
       </section>
-    </div>
+    </>
   );
 }

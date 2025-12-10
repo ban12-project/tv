@@ -49,19 +49,19 @@ export function VideoCard({
         />
 
         {/* Optional Overlay on Hover */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 duration-300 flex items-center justify-center">
           <span className="text-white font-semibold tracking-wide drop-shadow-md">
             Play
           </span>
         </div>
       </div>
 
-      <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 group-focus-visible:opacity-100">
+      <div className="mt-3 duration-300 group-focus-visible:opacity-100">
         <h3 className="text-base font-medium text-white truncate w-full">
           {video.title}
         </h3>
         <p className="text-sm text-neutral-400 truncate">
-          {video.year} • {video.genre[0]}
+          {video.year} • {video.genre.join(", ")}
         </p>
       </div>
     </Link>

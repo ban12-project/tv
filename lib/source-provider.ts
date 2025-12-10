@@ -1,8 +1,7 @@
 import { MacCMSAdapter } from "./adapters/mac-cms-adapter";
-import type { VideoSourceAdapter } from "./adapters/types";
 
 // Factory to get the correct adapter
-export function getSourceProvider(): VideoSourceAdapter {
+export function getSourceProvider() {
   const apiUrl = process.env.MACCMS_API_URL;
 
   if (apiUrl) {

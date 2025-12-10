@@ -1,3 +1,5 @@
+"use client";
+
 import type { DialogProps } from "@radix-ui/react-dialog";
 import { Search } from "lucide-react";
 import Image from "next/image";

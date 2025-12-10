@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "img1.doubanio.com",
         pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "img.ffzy888.com",
+        pathname: "/**",
       }
     ],
   },
