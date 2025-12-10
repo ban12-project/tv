@@ -1,37 +1,22 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  reactCompiler: true,
   experimental: {
-    reactCompiler: true,
     viewTransition: true,
-    cacheComponents: true,
-    clientSegmentCache: true,
   },
   images: {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "source.unsplash.com",
+        hostname: "vip.dytt-img.com",
         pathname: "/**",
       },
       {
         protocol: "https",
-        hostname: "images.unsplash.com",
+        hostname: "img1.doubanio.com",
         pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ext.same-assets.com",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "ugc.same-assets.com",
-        pathname: "/**",
-      },
+      }
     ],
   },
 };

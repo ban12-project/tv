@@ -1,5 +1,11 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "css": {
+    "parser": {
+      "cssModules": true,
+      "tailwindDirectives": true
+    }
+  },
   "vcs": {
     "enabled": true,
     "clientKind": "git",
