@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { Messages } from "@/get-dictionary";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,10 @@ import { cn } from "@/lib/utils";
 interface WebKitHTMLVideoElement extends HTMLVideoElement {
   webkitShowPlaybackTargetPicker(): void;
   webkitCurrentPlaybackTargetIsWireless: boolean;
+  webkitEnterFullscreen?(): void;
+  webkitExitFullscreen?(): void;
+  webkitDisplayingFullscreen?: boolean;
+  webkitSupportsFullscreen?: boolean;
 }
 
 interface VideoPlayerProps {
@@ -78,6 +82,29 @@ export default function VideoPlayer({
 
     let hls: HlsType | null = null;
 
+    const handleFullscreenChange = () => {
+      const isDocFullscreen =
+        !!document.fullscreenElement ||
+        // @ts-expect-error - Vendor prefix
+        !!document.webkitFullscreenElement ||
+        // @ts-expect-error - Vendor prefix
+        !!document.mozFullScreenElement ||
+        // @ts-expect-error - Vendor prefix
+        !!document.msFullscreenElement;
+
+      setIsFullscreen(isDocFullscreen);
+    };
+
+    const handleWebkitEndFullscreen = () => {
+      setIsFullscreen(false);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("msfullscreenchange", handleFullscreenChange);
+    video.addEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
+
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
     };
@@ -118,77 +145,67 @@ export default function VideoPlayer({
     }
 
     const initHls = async () => {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS support
-      } else {
-        try {
-          const { default: Hls } = await import("hls.js");
+      if (video.canPlayType("application/vnd.apple.mpegurl")) return;
+      const { default: Hls } = await import("hls.js");
+      if (!Hls.isSupported()) return toast("HLS is not supported");
 
-          if (Hls.isSupported()) {
-            class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
-              constructor(config: HlsConfig) {
-                super(config);
-                const load = this.load.bind(this);
-                this.load = (context, config, callbacks) => {
-                  if (
-                    (context as unknown as { type: string }).type ===
-                      "manifest" ||
-                    (context as unknown as { type: string }).type === "level"
-                  ) {
-                    const onSuccess = callbacks.onSuccess;
-                    callbacks.onSuccess = (
-                      response,
-                      stats,
-                      context,
-                      networkDetails,
-                    ) => {
-                      if (response.data && typeof response.data === "string") {
-                        response.data = filterAdsFromM3U8(response.data);
-                      }
-                      return onSuccess(
-                        response,
-                        stats,
-                        context,
-                        networkDetails,
-                      );
-                    };
+      try {
+        class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
+          constructor(config: HlsConfig) {
+            super(config);
+            const load = this.load.bind(this);
+            this.load = (context, config, callbacks) => {
+              if (
+                (context as unknown as { type: string }).type === "manifest" ||
+                (context as unknown as { type: string }).type === "level"
+              ) {
+                const onSuccess = callbacks.onSuccess;
+                callbacks.onSuccess = (
+                  response,
+                  stats,
+                  context,
+                  networkDetails,
+                ) => {
+                  if (response.data && typeof response.data === "string") {
+                    response.data = filterAdsFromM3U8(response.data);
                   }
-                  load(context, config, callbacks);
+                  return onSuccess(response, stats, context, networkDetails);
                 };
               }
-            }
-
-            hls = new Hls({
-              loader: CustomHlsJsLoader as unknown as new (
-                conf: HlsConfig,
-              ) => Loader<LoaderContext>,
-            });
-            hls.loadSource(videoUrl);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-              if (autoPlay) video.play().catch(() => {});
-            });
-            hls.on(Hls.Events.ERROR, (_event, data) => {
-              if (data.fatal) {
-                switch (data.type) {
-                  case Hls.ErrorTypes.NETWORK_ERROR:
-                    hls?.startLoad();
-                    break;
-                  case Hls.ErrorTypes.MEDIA_ERROR:
-                    hls?.recoverMediaError();
-                    break;
-                  default:
-                    if (hls) {
-                      hls.destroy();
-                    }
-                    break;
-                }
-              }
-            });
+              load(context, config, callbacks);
+            };
           }
-        } catch (error) {
-          console.error("Failed to load Hls.js", error);
         }
+
+        hls = new Hls({
+          loader: CustomHlsJsLoader as unknown as new (
+            conf: HlsConfig,
+          ) => Loader<LoaderContext>,
+        });
+        hls.loadSource(videoUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (autoPlay) video.play().catch(() => {});
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls?.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls?.recoverMediaError();
+                break;
+              default:
+                if (hls) {
+                  hls.destroy();
+                }
+                break;
+            }
+          }
+        });
+      } catch (error) {
+        toast.error(`Failed to load Hls.js ${error}`);
       }
     };
 
@@ -218,6 +235,23 @@ export default function VideoPlayer({
           handleAirPlayAvailability as EventListener,
         );
       }
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange,
+      );
+      document.removeEventListener(
+        "mozfullscreenchange",
+        handleFullscreenChange,
+      );
+      document.removeEventListener(
+        "msfullscreenchange",
+        handleFullscreenChange,
+      );
+      video.removeEventListener(
+        "webkitendfullscreen",
+        handleWebkitEndFullscreen,
+      );
     };
   }, [videoUrl, autoPlay]);
 
@@ -314,14 +348,25 @@ export default function VideoPlayer({
   const toggleFullscreen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     const container = videoRef.current?.parentElement;
-    if (!container) return;
+    const video = videoRef.current as unknown as WebKitHTMLVideoElement;
+    if (!container || !video) return;
 
-    if (!document.fullscreenElement) {
-      container.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+    if (document.fullscreenEnabled) {
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch((err) => {
+          console.error(
+            `Error attempting to enable fullscreen: ${err.message}`,
+          );
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    } else if (video.webkitSupportsFullscreen) {
+      if (video.webkitDisplayingFullscreen) {
+        video.webkitExitFullscreen?.();
+      } else {
+        video.webkitEnterFullscreen?.();
+      }
     }
   };
 
@@ -384,10 +429,8 @@ export default function VideoPlayer({
         poster={poster}
         playsInline
         preload="metadata"
-        style={{ viewTransitionName: "video-element" }}
+        src={videoUrl}
       >
-        <source src={videoUrl} type="application/vnd.apple.mpegurl" />
-        <source src={videoUrl} type="video/mp4" />
         <track kind="captions" srcLang="en" />
         <p className="text-white p-4">
           {dict["video-player"]["browser-not-support"]}
@@ -414,7 +457,7 @@ export default function VideoPlayer({
       {/* Controls */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-4 sm:p-6 transition-opacity duration-300 will-change-[opacity,transform]",
+          "absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-4 sm:p-6 transition-[opacity,translate] duration-300 will-change-[opacity,translate]",
           showControls || !isPlaying
             ? "opacity-100 translate-y-0"
             : "opacity-0 translate-y-4 pointer-events-none",
@@ -432,7 +475,7 @@ export default function VideoPlayer({
         {/* Progress Bar */}
         <div
           ref={progressContainerRef}
-          className="mb-4 group/progress relative py-2 cursor-pointer touch-none"
+          className="sm:mb-4 group/progress relative py-2 cursor-pointer touch-none"
           role="slider" // Changed to slider
           aria-label="Seek Slider"
           aria-valuemin={0}

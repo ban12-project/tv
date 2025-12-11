@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { fetchVideoDetails } from "@/app/actions/content";
+import { Skeleton } from "@/components/ui/skeleton";
 import WatchClient from "@/components/watch-client";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import type { Episode } from "@/lib/adapters/types";
-
-export const dynamic = "force-dynamic";
 
 type Props = Readonly<{
   params: Promise<{
@@ -16,7 +15,17 @@ type Props = Readonly<{
   }>;
 }>;
 
-export default async function WatchPage({ params }: Props) {
+export default function WatchPage({ params }: Props) {
+  return (
+    <ViewTransition>
+      <Suspense fallback={<Loading />}>
+        <Suspended params={params} />
+      </Suspense>
+    </ViewTransition>
+  );
+}
+
+async function Suspended({ params }: Props) {
   const { lang, id, ep } = await params;
   const dictionary = await getDictionary(lang);
   const video = await fetchVideoDetails(id);
@@ -24,13 +33,6 @@ export default async function WatchPage({ params }: Props) {
   if (!video) {
     notFound();
   }
-
-  // Parse episodes from vod_play_url
-  // ... (parsing logic remains the same, assuming valid)
-  // But wait, I need to make sure I don't delete the parsing logic if I'm replacing the whole function or parts.
-  // I will use replace_file_content carefully.
-  // Actually, I can just update the Props and the arguments, and the <WatchClient> call.
-  // Let's do partial edits.
 
   const episodeIndex = parseInt(ep, 10) - 1;
   const validIndex =
@@ -72,20 +74,69 @@ export default async function WatchPage({ params }: Props) {
   // (Covered by split condition above if it didn't have #)
 
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-black flex items-center justify-center text-white">
-          Loading...
+    <WatchClient
+      video={video}
+      episodes={episodes}
+      dictionary={dictionary}
+      lang={lang}
+      episodeIndex={validIndex}
+    />
+  );
+}
+
+function Loading() {
+  return (
+    <div className="min-h-screen w-full bg-black text-white flex flex-col">
+      <div className="flex-1 flex flex-col">
+        {/* Main Player Area Skeleton */}
+        <div className="w-full bg-black relative">
+          <div className="w-full flex items-center justify-center">
+            <div className="w-full max-w-5xl aspect-video bg-neutral-900 animate-pulse relative">
+              {/* Play Button Placeholder */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-white/10" />
+              </div>
+            </div>
+          </div>
         </div>
-      }
-    >
-      <WatchClient
-        video={video}
-        episodes={episodes}
-        dictionary={dictionary}
-        lang={lang}
-        episodeIndex={validIndex}
-      />
-    </Suspense>
+
+        {/* Episode Selector Skeleton */}
+        <div className="w-full flex-1 flex flex-col mt-8">
+          <div className="px-4 md:px-12 mb-4 space-y-2">
+            {/* Header Skeleton */}
+            <Skeleton className="h-8 w-32 bg-white/10" />
+            {/* Subheader/Show Title Skeleton */}
+            <Skeleton className="h-5 w-48 bg-white/10" />
+          </div>
+
+          <div className="w-full overflow-hidden pb-12 px-4 md:px-12">
+            <div className="flex gap-4">
+              {/* Generate a few card skeletons */}
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="flex-none w-72 md:w-80 flex flex-col gap-2"
+                >
+                  {/* Thumbnail Skeleton */}
+                  <Skeleton className="aspect-video w-full rounded-lg bg-neutral-800" />
+
+                  <div className="flex flex-col px-1 mt-2 space-y-2">
+                    {/* Title Skeleton */}
+                    <Skeleton className="h-5 w-3/4 bg-white/10" />
+                    {/* Duration Skeleton */}
+                    <Skeleton className="h-4 w-12 bg-white/10" />
+                    {/* Description Skeleton */}
+                    <div className="space-y-1 mt-1">
+                      <Skeleton className="h-3 w-full bg-white/10" />
+                      <Skeleton className="h-3 w-2/3 bg-white/10" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

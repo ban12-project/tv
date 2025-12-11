@@ -2,12 +2,27 @@ import { notFound } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import { getCategory, getCategoryVideos } from "@/app/actions/content";
 import { VideoCard } from "@/components/video-card";
+import { i18n } from "@/i18n-config";
+import { sourceProvider } from "@/lib/source-provider";
 
 interface CategoryPageProps {
   params: Promise<{
     id: string;
     lang: string;
   }>;
+}
+
+export async function generateStaticParams() {
+  const categories = await sourceProvider.getCategories();
+
+  return i18n.locales.map((locale) =>
+    categories
+      .filter((category) => category.type_pid !== 0)
+      .map((category) => ({
+        id: category.type_id,
+        lang: locale,
+      })),
+  );
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {

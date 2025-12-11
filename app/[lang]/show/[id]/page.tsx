@@ -1,10 +1,11 @@
 import { Download, Play, Plus, Share } from "lucide-react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Suspense, ViewTransition } from "react";
 import { fetchVideoDetails } from "@/app/actions/content";
 import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
-import { getDictionary } from "@/get-dictionary";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Locale } from "@/i18n-config";
 
 type Props = Readonly<{
@@ -14,9 +15,18 @@ type Props = Readonly<{
   }>;
 }>;
 
-export default async function WatchPage({ params }: Props) {
-  const { lang, id } = await params;
-  const dictionary = await getDictionary(lang);
+export default function WatchPage({ params }: Props) {
+  return (
+    <ViewTransition>
+      <Suspense fallback={<Loading />}>
+        <Suspended params={params} />
+      </Suspense>
+    </ViewTransition>
+  );
+}
+
+async function Suspended({ params }: Props) {
+  const { id } = await params;
 
   const video = await fetchVideoDetails(id);
 
@@ -135,6 +145,81 @@ export default async function WatchPage({ params }: Props) {
                 <span className="text-white">{video.releaseDate}</span>
               </div>
             )}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Loading() {
+  return (
+    <>
+      {/* Hero / Detail Area Skeleton */}
+      <section className="relative h-[70vh] min-h-[600px]">
+        {/* Background Skeleton */}
+        <div className="absolute inset-0 bg-neutral-900" />
+
+        <div className="relative h-full flex items-end pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="w-full max-w-3xl space-y-6">
+            {/* Title Skeleton */}
+            <Skeleton className="h-12 md:h-16 w-3/4 max-w-lg bg-white/10" />
+
+            {/* Metadata (Year, Genre, Duration) Skeleton */}
+            <div className="flex items-center space-x-4">
+              <Skeleton className="h-5 w-12 bg-white/10" />
+              <span className="text-gray-700">•</span>
+              <Skeleton className="h-5 w-32 bg-white/10" />
+              <span className="text-gray-700">•</span>
+              <Skeleton className="h-5 w-16 bg-white/10" />
+            </div>
+
+            {/* Description Skeleton (multiple lines) */}
+            <div className="space-y-2 pt-2">
+              <Skeleton className="h-5 w-full bg-white/10" />
+              <Skeleton className="h-5 w-full bg-white/10" />
+              <Skeleton className="h-5 w-2/3 bg-white/10" />
+            </div>
+
+            {/* Buttons Skeleton */}
+            <div className="flex flex-wrap gap-4 pt-4">
+              <Skeleton className="h-12 w-32 rounded-md bg-white/10" />
+              <Skeleton className="h-12 w-36 rounded-md bg-white/10" />
+              <Skeleton className="h-10 w-10 rounded-full bg-white/10" />
+              <Skeleton className="h-10 w-10 rounded-full bg-white/10" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Additional Details Skeleton */}
+      <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          {/* Cast Skeleton */}
+          <div className="md:col-span-2 space-y-8">
+            <div>
+              <Skeleton className="h-7 w-24 mb-4 bg-white/10" />
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton
+                    key={i}
+                    className="h-8 w-24 rounded-full bg-white/10"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Director / Release Date Skeleton */}
+          <div className="space-y-6">
+            <div>
+              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
+              <Skeleton className="h-5 w-32 bg-white/10" />
+            </div>
+            <div>
+              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
+              <Skeleton className="h-5 w-24 bg-white/10" />
+            </div>
           </div>
         </div>
       </section>

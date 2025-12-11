@@ -1,8 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
 import { EpisodeCard } from "@/components/episode-card";
-import Link from "@/components/link";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
 import type { Episode, Video } from "@/lib/adapters/types";
@@ -34,7 +32,7 @@ export default function WatchClient({
         {/* Main Player Area */}
         <div className="w-full bg-black relative">
           {currentEpisode ? (
-            <div className="w-full flex items-center justify-center p-4 lg:p-0">
+            <div className="w-full flex items-center justify-center">
               <div className="w-full max-w-5xl aspect-video">
                 <VideoPlayer
                   videoUrl={currentEpisode.url}
