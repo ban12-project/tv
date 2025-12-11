@@ -3,8 +3,8 @@ import { Suspense, ViewTransition } from "react";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
-import { Button } from "@/components/ui/button";
 import { sourceProvider } from "@/lib/source-provider";
+import LinkPasskey from "./link-passkey";
 
 async function MenuLoader() {
   const categories = await sourceProvider.getCategories();
@@ -37,9 +37,7 @@ export default function Header() {
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
               <SearchDialog />
-              <Button variant="secondary" size="sm" className="hidden sm:flex">
-                Sign In
-              </Button>
+              <LinkPasskey />
             </div>
           </div>
         </div>

@@ -34,7 +34,8 @@
       "components/**/*",
       "hooks/**/*",
       "lib/**/*",
-      "!components/ui/*"
+      "!components/ui/*",
+      "!lib/db/migrations/*"
     ]
   }
 }
