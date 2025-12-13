@@ -36,81 +36,72 @@ export default function VideoPlayer({
     if (!video) return;
 
     let hls: HlsType | null = null;
-
     const initHls = async () => {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) return;
       const { default: Hls } = await import("hls.js");
-      if (!Hls.isSupported()) {
-        toast("HLS is not supported");
-        return;
+      if (!Hls.isSupported()) return toast("HLS is not supported");
+
+      class CustomLoader extends Hls.DefaultConfig.loader {
+        constructor(config: HlsConfig) {
+          super(config);
+          const load = this.load.bind(this);
+          this.load = (context, config, callback) => {
+            const { type } = context as unknown as {
+              type: "manifest" | "level";
+            };
+            if (type === "manifest" || type === "level") {
+              const onSuccess = callback.onSuccess;
+              callback.onSuccess = (
+                response,
+                stats,
+                context,
+                networkDetails,
+              ) => {
+                if (typeof response.data === "string") {
+                  response.data = filterAdsFromM3U8(response.data);
+                }
+                return onSuccess(response, stats, context, networkDetails);
+              };
+            }
+            load(context, config, callback);
+          };
+        }
       }
 
-      try {
-        class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
-          constructor(config: HlsConfig) {
-            super(config);
-            const load = this.load.bind(this);
-            this.load = (context, config, callbacks) => {
-              if (
-                (context as unknown as { type: string }).type === "manifest" ||
-                (context as unknown as { type: string }).type === "level"
-              ) {
-                const onSuccess = callbacks.onSuccess;
-                callbacks.onSuccess = (
-                  response,
-                  stats,
-                  context,
-                  networkDetails,
-                ) => {
-                  if (response.data && typeof response.data === "string") {
-                    response.data = filterAdsFromM3U8(response.data);
-                  }
-                  return onSuccess(response, stats, context, networkDetails);
-                };
-              }
-              load(context, config, callbacks);
-            };
+      hls = new Hls({
+        loader: CustomLoader,
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (autoPlay) video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls?.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls?.recoverMediaError();
+              break;
+            default:
+              hls?.destroy();
+              break;
           }
         }
-
-        hls = new Hls({
-          loader: CustomHlsJsLoader as unknown as new (
-            conf: HlsConfig,
-          ) => Loader<LoaderContext>,
-        });
-        hls.loadSource(videoUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (autoPlay) video.play().catch(() => {});
-        });
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                hls?.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                hls?.recoverMediaError();
-                break;
-              default:
-                if (hls) {
-                  hls.destroy();
-                }
-                break;
-            }
-          }
-        });
-      } catch (error) {
-        toast.error(`Failed to load Hls.js ${error}`);
-      }
+      });
+      hls.loadSource(videoUrl);
+      hls.attachMedia(video);
     };
 
-    initHls();
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = videoUrl;
+      video.load();
+      if (autoPlay) video.play().catch(() => {});
+    } else {
+      initHls();
+    }
 
     return () => {
-      if (hls) {
-        hls.destroy();
-      }
+      hls?.destroy();
     };
   }, [videoUrl, autoPlay]);
 
@@ -193,7 +184,6 @@ export default function VideoPlayer({
         poster={poster}
         playsInline
         preload="metadata"
-        src={videoUrl}
         controls
         autoPlay={autoPlay}
       >

@@ -39,7 +39,6 @@ export function EpisodeCard({
 
   useEffect(() => {
     if (isVisible && !hasFetched) {
-      console.log(`Episode ${index + 1} came into view. Fetching details...`);
       setHasFetched(true);
 
       // Simulate API call or fetch real data here if available
@@ -53,7 +52,7 @@ export function EpisodeCard({
 
       return () => clearTimeout(timer);
     }
-  }, [isVisible, hasFetched, index, video]);
+  }, [isVisible, hasFetched, video]);
 
   return (
     <div ref={ref} className="flex-none w-72 md:w-80 flex flex-col gap-2 group">
