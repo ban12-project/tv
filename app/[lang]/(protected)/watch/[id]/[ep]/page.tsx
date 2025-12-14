@@ -29,6 +29,8 @@ async function Suspended({ params }: Props) {
   const { lang, id, ep } = await params;
   const dictionary = await getDictionary(lang);
   const video = await fetchVideoDetails(id);
+  // sleep 3s
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   if (!video) {
     notFound();
@@ -74,69 +76,163 @@ async function Suspended({ params }: Props) {
   // (Covered by split condition above if it didn't have #)
 
   return (
-    <WatchClient
-      video={video}
-      episodes={episodes}
-      dictionary={dictionary}
-      lang={lang}
-      episodeIndex={validIndex}
-    />
+    <main className="grid gap-8">
+      <WatchClient
+        video={video}
+        episodes={episodes}
+        dictionary={dictionary}
+        lang={lang}
+        episodeIndex={validIndex}
+      />
+
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-3xl space-y-6">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+            {video.title}
+          </h1>
+
+          <div className="flex items-center space-x-4 text-sm md:text-base text-gray-300 font-medium">
+            {video.year && <span>{video.year}</span>}
+            <span>•</span>
+            <span>{video.genre.join(", ")}</span>
+            {video.duration && (
+              <>
+                <span>•</span>
+                <span>{video.duration}</span>
+              </>
+            )}
+          </div>
+
+          <p className="text-lg text-gray-100 leading-relaxed line-clamp-4">
+            {video.description}
+          </p>
+        </div>
+      </section>
+
+      {/* Additional Details */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="md:col-span-2 space-y-8">
+            {/* Cast */}
+            {video.cast && video.cast.length > 0 && (
+              <div>
+                <h3 className="text-xl font-semibold mb-4 text-gray-200">
+                  Cast
+                </h3>
+                <div className="flex flex-wrap gap-2 text-gray-400">
+                  {video.cast.map((c) => (
+                    <span
+                      key={c}
+                      className="bg-neutral-900 px-3 py-1 rounded-full border border-neutral-800"
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6 text-sm text-gray-400">
+            {video.director && (
+              <div>
+                <span className="block text-gray-500 mb-1">Director</span>
+                <span className="text-white">{video.director}</span>
+              </div>
+            )}
+            {video.releaseDate && (
+              <div>
+                <span className="block text-gray-500 mb-1">Released</span>
+                <span className="text-white">{video.releaseDate}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
 
 function Loading() {
   return (
-    <div className="min-h-screen w-full bg-black text-white flex flex-col">
-      <div className="flex-1 flex flex-col">
-        {/* Main Player Area Skeleton */}
-        <div className="w-full bg-black relative">
-          <div className="w-full flex items-center justify-center">
-            <div className="w-full max-w-5xl aspect-video bg-neutral-900 animate-pulse relative">
-              {/* Play Button Placeholder */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-white/10" />
+    <main className="grid gap-8">
+      {/* Main Player Area Skeleton */}
+      <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video bg-neutral-900 animate-pulse relative">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-white/10" />
+        </div>
+      </div>
+
+      {/* Episode Selector Skeleton */}
+      <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+        <li className="flex flex-wrap gap-2">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <Skeleton
+              // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+              key={i}
+              className="w-12 h-12 rounded-lg bg-neutral-800"
+            />
+          ))}
+        </li>
+      </ul>
+
+      {/* Info Section Skeleton */}
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-3xl space-y-6">
+          {/* Title */}
+          <Skeleton className="h-10 md:h-16 w-3/4 bg-white/10" />
+
+          {/* Metadata */}
+          <div className="flex items-center space-x-4">
+            <Skeleton className="h-5 w-12 bg-white/10" />
+            <span className="text-gray-600">•</span>
+            <Skeleton className="h-5 w-32 bg-white/10" />
+            <span className="text-gray-600">•</span>
+            <Skeleton className="h-5 w-16 bg-white/10" />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-full bg-white/10" />
+            <Skeleton className="h-5 w-full bg-white/10" />
+            <Skeleton className="h-5 w-2/3 bg-white/10" />
+          </div>
+        </div>
+      </section>
+
+      {/* Additional Details Skeleton */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="md:col-span-2 space-y-8">
+            {/* Cast */}
+            <div>
+              <Skeleton className="h-7 w-16 mb-4 bg-white/10" />
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton
+                    // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                    key={i}
+                    className="h-8 w-24 rounded-full bg-neutral-900 border border-neutral-800"
+                  />
+                ))}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Episode Selector Skeleton */}
-        <div className="w-full flex-1 flex flex-col mt-8">
-          <div className="px-4 md:px-12 mb-4 space-y-2">
-            {/* Header Skeleton */}
-            <Skeleton className="h-8 w-32 bg-white/10" />
-            {/* Subheader/Show Title Skeleton */}
-            <Skeleton className="h-5 w-48 bg-white/10" />
-          </div>
-
-          <div className="w-full overflow-hidden pb-12 px-4 md:px-12">
-            <div className="flex gap-4">
-              {/* Generate a few card skeletons */}
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="flex-none w-72 md:w-80 flex flex-col gap-2"
-                >
-                  {/* Thumbnail Skeleton */}
-                  <Skeleton className="aspect-video w-full rounded-lg bg-neutral-800" />
-
-                  <div className="flex flex-col px-1 mt-2 space-y-2">
-                    {/* Title Skeleton */}
-                    <Skeleton className="h-5 w-3/4 bg-white/10" />
-                    {/* Duration Skeleton */}
-                    <Skeleton className="h-4 w-12 bg-white/10" />
-                    {/* Description Skeleton */}
-                    <div className="space-y-1 mt-1">
-                      <Skeleton className="h-3 w-full bg-white/10" />
-                      <Skeleton className="h-3 w-2/3 bg-white/10" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-6">
+            {/* Director */}
+            <div>
+              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
+              <Skeleton className="h-5 w-32 bg-white/10" />
+            </div>
+            {/* Release Date */}
+            <div>
+              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
+              <Skeleton className="h-5 w-24 bg-white/10" />
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
