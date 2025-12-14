@@ -18,7 +18,10 @@ interface VideoPlayerProps {
 
 function filterAdsFromM3U8(content: string): string {
   // #EXT-X-DISCONTINUITY - https://developer.apple.com/documentation/http-live-streaming/incorporating-ads-into-a-playlist
-  return content.replace(/.*#EXT-X-DISCONTINUITY.*(\r?\n|\r|$)/gm, "");
+  return content
+    .split("\n")
+    .filter((line) => !line.includes("#EXT-X-DISCONTINUITY"))
+    .join("\n");
 }
 
 export default function VideoPlayer({
@@ -36,7 +39,14 @@ export default function VideoPlayer({
     let hls: HlsType | null = null;
     const initHls = async () => {
       const { default: Hls } = await import("hls.js");
-      if (!Hls.isSupported()) return toast("HLS is not supported");
+      if (!Hls.isSupported()) {
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = videoUrl;
+          video.load();
+          if (autoPlay) video.play().catch(() => {});
+        }
+        return;
+      }
 
       class CustomLoader extends Hls.DefaultConfig.loader {
         constructor(config: HlsConfig) {
