@@ -17,17 +17,8 @@ interface VideoPlayerProps {
 }
 
 function filterAdsFromM3U8(content: string): string {
-  const lines = content.split("\n");
-  const filteredLines = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line.includes("#EXT-X-DISCONTINUITY")) {
-      filteredLines.push(line);
-    }
-  }
-
-  return filteredLines.join("\n");
+  // #EXT-X-DISCONTINUITY - https://developer.apple.com/documentation/http-live-streaming/incorporating-ads-into-a-playlist
+  return content.replace(/.*#EXT-X-DISCONTINUITY.*(\r?\n|\r|$)/gm, "");
 }
 
 export default function VideoPlayer({
@@ -99,13 +90,7 @@ export default function VideoPlayer({
       hls.attachMedia(video);
     };
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = videoUrl;
-      video.load();
-      if (autoPlay) video.play().catch(() => {});
-    } else {
-      initHls();
-    }
+    initHls();
 
     return () => {
       hls?.destroy();
