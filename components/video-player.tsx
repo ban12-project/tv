@@ -3,7 +3,6 @@
 import type HlsType from "hls.js"; // Type-only import
 import type { HlsConfig } from "hls.js";
 import * as React from "react";
-import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
 import { cn } from "@/lib/utils";
 
