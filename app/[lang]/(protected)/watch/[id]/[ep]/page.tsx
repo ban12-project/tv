@@ -29,8 +29,6 @@ async function Suspended({ params }: Props) {
   const { lang, id, ep } = await params;
   const dictionary = await getDictionary(lang);
   const video = await fetchVideoDetails(id);
-  // sleep 3s
-  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   if (!video) {
     notFound();
