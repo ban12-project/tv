@@ -155,8 +155,8 @@ function Loading() {
   return (
     <main className="grid gap-8">
       {/* Main Player Area Skeleton */}
-      <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video bg-neutral-900 animate-pulse relative">
-        <div className="absolute inset-0 flex items-center justify-center">
+      <div className="w-full max-w-7xl mx-auto aspect-video relative">
+        <div className="absolute inset-0 lg:mx-8 bg-neutral-900 animate-pulse flex items-center justify-center">
           <div className="w-16 h-16 rounded-full bg-white/10" />
         </div>
       </div>

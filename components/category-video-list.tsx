@@ -162,7 +162,7 @@ export function CategoryVideoList({
           <PaginationContent>
             <PaginationItem>
               <PaginationPrevious
-                href="#"
+                href={`?page=${currentPage - 1}`}
                 onClick={(e: React.MouseEvent) => {
                   e.preventDefault();
                   handlePageChange(currentPage - 1);
@@ -177,7 +177,7 @@ export function CategoryVideoList({
 
             <PaginationItem>
               <PaginationNext
-                href="#"
+                href={`?page=${currentPage + 1}`}
                 onClick={(e: React.MouseEvent) => {
                   e.preventDefault();
                   handlePageChange(currentPage + 1);
