@@ -114,7 +114,7 @@ async function Suspended({ params }: Props) {
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
             {video.cast && video.cast.length > 0 && (
-              <div>
+              <>
                 <h3 className="text-xl font-semibold mb-4 text-gray-200">
                   Cast
                 </h3>
@@ -128,7 +128,7 @@ async function Suspended({ params }: Props) {
                     </span>
                   ))}
                 </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -197,16 +197,14 @@ function Loading() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           {/* Cast Skeleton */}
           <div className="md:col-span-2 space-y-8">
-            <div>
-              <Skeleton className="h-7 w-24 mb-4 bg-white/10" />
-              <div className="flex flex-wrap gap-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton
-                    key={i}
-                    className="h-8 w-24 rounded-full bg-white/10"
-                  />
-                ))}
-              </div>
+            <Skeleton className="h-7 w-24 mb-4 bg-white/10" />
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton
+                  key={i}
+                  className="h-8 w-24 rounded-full bg-white/10"
+                />
+              ))}
             </div>
           </div>
 

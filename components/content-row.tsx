@@ -55,6 +55,7 @@ export function ContentRow({ title, videos }: ContentRowProps) {
             <VideoCard
               key={video.id + video.title}
               video={video}
+              width={400}
               className="snap-start"
             />
           ))}

@@ -14,8 +14,8 @@ interface VideoCardProps {
 export function VideoCard({
   video,
   className,
-  width = 400,
-  height = 225,
+  width,
+  height,
   aspectRatio = "16/9",
 }: VideoCardProps) {
   return (
@@ -36,8 +36,8 @@ export function VideoCard({
               : "aspect-square",
         )}
         style={{
-          width: aspectRatio === "16/9" ? width : "auto",
-          height: aspectRatio === "2/3" ? height : "auto",
+          width: width ? width : "auto",
+          height: height ? height : "auto",
         }}
       >
         <Image

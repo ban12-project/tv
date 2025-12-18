@@ -108,12 +108,12 @@ async function Suspended({ params }: Props) {
       </section>
 
       {/* Additional Details */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
             {video.cast && video.cast.length > 0 && (
-              <div>
+              <>
                 <h3 className="text-xl font-semibold mb-4 text-gray-200">
                   Cast
                 </h3>
@@ -127,7 +127,7 @@ async function Suspended({ params }: Props) {
                     </span>
                   ))}
                 </div>
-              </div>
+              </>
             )}
           </div>
 
@@ -203,17 +203,15 @@ function Loading() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
-            <div>
-              <Skeleton className="h-7 w-16 mb-4 bg-white/10" />
-              <div className="flex flex-wrap gap-2">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton
-                    // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-                    key={i}
-                    className="h-8 w-24 rounded-full bg-neutral-900 border border-neutral-800"
-                  />
-                ))}
-              </div>
+            <Skeleton className="h-7 w-16 mb-4 bg-white/10" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton
+                  // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                  key={i}
+                  className="h-8 w-24 rounded-full bg-neutral-900 border border-neutral-800"
+                />
+              ))}
             </div>
           </div>
 
