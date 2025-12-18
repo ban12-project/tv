@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  cacheComponents: true,
   experimental: {
     viewTransition: true,
   },
@@ -27,7 +28,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
@@ -60,5 +61,9 @@ export default withSentryConfig(nextConfig, {
     // https://docs.sentry.io/product/crons/
     // https://vercel.com/docs/cron-jobs
     automaticVercelMonitors: true,
-  }
-});
+  },
+})
+
+export default process.env.CI
+  ? sentryConfig
+  : nextConfig;

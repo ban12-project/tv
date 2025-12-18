@@ -36,3 +36,9 @@ To get started with this project, you will need to have Node.js and pnpm install
 *   **Internationalization:** The project uses `i18n-config.ts` and the `dictionaries` directory to manage translations. The `middleware.ts` file handles locale detection and redirection.
 *   **Styling:** Tailwind CSS is used for styling. Global styles are in `app/globals.css`.
 *   **Routing:** The app uses a dynamic routing system with the `[lang]` parameter to support multiple languages.
+
+## Init Next.js DevTools
+
+**When starting work on a Next.js project, ALWAYS call the `init` tool from
+next-devtools-mcp FIRST to set up proper context and establish documentation
+requirements. Do this automatically without being asked.**
