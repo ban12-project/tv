@@ -4,6 +4,8 @@ import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getDictionary } from "@/get-dictionary";
+import type { Locale } from "@/i18n-config";
 import { sourceProvider } from "@/lib/source-provider";
 import LinkPasskey from "./link-passkey";
 
@@ -12,7 +14,12 @@ async function MenuLoader() {
   return <Menu categories={categories} />;
 }
 
-export default function Header() {
+export default async function Header({
+  params,
+}: Pick<LayoutProps<"/[lang]">, "params">) {
+  const { lang } = await params;
+  const dictionary = await getDictionary(lang as Locale);
+
   return (
     <ScrollAwareHeader>
       <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-black/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-white/10">
@@ -21,7 +28,7 @@ export default function Header() {
             {/* Logo and Navigation */}
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center space-x-2">
-                Home
+                {dictionary.header.home}
               </Link>
 
               <ViewTransition>

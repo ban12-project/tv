@@ -36,6 +36,7 @@
     "download-video": "Download the video"
   },
   "header": {
+    "home": "Home",
     "alt-apple-tv": "Apple TV",
     "alt-external-link": "External link",
     "nav-apple-tv-plus": "Apple TV+",

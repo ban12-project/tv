@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "../globals.css";
 import { ThemeProvider } from "next-themes";
+import { LocaleProvider } from "@/components/i18n";
 import { Toaster } from "@/components/ui/sonner";
 import { getDictionary } from "@/get-dictionary";
 import { i18n, type Locale } from "@/i18n-config";
@@ -95,7 +96,9 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <LocaleProvider locale={lang as Locale} i18n={i18n}>
+            {children}
+          </LocaleProvider>
           <Toaster />
         </ThemeProvider>
       </body>

@@ -37,7 +37,7 @@ async function Suspended({ params }: Props) {
   return (
     <>
       {/* Hero / Detail Area */}
-      <section className="relative h-[70vh] min-h-[600px]">
+      <section className="relative h-[70vh] min-h-150">
         <div className="absolute inset-0">
           <Image
             src={video.backgroundImage || video.image || "/placeholder.jpg"}
@@ -156,7 +156,7 @@ function Loading() {
   return (
     <>
       {/* Hero / Detail Area Skeleton */}
-      <section className="relative h-[70vh] min-h-[600px]">
+      <section className="relative h-[70vh] min-h-150">
         {/* Background Skeleton */}
         <div className="absolute inset-0 bg-neutral-900" />
 

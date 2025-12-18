@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   return (
     <>
-      <Header />
+      <Header params={props.params} />
 
       <Suspense
         fallback={
