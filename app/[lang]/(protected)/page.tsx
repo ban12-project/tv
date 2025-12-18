@@ -1,3 +1,4 @@
+import { Loader2Icon } from "lucide-react";
 import { Suspense, ViewTransition } from "react";
 import { fetchHomeContent } from "@/app/actions/content";
 import { ContentRow } from "@/components/content-row";
@@ -8,7 +9,11 @@ export default function Home() {
     <main>
       <ViewTransition>
         <Suspense
-          fallback={<div className="h-[85vh] bg-neutral-900 animate-pulse" />}
+          fallback={
+            <div className="flex h-screen items-center justify-center">
+              <Loader2Icon className="animate-spin" />
+            </div>
+          }
         >
           <Suspended />
         </Suspense>

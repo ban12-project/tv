@@ -1,26 +1,29 @@
-import { Loader2 } from "lucide-react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import Header from "@/components/header";
+import Lock from "@/components/lock";
 import { auth } from "@/lib/auth";
 
 export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   return (
-    <ViewTransition>
+    <>
+      <Header />
+
       <Suspense
         fallback={
-          <div className="flex h-screen items-center justify-center">
-            <Loader2 className="animate-spin" />
-          </div>
+          <ViewTransition>
+            <div className="flex h-screen items-center justify-center">
+              <Lock />
+            </div>
+          </ViewTransition>
         }
       >
-        <Suspended {...props}>
-          <Header />
-          {props.children}
-        </Suspended>
+        <ViewTransition>
+          <Suspended {...props}>{props.children}</Suspended>
+        </ViewTransition>
       </Suspense>
-    </ViewTransition>
+    </>
   );
 }
 

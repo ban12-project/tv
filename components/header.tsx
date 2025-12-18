@@ -3,6 +3,7 @@ import { Suspense, ViewTransition } from "react";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { sourceProvider } from "@/lib/source-provider";
 import LinkPasskey from "./link-passkey";
 
@@ -24,11 +25,7 @@ export default function Header() {
               </Link>
 
               <ViewTransition>
-                <Suspense
-                  fallback={
-                    <div className="hidden md:flex h-6 w-64 bg-white/5 rounded animate-pulse" />
-                  }
-                >
+                <Suspense>
                   <MenuLoader />
                 </Suspense>
               </ViewTransition>
@@ -37,7 +34,9 @@ export default function Header() {
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
               <SearchDialog />
-              <LinkPasskey />
+              <Suspense fallback={<Skeleton className="w-12 h-8" />}>
+                <LinkPasskey />
+              </Suspense>
             </div>
           </div>
         </div>
