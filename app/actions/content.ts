@@ -1,6 +1,7 @@
 "use server";
 
-import { z } from "zod";
+import { cacheLife, cacheTag } from "next/cache";
+import * as z from "zod";
 import { sourceProvider } from "@/lib/source-provider";
 
 const searchSchema = z.object({
@@ -11,6 +12,10 @@ const searchSchema = z.object({
 });
 
 export async function fetchHomeContent() {
+  "use cache";
+  cacheTag("home");
+  cacheLife("hours");
+
   try {
     const data = await sourceProvider.getHomeModules();
     return data;
@@ -22,6 +27,10 @@ export async function fetchHomeContent() {
 }
 
 export async function fetchVideoDetails(id: string) {
+  "use cache";
+  cacheTag(`video-${id}`);
+  cacheLife("days");
+
   try {
     const video = await sourceProvider.getDetails(id);
     return video;
@@ -59,6 +68,10 @@ export async function searchVideos(_prevState: unknown, formData: FormData) {
 }
 
 export async function quickSearch(query: string) {
+  "use cache";
+  cacheTag(`search-${query}`);
+  cacheLife("minutes");
+
   try {
     if (!query) return [];
     const results = await sourceProvider.search(query);
@@ -69,6 +82,10 @@ export async function quickSearch(query: string) {
   }
 }
 export async function getTrending() {
+  "use cache";
+  cacheTag("trending");
+  cacheLife("hours");
+
   try {
     const modules = await sourceProvider.getHomeModules();
     return modules.trending;
@@ -79,6 +96,10 @@ export async function getTrending() {
 }
 
 export async function getCategory(id: string) {
+  "use cache";
+  cacheTag(`category-${id}`);
+  cacheLife("days");
+
   try {
     const categories = await sourceProvider.getCategories();
     return categories.find((c) => c.type_id.toString() === id);
@@ -89,6 +110,10 @@ export async function getCategory(id: string) {
 }
 
 export async function getCategoryVideos(id: string, page = 1) {
+  "use cache";
+  cacheTag(`category-${id}`);
+  cacheLife("hours");
+
   try {
     return await sourceProvider.getVideos({
       t: id,
