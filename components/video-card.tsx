@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "@/components/link";
+import HoverPrefetchLink from "@/components/hover-prefetch-link";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export function VideoCard({
   aspectRatio = "16/9",
 }: VideoCardProps) {
   return (
-    <Link
+    <HoverPrefetchLink
       href={`/watch/${video.id}/1`}
       className={cn(
         "group relative shrink-0 focus-visible:outline-none",
@@ -49,7 +49,7 @@ export function VideoCard({
         />
 
         {/* Optional Overlay on Hover */}
-        <div className="absolute inset-0 bg-black/40 duration-300 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 duration-300 flex items-center justify-center group-hover:opacity-100 opacity-0">
           <span className="text-white font-semibold tracking-wide drop-shadow-md">
             Play
           </span>
@@ -64,6 +64,6 @@ export function VideoCard({
           {video.year} • {video.genre.join(", ")}
         </p>
       </div>
-    </Link>
+    </HoverPrefetchLink>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "@/components/link";
+import HoverPrefetchLink from "@/components/hover-prefetch-link";
 import { cn } from "@/lib/utils";
 
 interface EpisodeCardProps {
@@ -11,7 +11,7 @@ interface EpisodeCardProps {
 
 export function EpisodeCard({ index, isActive, linkHref }: EpisodeCardProps) {
   return (
-    <Link
+    <HoverPrefetchLink
       href={linkHref}
       className={cn(
         "flex items-center justify-center w-12 h-12 rounded-lg text-sm font-medium transition-colors",
@@ -21,6 +21,6 @@ export function EpisodeCard({ index, isActive, linkHref }: EpisodeCardProps) {
       )}
     >
       {index + 1}
-    </Link>
+    </HoverPrefetchLink>
   );
 }
