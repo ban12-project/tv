@@ -3,8 +3,7 @@ import { Suspense, ViewTransition } from "react";
 import { getCategory, getCategoryVideos } from "@/app/actions/content";
 import { CategoryVideoList } from "@/components/category-video-list";
 
-import { i18n } from "@/i18n-config";
-import { sourceProvider } from "@/lib/source-provider";
+// import { sourceProvider } from "@/lib/source-provider";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -14,18 +13,15 @@ interface CategoryPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export async function generateStaticParams() {
+/* export async function generateStaticParams() {
   const categories = await sourceProvider.getCategories();
 
-  return i18n.locales.map((locale) =>
-    categories
-      .filter((category) => category.type_pid !== 0)
-      .map((category) => ({
-        id: category.type_id,
-        lang: locale,
-      })),
-  );
-}
+  return categories
+    .filter((category) => category.type_pid !== 0)
+    .map((category) => ({
+      id: String(category.type_id),
+    }));
+} */
 
 export default async function CategoryPage({
   params,
