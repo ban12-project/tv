@@ -67,7 +67,7 @@ export function SearchDialog({ ...props }: DialogProps) {
 
   const handleSelect = (id: string) => {
     setOpen(false);
-    router.push(`/show/${id}`);
+    router.push(`/watch/${id}/1`);
   };
 
   return (
