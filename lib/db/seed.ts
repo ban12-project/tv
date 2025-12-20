@@ -1,14 +1,14 @@
+import { neon } from "@neondatabase/serverless";
 import { desc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/neon-http";
 import { passkey } from "./auth-schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not defined");
+if (!process.env.DIRECT_DATABASE_URL) {
+  throw new Error("DIRECT_DATABASE_URL is not defined");
 }
 
-const client = postgres(process.env.DATABASE_URL);
-const db = drizzle({ client });
+const sql = neon(process.env.DIRECT_DATABASE_URL);
+const db = drizzle({ client: sql });
 
 async function main() {
   const record = await db
