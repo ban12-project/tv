@@ -1,3 +1,4 @@
+import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
@@ -28,12 +29,19 @@ export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
 }
 
 async function Suspended({ children }: LayoutProps<"/[lang]">) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-  if (!session) {
-    return redirect("/sign-in");
+    if (!session) {
+      redirect("/sign-in");
+    }
+  } catch (error) {
+    if (error instanceof APIError) {
+      await auth.api.signInAnonymous();
+      redirect("/");
+    }
   }
   return children;
 }
