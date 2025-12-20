@@ -29,15 +29,15 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
                     {category.type_name}
                   </Link>
                 </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid gap-2 sm:w-20 md:w-40 md:grid-cols-2 lg:w-60">
+                <NavigationMenuContent className="rounded-2xl bg-zinc-900/80 backdrop-blur-md border border-white/10 shadow-2xl">
+                  <ul className="grid gap-2 p-2 sm:w-20 md:w-40 md:grid-cols-2 lg:w-60">
                     {category.children.map((child) => (
                       <li key={child.type_id}>
                         <NavigationMenuLink
                           asChild
                           className={cn(
                             navigationMenuTriggerStyle(),
-                            "bg-transparent",
+                            "bg-transparent hover:bg-white/10 active:scale-[0.98] rounded-xl transition-all",
                           )}
                         >
                           <Link href={`/category/${child.type_id}`}>

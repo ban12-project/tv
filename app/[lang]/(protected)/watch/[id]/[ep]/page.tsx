@@ -74,7 +74,7 @@ async function Suspended({ params }: Props) {
   // (Covered by split condition above if it didn't have #)
 
   return (
-    <main className="grid gap-8">
+    <main className="space-y-8">
       <WatchClient
         video={video}
         episodes={episodes}

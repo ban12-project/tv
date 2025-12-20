@@ -43,17 +43,16 @@ export default function WatchClient({
 
       {/* Episode Selector */}
       {episodes.length > 1 && (
-        <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
-          <li className="flex flex-wrap gap-2">
-            {episodes.map((ep, index) => (
+        <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+          {episodes.map((ep, index) => (
+            <li key={`${ep.name}-${index}`}>
               <EpisodeCard
-                key={`${ep.name}-${index}`}
                 index={index}
                 isActive={currentEpisodeIndex === index}
                 linkHref={`/watch/${video.id}/${index + 1}`}
               />
-            ))}
-          </li>
+            </li>
+          ))}
         </ul>
       )}
     </>
