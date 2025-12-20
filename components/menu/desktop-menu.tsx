@@ -1,5 +1,6 @@
 "use client";
 
+import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
 import Link from "next/link";
 import {
   NavigationMenu,
@@ -10,15 +11,16 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import type { CategoryNode } from "./index";
 
 export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
-  const isMobile = useIsMobile();
-
   return (
-    <NavigationMenu className="hidden md:flex" viewport={isMobile}>
+    <NavigationMenu
+      className="hidden md:flex"
+      viewport={false}
+      data-viewport="true"
+    >
       <NavigationMenuList>
         {categories.map((category) => (
           <NavigationMenuItem key={category.type_id}>
@@ -29,8 +31,8 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
                     {category.type_name}
                   </Link>
                 </NavigationMenuTrigger>
-                <NavigationMenuContent className="rounded-2xl bg-zinc-900/80 backdrop-blur-md border border-white/10 shadow-2xl">
-                  <ul className="grid gap-2 p-2 sm:w-20 md:w-40 md:grid-cols-2 lg:w-60">
+                <NavigationMenuContent>
+                  <ul className="grid gap-2 p-2 md:w-xs md:grid-cols-3 lg:w-sm">
                     {category.children.map((child) => (
                       <li key={child.type_id}>
                         <NavigationMenuLink
@@ -62,6 +64,12 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
           </NavigationMenuItem>
         ))}
       </NavigationMenuList>
+      <div className="absolute left-0 top-full isolate z-50 flex justify-center">
+        <NavigationMenuPrimitive.Viewport
+          data-slot="navigation-menu-viewport"
+          className="origin-top-center text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 relative mt-1.5 h-(--radix-navigation-menu-viewport-height) w-full overflow-hidden md:w-(--radix-navigation-menu-viewport-width) rounded-md bg-zinc-900/80 backdrop-blur-md border border-white/10 shadow-2xl"
+        />
+      </div>
     </NavigationMenu>
   );
 }

@@ -162,16 +162,13 @@ function Loading() {
       </div>
 
       {/* Episode Selector Skeleton */}
-      <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
-        <li className="flex flex-wrap gap-2">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <Skeleton
-              // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-              key={i}
-              className="w-12 h-12 rounded-lg bg-neutral-800"
-            />
-          ))}
-        </li>
+      <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+        {Array.from({ length: 24 }).map((_, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+          <li key={i}>
+            <Skeleton className="w-12 h-12 rounded-lg bg-neutral-800" />
+          </li>
+        ))}
       </ul>
 
       {/* Info Section Skeleton */}
