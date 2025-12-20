@@ -19,7 +19,13 @@ function filterAdsFromM3U8(content: string): string {
   // #EXT-X-DISCONTINUITY - https://developer.apple.com/documentation/http-live-streaming/incorporating-ads-into-a-playlist
   return content
     .split("\n")
-    .filter((line) => !line.includes("#EXT-X-DISCONTINUITY"))
+    .filter((line) => {
+      return (
+        !line.includes("#EXT-X-DISCONTINUITY") &&
+        !line.includes("#EXT-X-CUE-OUT") &&
+        !line.includes("#EXT-X-CUE-IN")
+      );
+    })
     .join("\n");
 }
 
@@ -76,10 +82,15 @@ export default function VideoPlayer({
 
       hls = new Hls({
         loader: CustomLoader,
+        // Increase buffer/stall resilience since we are manipulating the stream
+        maxBufferLength: 30,
+        maxMaxBufferLength: 600,
       });
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (autoPlay) video.play().catch(() => {});
       });
+
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           switch (data.type) {
@@ -92,6 +103,14 @@ export default function VideoPlayer({
             default:
               hls?.destroy();
               break;
+          }
+        } else {
+          // Handle non-fatal errors that might be caused by our manifest manipulation
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            // If we get a buffer stall (common when removing discontinuities), try to nudge the player
+            if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+              hls?.recoverMediaError();
+            }
           }
         }
       });
