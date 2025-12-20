@@ -1,7 +1,6 @@
 "use client";
 
 import type HlsType from "hls.js"; // Type-only import
-import type { HlsConfig } from "hls.js";
 import * as React from "react";
 import type { Messages } from "@/get-dictionary";
 import { cn } from "@/lib/utils";
@@ -15,20 +14,6 @@ interface VideoPlayerProps {
   className?: string;
 }
 
-function filterAdsFromM3U8(content: string): string {
-  // #EXT-X-DISCONTINUITY - https://developer.apple.com/documentation/http-live-streaming/incorporating-ads-into-a-playlist
-  return content
-    .split("\n")
-    .filter((line) => {
-      return (
-        !line.includes("#EXT-X-DISCONTINUITY") &&
-        !line.includes("#EXT-X-CUE-OUT") &&
-        !line.includes("#EXT-X-CUE-IN")
-      );
-    })
-    .join("\n");
-}
-
 export default function VideoPlayer({
   videoUrl,
   poster,
@@ -36,6 +21,9 @@ export default function VideoPlayer({
   className,
 }: VideoPlayerProps) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
+  const isSeekingRef = React.useRef<boolean>(false);
+  const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -53,38 +41,75 @@ export default function VideoPlayer({
         return;
       }
 
-      class CustomLoader extends Hls.DefaultConfig.loader {
-        constructor(config: HlsConfig) {
-          super(config);
-          const load = this.load.bind(this);
-          this.load = (context, config, callback) => {
-            const { type } = context as unknown as {
-              type: "manifest" | "level";
-            };
-            if (type === "manifest" || type === "level") {
-              const onSuccess = callback.onSuccess;
-              callback.onSuccess = (
-                response,
-                stats,
-                context,
-                networkDetails,
-              ) => {
-                if (typeof response.data === "string") {
-                  response.data = filterAdsFromM3U8(response.data);
-                }
-                return onSuccess(response, stats, context, networkDetails);
-              };
-            }
-            load(context, config, callback);
-          };
-        }
-      }
-
       hls = new Hls({
-        loader: CustomLoader,
-        // Increase buffer/stall resilience since we are manipulating the stream
         maxBufferLength: 30,
         maxMaxBufferLength: 600,
+      });
+
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        const fragments = data.details.fragments;
+        if (fragments.length === 0) return;
+
+        const newSkipRanges: { start: number; end: number }[] = [];
+
+        // 1. Calculate total duration for each continuity counter (cc) group
+        const ccDurations: Record<number, number> = {};
+        for (const frag of fragments) {
+          ccDurations[frag.cc] = (ccDurations[frag.cc] || 0) + frag.duration;
+        }
+
+        // 2. Identify "Content" CCs vs "Ad" CCs
+        // Threshold: Anything longer than 60 seconds is definitely content.
+        // Also keep the single longest CC as content regardless of duration.
+        let maxDuration = -1;
+        let longestCC = -1;
+        for (const ccStr in ccDurations) {
+          const cc = Number.parseInt(ccStr, 10);
+          if (ccDurations[cc] > maxDuration) {
+            maxDuration = ccDurations[cc];
+            longestCC = cc;
+          }
+        }
+
+        const contentCCs = new Set<number>();
+        contentCCs.add(longestCC); // Always keep the longest one
+
+        for (const ccStr in ccDurations) {
+          const cc = Number.parseInt(ccStr, 10);
+          // If a part is longer than 60s, it's very likely a video part (not an ad)
+          if (ccDurations[cc] > 60) {
+            contentCCs.add(cc);
+          }
+        }
+
+        // 3. Create skip ranges for fragments NOT in any content CC
+        let currentRange: { start: number; end: number } | null = null;
+        for (const frag of fragments) {
+          if (!contentCCs.has(frag.cc)) {
+            if (!currentRange) {
+              currentRange = {
+                start: frag.start,
+                end: frag.start + frag.duration,
+              };
+            } else {
+              currentRange.end = frag.start + frag.duration;
+            }
+          } else {
+            if (currentRange) {
+              newSkipRanges.push(currentRange);
+              currentRange = null;
+            }
+          }
+        }
+        if (currentRange) {
+          newSkipRanges.push(currentRange);
+        }
+
+        skipRangesRef.current = newSkipRanges;
+        console.log(
+          `[VideoPlayer] Identified content segments (CCs: ${Array.from(contentCCs).join(",")}). Skip ranges:`,
+          newSkipRanges,
+        );
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -104,23 +129,47 @@ export default function VideoPlayer({
               hls?.destroy();
               break;
           }
-        } else {
-          // Handle non-fatal errors that might be caused by our manifest manipulation
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            // If we get a buffer stall (common when removing discontinuities), try to nudge the player
-            if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
-              hls?.recoverMediaError();
-            }
-          }
         }
       });
+
       hls.loadSource(videoUrl);
       hls.attachMedia(video);
     };
 
+    const handleTimeUpdate = () => {
+      // If the user is manually seeking, don't interfere
+      if (isSeekingRef.current) return;
+
+      const currentTime = video.currentTime;
+      for (const range of skipRangesRef.current) {
+        if (currentTime >= range.start && currentTime < range.end) {
+          console.log(
+            `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
+          );
+          video.currentTime = range.end;
+          break;
+        }
+      }
+    };
+
+    const handleSeeking = () => {
+      isSeekingRef.current = true;
+      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+
+      // Give the user a 1s grace period after seeking before auto-skipping resumes
+      seekTimeoutRef.current = setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 1000);
+    };
+
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("seeking", handleSeeking);
     initHls();
 
     return () => {
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("seeking", handleSeeking);
+      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
   }, [videoUrl, autoPlay]);
