@@ -58,7 +58,7 @@ export function SignupForm({
       const { registered } = await checkRegistrationStatus(email);
       if (registered) {
         toast.info("Account already exists. Signing you in...");
-        const { error } = await authClient.signIn.passkey({
+        await authClient.signIn.passkey({
           fetchOptions: {
             onSuccess() {
               toast.success("Successfully signed in");
@@ -69,9 +69,6 @@ export function SignupForm({
             },
           },
         });
-        if (error) {
-          toast.error(`${error.statusText} ${error.message}`);
-        }
         return;
       }
 

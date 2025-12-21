@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import * as z from "zod";
 import { auth } from "@/lib/auth";
-import { allowList, user } from "@/lib/db/auth-schema";
+import { allowList, passkey, user } from "@/lib/db/auth-schema";
 import { db } from "@/lib/db/queries";
 
 const schema = z.object({
@@ -78,15 +78,27 @@ export async function checkRegistrationStatus(email: string) {
   }
   const normalizedEmail = validatedFields.data.email.toLowerCase();
 
+  // 1. Check if a passkey exists with this name (email)
+  const existingPasskey = await db
+    .select()
+    .from(passkey)
+    .where(eq(passkey.name, normalizedEmail))
+    .limit(1);
+
+  if (existingPasskey.length > 0) {
+    return { registered: true };
+  }
+
+  // 2. Check if a non-anonymous user exists with this email
   const existingUser = await db
     .select()
     .from(user)
     .where(eq(user.email, normalizedEmail))
     .limit(1);
 
-  if (existingUser.length === 0) {
-    return { registered: false };
+  if (existingUser.length > 0 && !existingUser[0].isAnonymous) {
+    return { registered: true };
   }
 
-  return { registered: !existingUser[0].isAnonymous };
+  return { registered: false };
 }
