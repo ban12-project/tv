@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { allowList } from "@/lib/db/auth-schema";
@@ -23,22 +24,74 @@ export async function getAllowList() {
   return await db.select().from(allowList);
 }
 
-export async function addToAllowList(email: string) {
+export type ActionState = {
+  success: boolean;
+  error?: string;
+  timestamp: number;
+};
+
+export async function addToAllowList(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   await checkPermission();
 
-  const id = crypto.randomUUID();
-  await db.insert(allowList).values({
-    id,
-    email: email.toLowerCase(),
-  });
+  const email = formData.get("email") as string;
+  if (!email) {
+    return {
+      success: false,
+      error: "Email is required",
+      timestamp: Date.now(),
+    };
+  }
 
-  return { success: true };
+  try {
+    const id = crypto.randomUUID();
+    await db.insert(allowList).values({
+      id,
+      email: email.toLowerCase(),
+    });
+
+    refresh();
+    return { success: true, timestamp: Date.now() };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to add to allowlist",
+      timestamp: Date.now(),
+    };
+  }
 }
 
-export async function removeFromAllowList(id: string) {
+export async function removeFromAllowList(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   await checkPermission();
 
-  await db.delete(allowList).where(eq(allowList.id, id));
+  const id = formData.get("id") as string;
+  if (!id) {
+    return {
+      success: false,
+      error: "ID is required",
+      timestamp: Date.now(),
+    };
+  }
 
-  return { success: true };
+  try {
+    await db.delete(allowList).where(eq(allowList.id, id));
+
+    refresh();
+    return { success: true, timestamp: Date.now() };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to remove from allowlist",
+      timestamp: Date.now(),
+    };
+  }
 }

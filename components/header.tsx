@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense, ViewTransition } from "react";
+import { getAllowList } from "@/app/actions";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
@@ -44,9 +45,11 @@ export default async function Header({
             <div className="flex items-center gap-4">
               <SearchDialog />
 
-              <Suspense fallback={<Skeleton className="w-12 h-8" />}>
-                <SuspendedAllowlistDialog />
-              </Suspense>
+              <ViewTransition>
+                <Suspense fallback={<Skeleton className="w-12 h-8" />}>
+                  <SuspendedAllowlistDialog />
+                </Suspense>
+              </ViewTransition>
             </div>
           </div>
         </div>
@@ -64,5 +67,7 @@ async function SuspendedAllowlistDialog() {
 
   if (!isRealUser) return null;
 
-  return <AllowlistDialog />;
+  const emailsPromise = getAllowList();
+
+  return <AllowlistDialog emailsPromise={emailsPromise} />;
 }
