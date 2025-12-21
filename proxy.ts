@@ -46,7 +46,7 @@ export default async function proxy(request: NextRequest) {
     (locale) => pathname.split('/')[1] === locale,
   )
 
-  if (!sessionCookie && protectedPaths.some((url) => pathname.startsWith(url) || pathname === url)) {
+  if (!sessionCookie && protectedPaths.some((url) => url.startsWith(pathname))) {
     const redirectUrl = encodeURIComponent(request.url)
 
     return NextResponse.redirect(
@@ -57,7 +57,7 @@ export default async function proxy(request: NextRequest) {
     )
   }
 
-  if (sessionCookie && withTokenConflictPaths.some((url) => pathname.startsWith(url) || pathname === url)) {
+  if (sessionCookie && withTokenConflictPaths.some((url) => pathname.startsWith(url))) {
     const isInvalidSession =
       request.nextUrl.searchParams.get("error") === "invalid_session";
 
