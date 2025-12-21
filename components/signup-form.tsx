@@ -15,17 +15,21 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import type { getDictionary } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
 import { cn, getCallbackURL } from "@/lib/utils";
 
 const schema = z.object({
-  email: z.email(),
+  email: z.string().email(),
 });
 
 export function SignupForm({
   className,
+  dictionary,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+  dictionary: Awaited<ReturnType<typeof getDictionary>>["auth"]["signUp"];
+}) {
   const [isPending, startTransition] = React.useTransition();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,20 +51,25 @@ export function SignupForm({
     startTransition(async () => {
       const { allowed, registered } = await checkRegistrationStatus(email);
       if (!allowed) {
-        toast.error("This email is not in the allowlist.");
+        toast.error(dictionary.notInAllowlist);
         return;
       }
 
       if (registered) {
-        toast.info("Account already exists. Signing you in...");
+        toast.info(dictionary.accountExists);
         await authClient.signIn.passkey({
           fetchOptions: {
             onSuccess() {
-              toast.success("Successfully signed in");
+              toast.success(dictionary.signInSuccess);
               router.push(getCallbackURL(searchParams));
             },
             onError(context) {
-              toast.error(`Sign in failed: ${context.error.message}`);
+              toast.error(
+                dictionary.signInFailed.replace(
+                  "{error}",
+                  context.error.message,
+                ),
+              );
             },
           },
         });
@@ -70,7 +79,9 @@ export function SignupForm({
       await authClient.signIn.anonymous({
         fetchOptions: {
           onError(context) {
-            toast.error(`Authentication failed: ${context.error.message}`);
+            toast.error(
+              dictionary.failed.replace("{error}", context.error.message),
+            );
           },
         },
       });
@@ -79,13 +90,16 @@ export function SignupForm({
         fetchOptions: {
           async onSuccess() {
             await preUpgradeAnonymous(email);
-            toast.success("Account successfully upgraded and passkey linked!");
+            toast.success(dictionary.success);
             const callbackUrl = getCallbackURL(searchParams);
             router.push(callbackUrl);
           },
           onError(context) {
             toast.error(
-              `Passkey registration failed: ${context.error.message}`,
+              dictionary.passkeyFailed.replace(
+                "{error}",
+                context.error.message,
+              ),
             );
           },
         },
@@ -99,22 +113,23 @@ export function SignupForm({
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
             <FieldDescription>
-              Already have an account? <Link href="/sign-in">Sign in</Link>
+              {dictionary.alreadyHaveAccount}{" "}
+              <Link href="/sign-in">{dictionary.signIn}</Link>
             </FieldDescription>
           </div>
           <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <FieldLabel htmlFor="email">{dictionary.email}</FieldLabel>
             <Input
               name="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder={dictionary.emailPlaceholder}
               required
             />
           </Field>
           <Field>
             <Button type="submit" disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
+              {dictionary.createAccount}
             </Button>
           </Field>
         </FieldGroup>

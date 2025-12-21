@@ -46,4 +46,13 @@ To ensure correct API usage, please refer to these specific versions:
 - **Components**: UI primitives in `components/ui`. Business logic components in `components/`.
 - **Routing**: Always use the `[lang]` parameter for dynamic routing.
 
+## Internationalization & Style
+
+- **Translation Strategy**: Use `getDictionary(lang)` in Server Components and pass down the `dictionary` to Client Components.
+- **Tone & Voice**: The application uses a **highly humorous, creative, and non-traditional tone**. 
+    - **Chinese (zh)**: Incorporates many movie quotes (specifically from *Let the Bullets Fly*), internet slang, and "Jianghu" (underground) style terminology. (e.g., "让我知道知道你是谁" for Sign In).
+    - **English (en)**: Uses an informal, "hacker/特工/sci-fi" style tone (e.g., "Who goes there?" for Sign In, "Fresh meat?" for Sign Up).
+    - **Loading States**: Should use creative onomatopoeia or movie references (e.g., "呜————咔嚓咔嚓咔嚓..." for Chinese).
+- **Hardcoding**: **STRICTLY PROHIBITED**. All user-facing text must be fetched from `dictionaries/`.
+
 **When starting work on a Next.js project, ALWAYS call the `init` tool from next-devtools-mcp FIRST to set up proper context and establish documentation requirements. Do this automatically without being asked.**

@@ -1,4 +1,7 @@
 {
+  "common": {
+    "loading": "呜————咔嚓咔嚓咔嚓..."
+  },
   "brand-name": "Ban12 TV",
   "root-description": "浏览 Apple TV+ 中的所有电影、电视节目等。在此处和您设备上的 Apple TV 应用程序中观看所有 Apple Originals。",
   "hero-section": {
@@ -52,5 +55,32 @@
     "button-sign-in": "登录",
     "title-sign-in": "登录",
     "brand-name-open-tv": "开放电视"
+  },
+  "auth": {
+    "signIn": {
+      "title": "让我知道知道你是谁",
+      "dontHaveAccount": "还没入伙？",
+      "signUp": "上山开路",
+      "email": "接头暗号 (邮箱)",
+      "emailPlaceholder": "张麻子@鹅城.com",
+      "signInWithPasskey": "掏出密钥，即刻进城",
+      "success": "成了！站着就把钱挣了",
+      "failed": "砸了：{error}"
+    },
+    "signUp": {
+      "title": "上山入伙",
+      "alreadyHaveAccount": "老相识了？",
+      "signIn": "这边请",
+      "email": "报上名来 (邮箱)",
+      "emailPlaceholder": "马邦德@鹅城.com",
+      "createAccount": "开门大吉",
+      "notInAllowlist": "鹅城名单没这号人，你上错山头了吧？",
+      "accountExists": "这不是二哥吗？这就带你归位...",
+      "success": "成了！以后就是自家兄弟了",
+      "signInSuccess": "归位！",
+      "failed": "出乱子了：{error}",
+      "signInFailed": "门没敲开：{error}",
+      "passkeyFailed": "这锁没挂上：{error}"
+    }
   }
 }

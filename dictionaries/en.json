@@ -1,4 +1,7 @@
 {
+  "common": {
+    "loading": "Hold on, let the bullets fly for a bit..."
+  },
   "brand-name": "Ban12 TV",
   "root-description": "Browse all movies, TV shows, and more from Apple TV+. Watch all Apple Originals here and on the Apple TV app across your devices.",
   "hero-section": {
@@ -52,5 +55,32 @@
     "button-sign-in": "Sign In",
     "title-sign-in": "Sign In",
     "brand-name-open-tv": "Open TV"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Who goes there?",
+      "dontHaveAccount": "Fresh meat?",
+      "signUp": "Join the crew",
+      "email": "Your Alias (Email)",
+      "emailPlaceholder": "neo@matrix.com",
+      "signInWithPasskey": "Flash the badge (Passkey)",
+      "success": "Access granted. Welcome back, agent.",
+      "failed": "Glitch in the matrix: {error}"
+    },
+    "signUp": {
+      "title": "Apply for Citizenship",
+      "alreadyHaveAccount": "One of us already?",
+      "signIn": "Login gate",
+      "email": "Establish identity",
+      "emailPlaceholder": "skywalker@tatooine.com",
+      "createAccount": "Engage!",
+      "notInAllowlist": "You're not on the guest list. Access denied.",
+      "accountExists": "I know you! Re-routing to login...",
+      "success": "Welcome to the future. Identity established!",
+      "signInSuccess": "You're back in control.",
+      "failed": "System malfunction: {error}",
+      "signInFailed": "Gate locked: {error}",
+      "passkeyFailed": "Key smith failed: {error}"
+    }
   }
 }

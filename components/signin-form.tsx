@@ -13,13 +13,17 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import type { getDictionary } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
 import { cn, getCallbackURL } from "@/lib/utils";
 
 export function SignInForm({
   className,
+  dictionary,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & {
+  dictionary: Awaited<ReturnType<typeof getDictionary>>["auth"]["signIn"];
+}) {
   const [isPending, startTransition] = React.useTransition();
   const router = useRouter();
   const params = useSearchParams();
@@ -30,11 +34,13 @@ export function SignInForm({
       await authClient.signIn.passkey({
         fetchOptions: {
           onSuccess() {
-            toast.success("Successfully signed in");
+            toast.success(dictionary.success);
             router.push(getCallbackURL(params));
           },
           onError(context) {
-            toast.error(`Authentication failed: ${context.error.message}`);
+            toast.error(
+              dictionary.failed.replace("{error}", context.error.message),
+            );
           },
         },
       });
@@ -57,15 +63,16 @@ export function SignInForm({
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
             <FieldDescription>
-              Don&apos;t have an account? <Link href="/sign-up">Sign up</Link>
+              {dictionary.dontHaveAccount}{" "}
+              <Link href="/sign-up">{dictionary.signUp}</Link>
             </FieldDescription>
           </div>
           <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <FieldLabel htmlFor="email">{dictionary.email}</FieldLabel>
             <Input
               name="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder={dictionary.emailPlaceholder}
               required
               autoComplete="webauthn"
             />
@@ -74,7 +81,7 @@ export function SignInForm({
             <Button type="submit" disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Key size={16} />
-              <span>Sign in with Passkey</span>
+              <span>{dictionary.signInWithPasskey}</span>
             </Button>
           </Field>
         </FieldGroup>

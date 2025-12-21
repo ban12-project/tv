@@ -17,6 +17,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
+import type { getDictionary } from "@/get-dictionary";
 import type { Video } from "@/lib/adapters/types";
 
 const initialState = {
@@ -24,7 +25,12 @@ const initialState = {
   results: [],
 };
 
-export function SearchDialog({ ...props }: DialogProps) {
+export function SearchDialog({
+  dictionary,
+  ...props
+}: DialogProps & {
+  dictionary: Awaited<ReturnType<typeof getDictionary>>["common"];
+}) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const router = useRouter();
@@ -102,7 +108,7 @@ export function SearchDialog({ ...props }: DialogProps) {
         <CommandList>
           {isPending && (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              Loading...
+              {dictionary.loading}
             </div>
           )}
 
