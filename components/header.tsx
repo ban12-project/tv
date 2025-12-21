@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense, ViewTransition } from "react";
 import { Menu } from "@/components/menu";
@@ -6,8 +7,9 @@ import { SearchDialog } from "@/components/search-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
+import { auth } from "@/lib/auth";
 import { sourceProvider } from "@/lib/source-provider";
-import LinkPasskey from "./link-passkey";
+import { AllowlistDialog } from "./allowlist-dialog";
 
 async function MenuLoader() {
   const categories = await sourceProvider.getCategories();
@@ -41,8 +43,9 @@ export default async function Header({
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
               <SearchDialog />
+
               <Suspense fallback={<Skeleton className="w-12 h-8" />}>
-                <LinkPasskey />
+                <SuspendedAllowlistDialog />
               </Suspense>
             </div>
           </div>
@@ -50,4 +53,16 @@ export default async function Header({
       </header>
     </ScrollAwareHeader>
   );
+}
+
+async function SuspendedAllowlistDialog() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const isRealUser = session && !session.user.isAnonymous;
+
+  if (!isRealUser) return null;
+
+  return <AllowlistDialog />;
 }

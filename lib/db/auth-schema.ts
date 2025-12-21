@@ -104,6 +104,12 @@ export const passkey = pgTable(
   ],
 );
 
+export const allowList = pgTable("allow_list", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

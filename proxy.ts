@@ -11,7 +11,7 @@ const protectedPaths: string[] = ['/'].flatMap((path) =>
     .concat(path),
 )
 
-const withTokenConflictPaths: string[] = ['/sign-in', '/sign-up'].flatMap(
+const withTokenConflictPaths: string[] = [].flatMap(
   (path) =>
     i18n.locales
       .map((locale) => `/${locale}${path}`)

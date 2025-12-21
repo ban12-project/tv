@@ -29,19 +29,25 @@ export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
 }
 
 async function Suspended({ children }: LayoutProps<"/[lang]">) {
+  let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null;
+
   try {
-    const session = await auth.api.getSession({
+    session = await auth.api.getSession({
       headers: await headers(),
     });
-
-    if (!session) {
-      redirect("/sign-in");
-    }
   } catch (error) {
     if (error instanceof APIError) {
-      await auth.api.signInAnonymous();
-      redirect("/");
+      redirect("/sign-in");
     }
   }
+
+  if (!session) {
+    redirect("/sign-in");
+  }
+
+  if (session.user.isAnonymous) {
+    redirect("/sign-in");
+  }
+
   return children;
 }

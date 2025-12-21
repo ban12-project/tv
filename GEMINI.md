@@ -2,43 +2,48 @@
 
 ## Project Overview
 
-This is a Next.js web application for a streaming service called "Ban12 TV". It is built with TypeScript, Tailwind CSS, and Biome for linting and formatting. The project is configured for internationalization (i18n) and supports both light and dark themes. It uses a component-based architecture and leverages several modern web development technologies to deliver a high-quality user experience.
+"Ban12 TV" is a premium Next.js streaming web application.
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4
+- **Linting/Formatting**: Biome
+- **Internationalization**: Custom i18n implementation with `[lang]` routing.
+
+## Key Dependencies & APIs
+
+To ensure correct API usage, please refer to these specific versions:
+
+- **Next.js**: `^16.0.10` (React 19, App Router)
+- **React**: `^19.2.3`
+- **Better Auth**: `^1.4.7` (with `@better-auth/passkey`)
+- **Drizzle ORM**: `^0.45.1` (with `drizzle-kit ^0.31.8`)
+- **Database**: Neon (PostgreSQL) via `@neondatabase/serverless`
+- **UI Components**: Radix UI primitives
+- **Icons**: Lucide React (`^0.561.0`)
+- **Styling**: Tailwind CSS (`^4.1.18`)
+- **Validation**: Zod (`^4.2.1`)
+
+## Core Features & Architecture
+
+- **Authentication**: Powered by Better Auth. Supports anonymous login and passkey upgrades.
+- **Database**: PostgreSQL with Drizzle ORM. Schema and migrations are located in `lib/db`.
+- **Internationalization**: Uses `i18n-config.ts` and `dictionaries/`. The `middleware.ts` handles locale detection.
+- **Video Playback**: Uses `hls.js` (`^1.6.15`) for streaming.
+- **Theme**: Supports light/dark modes via `next-themes`.
 
 ## Building and Running
 
-To get started with this project, you will need to have Node.js and pnpm installed.
-
-1.  **Install dependencies:**
-    ```bash
-    pnpm install
-    ```
-
-2.  **Run the development server:**
-    ```bash
-    pnpm dev
-    ```
-    This will start the development server at `http://localhost:3000`.
-
-3.  **Create a production build:**
-    ```bash
-    pnpm build
-    ```
-
-4.  **Start the production server:**
-    ```bash
-    pnpm start
-    ```
+1.  **Install dependencies:** `pnpm install`
+2.  **Dev server:** `pnpm dev` (runs on `http://localhost:3000`)
+3.  **Database operations:**
+    - `pnpm db:generate`: Generate migrations
+    - `pnpm db:push`: Push schema to database
+    - `pnpm db:studio`: Open Drizzle Studio
 
 ## Development Conventions
 
-*   **Linting and Formatting:** This project uses Biome for linting and formatting. You can run the linter with `pnpm lint` and the formatter with `pnpm format`.
-*   **Components:** Components are located in the `components` directory. Reusable UI components are in `components/ui`.
-*   **Internationalization:** The project uses `i18n-config.ts` and the `dictionaries` directory to manage translations. The `middleware.ts` file handles locale detection and redirection.
-*   **Styling:** Tailwind CSS is used for styling. Global styles are in `app/globals.css`.
-*   **Routing:** The app uses a dynamic routing system with the `[lang]` parameter to support multiple languages.
+- **Biome**: Use `pnpm check` for linting and `pnpm format` (via lint-staged).
+- **Components**: UI primitives in `components/ui`. Business logic components in `components/`.
+- **Routing**: Always use the `[lang]` parameter for dynamic routing.
 
-## Init Next.js DevTools
-
-**When starting work on a Next.js project, ALWAYS call the `init` tool from
-next-devtools-mcp FIRST to set up proper context and establish documentation
-requirements. Do this automatically without being asked.**
+**When starting work on a Next.js project, ALWAYS call the `init` tool from next-devtools-mcp FIRST to set up proper context and establish documentation requirements. Do this automatically without being asked.**

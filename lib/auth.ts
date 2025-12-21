@@ -10,13 +10,5 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
-  plugins: [
-    passkey(),
-    anonymous({
-      onLinkAccount: async ({ anonymousUser, newUser }) => {
-        console.log("anonymousUser", anonymousUser);
-        console.log("newUser", newUser);
-      },
-    }),
-  ],
+  plugins: [passkey(), anonymous()],
 });

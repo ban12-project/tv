@@ -11,13 +11,12 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { signIn } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth-client";
 import { cn, getCallbackURL } from "@/lib/utils";
 
-export function LoginForm({
+export function SignInForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
@@ -28,8 +27,7 @@ export function LoginForm({
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     startTransition(async () => {
-      await signIn.passkey({
-        autoFill: true,
+      await authClient.signIn.passkey({
         fetchOptions: {
           onSuccess() {
             toast.success("Successfully signed in");
@@ -43,6 +41,16 @@ export function LoginForm({
     });
   };
 
+  React.useEffect(() => {
+    if (
+      !PublicKeyCredential.isConditionalMediationAvailable ||
+      !PublicKeyCredential.isConditionalMediationAvailable()
+    ) {
+      return;
+    }
+    void authClient.signIn.passkey({ autoFill: true });
+  }, []);
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <form onSubmit={onSubmit}>
@@ -55,7 +63,7 @@ export function LoginForm({
           <Field>
             <FieldLabel htmlFor="email">Email</FieldLabel>
             <Input
-              id="email"
+              name="email"
               type="email"
               placeholder="m@example.com"
               required
@@ -67,30 +75,6 @@ export function LoginForm({
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Key size={16} />
               <span>Sign in with Passkey</span>
-            </Button>
-          </Field>
-          <FieldSeparator>Or</FieldSeparator>
-          <Field>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                signIn.anonymous({
-                  fetchOptions: {
-                    onSuccess() {
-                      toast.success("Successfully signed in");
-                      router.push(getCallbackURL(params));
-                    },
-                    onError(context) {
-                      toast.error(
-                        `Authentication failed: ${context.error.message}`,
-                      );
-                    },
-                  },
-                })
-              }
-            >
-              Sign in with Anonymous
             </Button>
           </Field>
         </FieldGroup>
