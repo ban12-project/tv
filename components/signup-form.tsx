@@ -81,7 +81,6 @@ export function SignupForm({
       });
       await authClient.passkey.addPasskey({
         name: email,
-        authenticatorAttachment: "cross-platform",
         fetchOptions: {
           async onSuccess() {
             await preUpgradeAnonymous(email);
