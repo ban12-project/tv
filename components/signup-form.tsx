@@ -1,12 +1,12 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import * as z from "zod";
 import { checkRegistrationStatus, preUpgradeAnonymous } from "@/app/actions";
+import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
 import {
   Field,

@@ -11,7 +11,7 @@ const protectedPaths: string[] = ['/'].flatMap((path) =>
     .concat(path),
 )
 
-const withTokenConflictPaths: string[] = [].flatMap(
+const withTokenConflictPaths: string[] = ['/sign-in', '/sign-up'].flatMap(
   (path) =>
     i18n.locales
       .map((locale) => `/${locale}${path}`)
@@ -58,6 +58,11 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (sessionCookie && withTokenConflictPaths.some((url) => pathname === url)) {
+    const isInvalidSession =
+      request.nextUrl.searchParams.get("error") === "invalid_session";
+
+    if (isInvalidSession) return NextResponse.next();
+
     return NextResponse.redirect(
       new URL(`${locale ? `/${locale}` : '/'}`, request.url),
     )
