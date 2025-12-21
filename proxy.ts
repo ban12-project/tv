@@ -5,18 +5,15 @@ import { NextResponse } from "next/server";
 import { i18n } from "./i18n-config";
 import { getSessionCookie } from "better-auth/cookies";
 
-const protectedPaths: string[] = ['/'].flatMap((path) =>
-  i18n.locales
-    .map((locale) => `/${locale}${path}`)
-    .concat(path),
-)
+const locales = i18n.locales.join("|");
 
-const withTokenConflictPaths: string[] = ['/sign-in', '/sign-up'].flatMap(
-  (path) =>
-    i18n.locales
-      .map((locale) => `/${locale}${path}`)
-      .concat(path),
-)
+const PROTECTED_PATTERN = new URLPattern({
+  pathname: `/:locale(${locales})?{/:path(category/.*|watch/.*|)}?`,
+});
+
+const WITH_TOKEN_CONFLICT_PATTERN = new URLPattern({
+  pathname: `/:locale(${locales})?/:action(sign-in|sign-up){/}?`,
+});
 
 function getLocale(request: NextRequest): string | undefined {
   // Negotiator expects plain object so we need to transform headers
@@ -43,29 +40,29 @@ export default async function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request);
 
   const locale = i18n.locales.find(
-    (locale) => pathname.split('/')[1] === locale,
-  )
+    (locale) => pathname.split("/")[1] === locale,
+  );
 
-  if (!sessionCookie && protectedPaths.some((url) => url.startsWith(pathname))) {
-    const redirectUrl = encodeURIComponent(request.url)
+  if (!sessionCookie && PROTECTED_PATTERN.test({ pathname })) {
+    const redirectUrl = encodeURIComponent(request.url);
 
     return NextResponse.redirect(
       new URL(
-        `${locale ? `/${locale}` : ''}/sign-in?redirectUrl=${redirectUrl}`,
+        `${locale ? `/${locale}` : ""}/sign-in?redirectUrl=${redirectUrl}`,
         request.url,
       ),
-    )
+    );
   }
 
-  if (sessionCookie && withTokenConflictPaths.some((url) => pathname.startsWith(url))) {
+  if (sessionCookie && WITH_TOKEN_CONFLICT_PATTERN.test({ pathname })) {
     const isInvalidSession =
       request.nextUrl.searchParams.get("error") === "invalid_session";
 
     if (isInvalidSession) return NextResponse.next();
 
     return NextResponse.redirect(
-      new URL(`${locale ? `/${locale}` : '/'}`, request.url),
-    )
+      new URL(`${locale ? `/${locale}` : "/"}`, request.url),
+    );
   }
 
   // // `/_next/` and `/api/` are ignored by the watcher, but we need to ignore files in `public` manually.
