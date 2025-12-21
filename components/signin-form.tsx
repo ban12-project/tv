@@ -13,7 +13,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import type { getDictionary } from "@/get-dictionary";
+import type { Messages } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
 import { cn, getCallbackURL } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ export function SignInForm({
   dictionary,
   ...props
 }: React.ComponentProps<"div"> & {
-  dictionary: Awaited<ReturnType<typeof getDictionary>>["auth"]["signIn"];
+  dictionary: Messages["auth"]["signIn"];
 }) {
   const [isPending, startTransition] = React.useTransition();
   const router = useRouter();

@@ -17,7 +17,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
-import type { getDictionary } from "@/get-dictionary";
+import type { Messages } from "@/get-dictionary";
 import type { Video } from "@/lib/adapters/types";
 
 const initialState = {
@@ -29,7 +29,7 @@ export function SearchDialog({
   dictionary,
   ...props
 }: DialogProps & {
-  dictionary: Awaited<ReturnType<typeof getDictionary>>["common"];
+  dictionary: Messages["common"];
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");

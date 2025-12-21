@@ -15,12 +15,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import type { getDictionary } from "@/get-dictionary";
+import type { Messages } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
 import { cn, getCallbackURL } from "@/lib/utils";
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export function SignupForm({
@@ -28,7 +28,7 @@ export function SignupForm({
   dictionary,
   ...props
 }: React.ComponentProps<"div"> & {
-  dictionary: Awaited<ReturnType<typeof getDictionary>>["auth"]["signUp"];
+  dictionary: Messages["auth"]["signUp"];
 }) {
   const [isPending, startTransition] = React.useTransition();
   const router = useRouter();
