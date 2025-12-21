@@ -55,22 +55,6 @@ export async function preUpgradeAnonymous(email: string) {
   return { success: true };
 }
 
-export async function checkEmail(email: string) {
-  const validatedFields = schema.safeParse({ email });
-  if (!validatedFields.success) {
-    throw new Error("Invalid email address.");
-  }
-  const normalizedEmail = validatedFields.data.email.toLowerCase();
-
-  const allowed = await db
-    .select()
-    .from(allowList)
-    .where(eq(allowList.email, normalizedEmail))
-    .limit(1);
-
-  return allowed.length > 0;
-}
-
 export async function checkRegistrationStatus(email: string) {
   const validatedFields = schema.safeParse({ email });
   if (!validatedFields.success) {
@@ -78,7 +62,18 @@ export async function checkRegistrationStatus(email: string) {
   }
   const normalizedEmail = validatedFields.data.email.toLowerCase();
 
-  // 1. Check if a passkey exists with this name (email)
+  // 1. Check Allowlist
+  const allowed = await db
+    .select()
+    .from(allowList)
+    .where(eq(allowList.email, normalizedEmail))
+    .limit(1);
+
+  if (allowed.length === 0) {
+    return { allowed: false, registered: false };
+  }
+
+  // 2. Check Passkey
   const existingPasskey = await db
     .select()
     .from(passkey)
@@ -86,19 +81,17 @@ export async function checkRegistrationStatus(email: string) {
     .limit(1);
 
   if (existingPasskey.length > 0) {
-    return { registered: true };
+    return { allowed: true, registered: true };
   }
 
-  // 2. Check if a non-anonymous user exists with this email
+  // 3. Check User
   const existingUser = await db
     .select()
     .from(user)
     .where(eq(user.email, normalizedEmail))
     .limit(1);
 
-  if (existingUser.length > 0 && !existingUser[0].isAnonymous) {
-    return { registered: true };
-  }
+  const isRegistered = existingUser.length > 0 && !existingUser[0].isAnonymous;
 
-  return { registered: false };
+  return { allowed: true, registered: isRegistered };
 }

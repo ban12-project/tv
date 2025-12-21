@@ -6,11 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import * as z from "zod";
-import {
-  checkEmail,
-  checkRegistrationStatus,
-  preUpgradeAnonymous,
-} from "@/app/actions";
+import { checkRegistrationStatus, preUpgradeAnonymous } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -49,13 +45,12 @@ export function SignupForm({
     const { email } = validatedFields.data;
 
     startTransition(async () => {
-      const valid = await checkEmail(email);
-      if (!valid) {
+      const { allowed, registered } = await checkRegistrationStatus(email);
+      if (!allowed) {
         toast.error("This email is not in the allowlist.");
         return;
       }
 
-      const { registered } = await checkRegistrationStatus(email);
       if (registered) {
         toast.info("Account already exists. Signing you in...");
         await authClient.signIn.passkey({
