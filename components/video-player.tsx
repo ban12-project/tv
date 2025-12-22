@@ -23,11 +23,30 @@ export default function VideoPlayer({
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
+  const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    const performSkip = () => {
+      const video = videoRef.current;
+      if (!video || isSeekingRef.current) return false;
+
+      const currentTime = video.currentTime;
+      for (const range of skipRangesRef.current) {
+        if (currentTime >= range.start && currentTime < range.end) {
+          console.log(
+            `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
+          );
+          isAutoSkippingRef.current = true;
+          video.currentTime = range.end;
+          return true;
+        }
+      }
+      return false;
+    };
 
     let hls: HlsType | null = null;
     const initHls = async () => {
@@ -41,10 +60,7 @@ export default function VideoPlayer({
         return;
       }
 
-      hls = new Hls({
-        maxBufferLength: 30,
-        maxMaxBufferLength: 600,
-      });
+      hls = new Hls();
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
         const fragments = data.details.fragments;
@@ -110,6 +126,13 @@ export default function VideoPlayer({
           `[VideoPlayer] Identified content segments (CCs: ${Array.from(contentCCs).join(",")}). Skip ranges:`,
           newSkipRanges,
         );
+
+        // Check immediately after ranges are identified
+        performSkip();
+      });
+
+      hls.on(Hls.Events.FRAG_CHANGED, () => {
+        performSkip();
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -137,29 +160,26 @@ export default function VideoPlayer({
     };
 
     const handleTimeUpdate = () => {
-      // If the user is manually seeking, don't interfere
-      if (isSeekingRef.current) return;
-
-      const currentTime = video.currentTime;
-      for (const range of skipRangesRef.current) {
-        if (currentTime >= range.start && currentTime < range.end) {
-          console.log(
-            `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
-          );
-          video.currentTime = range.end;
-          break;
-        }
-      }
+      performSkip();
     };
 
     const handleSeeking = () => {
+      // If this seek was triggered by our auto-skip, don't block
+      if (isAutoSkippingRef.current) {
+        isAutoSkippingRef.current = false;
+        return;
+      }
+
       isSeekingRef.current = true;
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
 
-      // Give the user a 1s grace period after seeking before auto-skipping resumes
+      // Reduce grace period from 1s to 200ms to avoid seeing ads when starting/seeking
+      // 200ms is enough to debounce slider interactions
       seekTimeoutRef.current = setTimeout(() => {
         isSeekingRef.current = false;
-      }, 1000);
+        // Check if we seeked into an ad and skip it immediately
+        performSkip();
+      }, 200);
     };
 
     video.addEventListener("timeupdate", handleTimeUpdate);
