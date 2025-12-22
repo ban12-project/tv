@@ -4,57 +4,14 @@
   },
   "brand-name": "Ban12 TV",
   "root-description": "浏览 Apple TV+ 中的所有电影、电视节目等。在此处和您设备上的 Apple TV 应用程序中观看所有 Apple Originals。",
-  "hero-section": {
-    "slide1": {
-      "title": "免费试用 Apple TV+ 1 周。",
-      "subtitle": "观看独家热门影片，每周都有新片发布。"
-    },
-    "slide2": {
-      "title": "战争酋长",
-      "subtitle": "一位凶猛的夏威夷战士踏上史诗般的任务，团结他的人民。"
-    },
-    "slide3": {
-      "title": "棍子",
-      "subtitle": "欧文·威尔逊是一位前职业高尔夫球手，在这部令人振奋的复出故事中，他正在为自己的第二次机会而努力。"
-    },
-    "pricing": "免费 7 天，然后 $9.99/月。",
-    "badge-new": "新",
-    "genre-tv-show": "电视剧",
-    "genre-drama": "剧情",
-    "genre-action": "动作",
-    "genre-comedy": "喜剧",
-    "genre-sports": "体育",
-    "button-accept-free-trial": "接受免费试用",
-    "aria-label-hero-section": "英雄部分",
-    "title-previous-slide": "上一张幻灯片",
-    "title-next-slide": "下一张幻灯片",
-    "title-pause": "暂停",
-    "title-play": "播放",
-    "title-pause-autoplay": "暂停自动播放",
-    "title-resume-autoplay": "恢复自动播放"
-  },
-  "video-player": {
-    "default-title": "视频播放器",
-    "browser-not-support": "您的浏览器不支持视频播放。",
-    "download-video": "下载视频"
-  },
   "header": {
-    "home": "首页",
-    "alt-apple-tv": "Apple TV",
-    "alt-external-link": "外部链接",
-    "nav-apple-tv-plus": "Apple TV+",
-    "nav-mls": "MLS",
-    "search-placeholder": "搜索节目、电影等...",
-    "search-results-count": "{count} 结果",
-    "search-results-count-plural-suffix": "",
-    "search-result-emmy": "艾美奖®",
-    "search-result-new": "新",
-    "search-view-all-results": "查看所有 {count} 个结果 →",
-    "search-no-results-found": "未找到 \"{query}\" 的结果",
-    "search-try-searching": "尝试搜索节目、电影、演员或类型",
-    "button-sign-in": "登录",
-    "title-sign-in": "登录",
-    "brand-name-open-tv": "开放电视"
+    "home": "鹅城",
+    "search-placeholder": "给师爷翻译翻译，你想看什么...",
+    "search-results-count": "师爷汇报：找到 {count} 个目标",
+    "search-result-new": "新案子",
+    "search-view-all-results": "带上来！查看全部 {count} 个",
+    "search-no-results-found": "坏了，\"{query}\" 被麻匪劫走了！",
+    "search-try-searching": "换个搜法？站着把片子搜了！"
   },
   "auth": {
     "signIn": {
@@ -81,6 +38,14 @@
       "failed": "出乱子了：{error}",
       "signInFailed": "门没敲开：{error}",
       "passkeyFailed": "这锁没挂上：{error}"
+    }
+  },
+  "protected": {
+    "bailiff": {
+      "title": "鹅城衙役",
+      "challenge": "站住！来者何人？可有进城文书？",
+      "checking": "让子弹飞一会儿... 正在查验身份",
+      "unlocking": "原来是家乡父老！请，进城！"
     }
   }
 }

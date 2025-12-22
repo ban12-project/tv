@@ -46,9 +46,7 @@ export async function addToAllowList(
   }
 
   try {
-    const id = crypto.randomUUID();
     await db.insert(allowList).values({
-      id,
       email: email.toLowerCase(),
     });
 

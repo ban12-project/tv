@@ -20,7 +20,7 @@ export function VideoCard({
 }: VideoCardProps) {
   return (
     <HoverPrefetchLink
-      href={`/watch/${video.id}/1`}
+      href={`/watch/${video.sourceId || "default"}/${video.id}/1`}
       className={cn(
         "group relative shrink-0 focus-visible:outline-none",
         className,

@@ -23,18 +23,16 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
     >
       <NavigationMenuList>
         {categories.map((category) => (
-          <NavigationMenuItem key={category.type_id}>
+          <NavigationMenuItem key={category.id}>
             {category.children && category.children.length > 0 ? (
               <>
                 <NavigationMenuTrigger className="bg-transparent">
-                  <Link href={`/category/${category.type_id}`}>
-                    {category.type_name}
-                  </Link>
+                  <Link href={`/category/${category.id}`}>{category.name}</Link>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <ul className="grid gap-2 p-2 md:w-xs md:grid-cols-3 lg:w-sm">
                     {category.children.map((child) => (
-                      <li key={child.type_id}>
+                      <li key={child.id}>
                         <NavigationMenuLink
                           asChild
                           className={cn(
@@ -42,8 +40,8 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
                             "bg-transparent hover:bg-white/10 active:scale-[0.98] rounded-xl transition-all",
                           )}
                         >
-                          <Link href={`/category/${child.type_id}`}>
-                            {child.type_name}
+                          <Link href={`/category/${child.id}`}>
+                            {child.name}
                           </Link>
                         </NavigationMenuLink>
                       </li>
@@ -56,9 +54,7 @@ export function DesktopMenu({ categories }: { categories: CategoryNode[] }) {
                 className={cn(navigationMenuTriggerStyle(), "bg-transparent")}
                 asChild
               >
-                <Link href={`/category/${category.type_id}`}>
-                  {category.type_name}
-                </Link>
+                <Link href={`/category/${category.id}`}>{category.name}</Link>
               </NavigationMenuLink>
             )}
           </NavigationMenuItem>

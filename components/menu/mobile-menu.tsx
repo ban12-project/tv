@@ -26,20 +26,20 @@ export function MobileMenu({ categories }: { categories: CategoryNode[] }) {
       <PopoverContent className="w-(--radix-popper-available-width) h-(--radix-popper-available-height) bg-zinc-900/95 backdrop-blur-2xl border-none p-6 shadow-none overflow-auto">
         <div className="flex flex-col space-y-6 w-full">
           {categories.map((category) => (
-            <div key={category.type_id} className="flex flex-col text-center">
+            <div key={category.id} className="flex flex-col text-center">
               <h3 className="px-4 py-3 hover:bg-white/10 active:scale-[0.98] rounded-2xl text-2xl font-semibold text-white  transition-transform">
-                {category.type_name}
+                {category.name}
               </h3>
 
               {category.children && category.children.length > 0 && (
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
                   {category.children.map((child) => (
-                    <PopoverPrimitive.Close key={child.type_id} asChild>
+                    <PopoverPrimitive.Close key={child.id} asChild>
                       <Link
-                        href={`/category/${child.type_id}`}
+                        href={`/category/${child.id}`}
                         className="px-4 py-2 hover:bg-white/10 active:scale-[0.98] rounded-xl text-lg text-gray-400 hover:text-white transition-all bg-white/5"
                       >
-                        {child.type_name}
+                        {child.name}
                       </Link>
                     </PopoverPrimitive.Close>
                   ))}

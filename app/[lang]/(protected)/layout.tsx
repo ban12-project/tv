@@ -2,11 +2,16 @@ import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
+import Bailiff from "@/components/bailiff";
 import Header from "@/components/header";
-import Lock from "@/components/lock";
+import { getDictionary } from "@/get-dictionary";
+import type { Locale } from "@/i18n-config";
 import { auth } from "@/lib/auth";
 
-export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
+export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
+  const { lang } = await props.params;
+  const dict = await getDictionary(lang as Locale);
+
   return (
     <>
       <Header params={props.params} />
@@ -14,14 +19,14 @@ export default function ProtectedLayout(props: LayoutProps<"/[lang]">) {
       <Suspense
         fallback={
           <ViewTransition>
-            <div className="flex h-screen items-center justify-center">
-              <Lock />
+            <div className="flex items-center justify-center h-screen">
+              <Bailiff messages={dict.protected.bailiff} />
             </div>
           </ViewTransition>
         }
       >
         <ViewTransition>
-          <Suspended {...props}>{props.children}</Suspended>
+          <Suspended {...props} />
         </ViewTransition>
       </Suspense>
     </>

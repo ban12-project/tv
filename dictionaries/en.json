@@ -4,57 +4,14 @@
   },
   "brand-name": "Ban12 TV",
   "root-description": "Browse all movies, TV shows, and more from Apple TV+. Watch all Apple Originals here and on the Apple TV app across your devices.",
-  "hero-section": {
-    "slide1": {
-      "title": "Get Apple TV+ free for 1 week.",
-      "subtitle": "Watch exclusive hits, with new releases every week."
-    },
-    "slide2": {
-      "title": "Chief of War",
-      "subtitle": "A ferocious Hawaiian warrior embarks on an epic mission to unite his people."
-    },
-    "slide3": {
-      "title": "Stick",
-      "subtitle": "Owen Wilson is an ex-pro golfer taking a big swing at his second chance in this feel-good comeback story."
-    },
-    "pricing": "7 days free, then $9.99/month.",
-    "badge-new": "New",
-    "genre-tv-show": "TV Show",
-    "genre-drama": "Drama",
-    "genre-action": "Action",
-    "genre-comedy": "Comedy",
-    "genre-sports": "Sports",
-    "button-accept-free-trial": "Accept Free Trial",
-    "aria-label-hero-section": "Hero Section",
-    "title-previous-slide": "Previous Slide",
-    "title-next-slide": "Next Slide",
-    "title-pause": "Pause",
-    "title-play": "Play",
-    "title-pause-autoplay": "Pause auto-play",
-    "title-resume-autoplay": "Resume auto-play"
-  },
-  "video-player": {
-    "default-title": "Video Player",
-    "browser-not-support": "Your browser doesn't support video playback.",
-    "download-video": "Download the video"
-  },
   "header": {
-    "home": "Home",
-    "alt-apple-tv": "Apple TV",
-    "alt-external-link": "External link",
-    "nav-apple-tv-plus": "Apple TV+",
-    "nav-mls": "MLS",
-    "search-placeholder": "Search shows, movies, and more...",
-    "search-results-count": "{count} Result",
-    "search-results-count-plural-suffix": "s",
-    "search-result-emmy": "Emmy®",
-    "search-result-new": "New",
-    "search-view-all-results": "View all {count} results →",
-    "search-no-results-found": "No results found for \"{query}\"",
-    "search-try-searching": "Try searching for shows, movies, actors, or genres",
-    "button-sign-in": "Sign In",
-    "title-sign-in": "Sign In",
-    "brand-name-open-tv": "Open TV"
+    "home": "Command Center",
+    "search-placeholder": "Initiate protocol: Find target...",
+    "search-results-count": "{count} entities detected",
+    "search-result-new": "Fresh Intel",
+    "search-view-all-results": "Decrypt all {count} records →",
+    "search-no-results-found": "Void returned for \"{query}\". System silent.",
+    "search-try-searching": "Re-calibrate sensors. Try codenames or genres."
   },
   "auth": {
     "signIn": {
@@ -81,6 +38,14 @@
       "failed": "System malfunction: {error}",
       "signInFailed": "Gate locked: {error}",
       "passkeyFailed": "Key smith failed: {error}"
+    }
+  },
+  "protected": {
+    "bailiff": {
+      "title": "Goose City Bailiff",
+      "challenge": "Halt! Identity required. Show your clearance.",
+      "checking": "Scanning biological signatures...",
+      "unlocking": "Clearance verified. Welcome to the sector."
     }
   }
 }

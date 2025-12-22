@@ -56,6 +56,24 @@
       height: 0;
     }
   }
+
+  @keyframes caret-colors {
+    0%,
+    100% {
+      caret-color: hsl(var(--primary));
+    }
+    25% {
+      caret-color: #ef4444;
+    }
+    50% {
+      caret-color: #eab308;
+    }
+    75% {
+      caret-color: #3b82f6;
+    }
+  }
+
+  --animate-caret-cycle: caret-colors 4s linear infinite;
 }
 
 @utility container {

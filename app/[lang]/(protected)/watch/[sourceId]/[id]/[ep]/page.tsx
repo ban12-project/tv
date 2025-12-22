@@ -10,6 +10,7 @@ import type { Episode } from "@/lib/adapters/types";
 type Props = Readonly<{
   params: Promise<{
     lang: Locale;
+    sourceId: string;
     id: string;
     ep: string;
   }>;
@@ -26,9 +27,13 @@ export default function WatchPage({ params }: Props) {
 }
 
 async function Suspended({ params }: Props) {
-  const { lang, id, ep } = await params;
+  const { lang, sourceId, id, ep } = await params;
   const dictionary = await getDictionary(lang);
-  const video = await fetchVideoDetails(id);
+
+  // Clean sourceId if needed (decoder?) - usually Next.js handles decoding
+  const decodedSourceId = decodeURIComponent(sourceId);
+
+  const video = await fetchVideoDetails(id, decodedSourceId);
 
   if (!video) {
     notFound();
@@ -38,49 +43,29 @@ async function Suspended({ params }: Props) {
   const validIndex =
     !Number.isNaN(episodeIndex) && episodeIndex >= 0 ? episodeIndex : 0;
 
-  // Format assumption: "Name$Url#Name$Url"
-  let episodes: Episode[] = [];
+  // Matches are now fetched client-side in WatchClient via streaming
+  const sourceGroups: {
+    name: string;
+    sourceId: string;
+    episodes: Episode[];
+  }[] = [];
 
-  if (video.episodes && video.episodes.length > 0) {
-    episodes = video.episodes;
-  } else if (video.vod_play_url) {
-    const segments = video.vod_play_url.split("#");
-    episodes = segments
-      .map((segment) => {
-        // Split by $ to get name and url.
-        // Handle cases where Name might be missing or there are multiple $.
-        const parts = segment.split("$");
-
-        if (parts.length >= 2) {
-          // Usually parts[0] is Name, parts[1] is URL.
-          // Ensure URL starts with http to be safe, though some might be relative?
-          // MacCMS usually absolute.
-          return { name: parts[0], url: parts[1] };
-        }
-
-        // If no $, assume it's just a raw URL
-        return {
-          name: `Episode ${segments.indexOf(segment) + 1}`,
-          url: segment,
-        };
-      })
-      .filter(
-        (ep) =>
-          ep.url && (ep.url.startsWith("http") || ep.url.startsWith("//")),
-      );
-  }
-
-  // If parsing failed or no url, might be a single raw url in the field?
-  // (Covered by split condition above if it didn't have #)
+  // Add current video as first source
+  sourceGroups.push({
+    name: video.sourceName || `Source (${decodedSourceId})`,
+    sourceId: decodedSourceId,
+    episodes: video.episodes || [],
+  });
 
   return (
     <main className="space-y-8">
       <WatchClient
         video={video}
-        episodes={episodes}
+        sources={sourceGroups}
         dictionary={dictionary}
         lang={lang}
-        episodeIndex={validIndex}
+        initialEpisodeIndex={validIndex}
+        currentSourceId={decodedSourceId}
       />
 
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -155,8 +140,8 @@ function Loading() {
   return (
     <main className="grid gap-8">
       {/* Main Player Area Skeleton */}
-      <div className="w-full max-w-7xl mx-auto aspect-video relative">
-        <div className="absolute inset-0 lg:mx-8 bg-neutral-900 animate-pulse flex items-center justify-center">
+      <div className="w-full max-w-7xl mx-auto lg:mx-8 aspect-video">
+        <div className="w-full h-full bg-neutral-900 animate-pulse flex items-center justify-center">
           <div className="w-16 h-16 rounded-full bg-white/10" />
         </div>
       </div>

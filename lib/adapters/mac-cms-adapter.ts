@@ -1,4 +1,9 @@
-import type { SearchResult, Video, VideoSourceAdapter } from "./types";
+import type {
+  Category,
+  SearchResult,
+  Video,
+  VideoSourceAdapter,
+} from "./types";
 
 /**
  * Response structure from MacCMS V10 API.
@@ -70,12 +75,22 @@ export interface MacCMSListParams {
  */
 export class MacCMSAdapter implements VideoSourceAdapter {
   private baseUrl: string;
+  private id: string;
+  private name: string;
 
   /**
    * @param baseUrl The full URL to the API endpoint (e.g., https://example.com/api.php/provide/vod/)
+   * @param id The source ID
+   * @param name The source name
    */
-  constructor(baseUrl: string) {
+  constructor(
+    baseUrl: string,
+    id: string = "unknown",
+    name: string = "Unknown Source",
+  ) {
     this.baseUrl = baseUrl;
+    this.id = id;
+    this.name = name;
   }
 
   /**
@@ -89,13 +104,13 @@ export class MacCMSAdapter implements VideoSourceAdapter {
     const url = `${this.baseUrl}?${searchParams.toString()}`;
 
     try {
-      const res = await fetch(url, { next: { revalidate: 3600 } });
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`Failed to fetch from MacCMS: ${res.statusText}`);
       }
       return await res.json();
-    } catch (error) {
-      console.error("MacCMS API Error:", error);
+    } catch {
+      // console.error("MacCMS API Error:", error);
       return {
         code: 500,
         msg: "Error",
@@ -108,6 +123,31 @@ export class MacCMSAdapter implements VideoSourceAdapter {
     }
   }
 
+  private getType(item: MacCMSVideo) {
+    const isMovie =
+      item.type_name === "电影" ||
+      this.parseEpisodes(item.vod_play_url).length <= 1;
+    const type = isMovie ? "movie" : "tv";
+    return type;
+  }
+
+  /**
+   * Generates a composite key for de-duplication.
+   */
+  private getUniqueKey(item: MacCMSVideo): string {
+    const type = this.getType(item);
+    // heuristic: type_name might be chinese.
+    // Using episode count is safer if type_name is unreliable.
+    // Also match MultiSourceProvider logic:
+    // `${video.title.replaceAll(" ", "")}-${video.year || "unknown"}-${video.episodes && video.episodes.length === 1 ? "movie" : "tv"}`
+
+    // We can just rely on the same logic if we map first. But we need key inside map.
+    // Let's replicate strict logic:
+    const title = item.vod_name.replaceAll(" ", "");
+    const year = item.vod_year || "unknown";
+    return `${title}-${year}-${type}`;
+  }
+
   /**
    * Maps MacCMS video object to internal Video interface.
    * @param item MacCMSVideo object
@@ -115,18 +155,21 @@ export class MacCMSAdapter implements VideoSourceAdapter {
   private mapToVideo = (item: MacCMSVideo): Video => {
     return {
       id: item.vod_id.toString(),
+      sourceId: this.id,
+      sourceName: this.name,
+      uniqueKey: this.getUniqueKey(item),
       title: item.vod_name,
-      type: "show", // MacCMS often mixes them; simplified for now or strictly based on type_name
+      type: this.getType(item),
       genre: [item.type_name],
       year: item.vod_year,
       description: item.vod_content
         ? item.vod_content.replace(/<[^>]*>/g, "").trim()
         : "", // Remove HTML tags
-      image: item.vod_pic,
-      backgroundImage: item.vod_pic, // Fallback
+      image: item.vod_pic.replace(/^http:\/\//i, "https://"),
+      backgroundImage: item.vod_pic.replace(/^http:\/\//i, "https://"), // Fallback
       director: item.vod_director,
       cast: item.vod_actor ? item.vod_actor.split(",") : [],
-      vod_play_url: item.vod_play_url,
+      vod_play_url: item.vod_play_url.replace(/^http:\/\//i, "https://"),
       vod_play_from: item.vod_play_from,
       episodes: this.parseEpisodes(item.vod_play_url),
     };
@@ -165,7 +208,7 @@ export class MacCMSAdapter implements VideoSourceAdapter {
 
           return {
             name: `Episode ${index + 1}`,
-            url: cleanLink,
+            url: cleanLink.replace(/^http:\/\//i, "https://"),
           };
         },
       );
@@ -178,11 +221,14 @@ export class MacCMSAdapter implements VideoSourceAdapter {
         .map((segment) => {
           const parts = segment.split("$");
           if (parts.length >= 2) {
-            return { name: parts[0], url: parts[1] };
+            return {
+              name: parts[0],
+              url: parts[1].replace(/^http:\/\//i, "https://"),
+            };
           }
           return {
             name: `Episode ${playUrl.split("#").indexOf(segment) + 1}`,
-            url: segment,
+            url: segment.replace(/^http:\/\//i, "https://"),
           };
         })
         .filter(
@@ -217,6 +263,15 @@ export class MacCMSAdapter implements VideoSourceAdapter {
 
     const response = await this.fetchAPI(apiParams);
 
+    if (!response.list) {
+      return {
+        videos: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      };
+    }
+
     return {
       videos: response.list.map(this.mapToVideo),
       total: Number(response.total),
@@ -224,33 +279,18 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       limit: Number(response.limit),
     };
   }
-
   /**
    * Fetches the list of video categories.
    */
-  async getCategories(): Promise<MacCMSCategory[]> {
+  async getCategories(): Promise<Category[]> {
     // ac=list usually returns the category list in the 'class' field
     const response = await this.fetchAPI({ ac: "list" });
-    return response.class || [];
-  }
-
-  /**
-   * Gets a mix of videos for the home page (Trending, New, Featured).
-   */
-  async getHomeModules(): Promise<{
-    trending: Video[];
-    newReleases: Video[];
-    featured: Video[];
-  }> {
-    // MacCMS doesn't strictly have "modules", so we fetch recent items.
-    const response = await this.fetchAPI({ ac: "detail", h: "24" }); // Recent 24 items
-    const videos = response.list.map(this.mapToVideo);
-
-    return {
-      trending: videos.slice(0, 10),
-      newReleases: videos.slice(10, 20),
-      featured: videos.slice(0, 5),
-    };
+    const classes = response.class || [];
+    return classes.map((c: MacCMSCategory) => ({
+      id: c.type_id,
+      name: c.type_name,
+      parentId: c.type_pid,
+    }));
   }
 
   /**

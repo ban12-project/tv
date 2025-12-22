@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { getCategoryVideos } from "@/app/actions/content";
+import { getCategoryVideosStream } from "@/app/actions/content";
 import {
   Pagination,
   PaginationContent,
@@ -46,10 +46,31 @@ export function CategoryVideoList({
         const url = new URL(window.location.href);
         url.searchParams.set("page", page.toString());
         window.history.pushState({}, "", url.toString());
+        setCurrentPage(page);
 
-        const data = await getCategoryVideos(categoryId, page);
-        setVideos(data.videos);
-        setCurrentPage(data.page);
+        // Reset videos
+        setVideos([]);
+
+        const iterator = await getCategoryVideosStream(categoryId, page);
+
+        for await (const chunk of iterator) {
+          if (chunk.videos && chunk.videos.length > 0) {
+            setVideos((prev) => {
+              const newVideos = [...prev];
+              // Deduplication
+              const currentKeys = new Set(prev.map((v) => v.uniqueKey || v.id));
+
+              const uniqueNew = chunk.videos.filter((v: Video) => {
+                const key = v.uniqueKey || `${v.title}-${v.year || ""}`;
+                if (currentKeys.has(key)) return false;
+                currentKeys.add(key);
+                return true;
+              });
+
+              return [...newVideos, ...uniqueNew];
+            });
+          }
+        }
 
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
@@ -146,12 +167,16 @@ export function CategoryVideoList({
       >
         {videos.length === 0 ? (
           <div className="text-center py-20 text-neutral-500">
-            No videos found in this category.
+            {isPending ? "Loading..." : "No videos found in this category."}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-6">
             {videos.map((video) => (
-              <VideoCard key={video.id} video={video} className="w-full" />
+              <VideoCard
+                key={`${video.id}-${video.sourceId}`}
+                video={video}
+                className="w-full"
+              />
             ))}
           </div>
         )}

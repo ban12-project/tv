@@ -16,9 +16,9 @@ export async function generateStaticParams() {
   const categories = await sourceProvider.getCategories();
 
   return categories
-    .filter((category) => category.type_pid !== 0)
+    .filter((category) => category.parentId !== 0)
     .map((category) => ({
-      id: String(category.type_id),
+      id: String(category.id),
     }));
 }
 
@@ -39,11 +39,11 @@ export default async function CategoryPage({
         <div className="space-y-2">
           <ViewTransition name="category-title">
             <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
-              {category.type_name}
+              {category.name}
             </h1>
           </ViewTransition>
           <p className="text-neutral-400">
-            Explore our collection of {category.type_name}
+            Explore our collection of {category.name}
           </p>
         </div>
 

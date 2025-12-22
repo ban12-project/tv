@@ -1,36 +1,41 @@
 "use client";
 
-import type { MacCMSCategory } from "@/lib/adapters/mac-cms-adapter";
+import type { Category } from "@/lib/adapters/types";
 import { DesktopMenu } from "./desktop-menu";
 import { MobileMenu } from "./mobile-menu";
 
-export interface CategoryNode extends MacCMSCategory {
+export interface CategoryNode extends Category {
   children?: CategoryNode[];
 }
 
-function buildCategoryTree(categories: MacCMSCategory[]): CategoryNode[] {
-  const map = new Map<number, CategoryNode>();
+function buildCategoryTree(categories: Category[]): CategoryNode[] {
+  const map = new Map<string | number, CategoryNode>();
   const roots: CategoryNode[] = [];
 
   // Initialize all nodes
-  categories.forEach((cat) => {
-    map.set(cat.type_id, { ...cat, children: [] });
-  });
+  for (const cat of categories) {
+    map.set(cat.id, { ...cat, children: [] });
+  }
 
   // Build tree
-  categories.forEach((cat) => {
-    const node = map.get(cat.type_id)!;
-    if (cat.type_pid && map.has(cat.type_pid) && cat.type_pid !== 0) {
-      map.get(cat.type_pid)!.children!.push(node);
+  for (const cat of categories) {
+    const node = map.get(cat.id)!;
+    if (
+      cat.parentId &&
+      map.has(cat.parentId) &&
+      cat.parentId !== 0 &&
+      cat.parentId !== "0"
+    ) {
+      map.get(cat.parentId)!.children!.push(node);
     } else {
       roots.push(node);
     }
-  });
+  }
 
   return roots;
 }
 
-export function Menu({ categories }: { categories: MacCMSCategory[] }) {
+export function Menu({ categories }: { categories: Category[] }) {
   const categoryTree = buildCategoryTree(categories);
 
   return (

@@ -11,27 +11,19 @@ const searchSchema = z.object({
     .max(100, "Search query is too long"),
 });
 
-export async function fetchHomeContent() {
+export async function fetchVideoDetails(id: string, sourceId: string) {
   "use cache";
-  cacheTag("home");
-  cacheLife("hours");
-
-  try {
-    const data = await sourceProvider.getHomeModules();
-    return data;
-  } catch (error) {
-    console.error("Error fetching home content:", error);
-    // Return empty fallback
-    return { trending: [], newReleases: [], featured: [] };
-  }
-}
-
-export async function fetchVideoDetails(id: string) {
-  "use cache";
-  cacheTag(`video-${id}`);
+  cacheTag(`video-${id}-${sourceId}`);
   cacheLife("days");
 
   try {
+    const adapter = await sourceProvider.getAdapter(sourceId);
+    if (adapter) {
+      const video = await adapter.getDetails(id);
+      return video ? { ...video, sourceId } : null;
+    }
+
+    // Fallback or "Try All" if no sourceId
     const video = await sourceProvider.getDetails(id);
     return video;
   } catch (error) {
@@ -43,17 +35,17 @@ export async function fetchVideoDetails(id: string) {
 export async function searchVideos(_prevState: unknown, formData: FormData) {
   const query = formData.get("query");
 
-  const validated = searchSchema.safeParse({ query });
+  const validatedFields = searchSchema.safeParse({ query });
 
-  if (!validated.success) {
+  if (!validatedFields.success) {
     return {
-      errors: validated.error.flatten().fieldErrors,
+      errors: z.flattenError(validatedFields.error).fieldErrors,
       results: [],
     };
   }
 
   try {
-    const results = await sourceProvider.search(validated.data.query);
+    const results = await sourceProvider.search(validatedFields.data.query);
     return {
       errors: null,
       results: results.videos,
@@ -67,34 +59,6 @@ export async function searchVideos(_prevState: unknown, formData: FormData) {
   }
 }
 
-export async function quickSearch(query: string) {
-  "use cache";
-  cacheTag(`search-${query}`);
-  cacheLife("minutes");
-
-  try {
-    if (!query) return [];
-    const results = await sourceProvider.search(query);
-    return results.videos;
-  } catch (error) {
-    console.error("Quick search error:", error);
-    return [];
-  }
-}
-export async function getTrending() {
-  "use cache";
-  cacheTag("trending");
-  cacheLife("hours");
-
-  try {
-    const modules = await sourceProvider.getHomeModules();
-    return modules.trending;
-  } catch (error) {
-    console.error("Error fetching trending content:", error);
-    return [];
-  }
-}
-
 export async function getCategory(id: string) {
   "use cache";
   cacheTag(`category-${id}`);
@@ -102,7 +66,7 @@ export async function getCategory(id: string) {
 
   try {
     const categories = await sourceProvider.getCategories();
-    return categories.find((c) => c.type_id.toString() === id);
+    return categories.find((c) => c.id.toString() === id);
   } catch (error) {
     console.error(`Error fetching category ${id}:`, error);
     return null;
@@ -129,4 +93,22 @@ export async function getCategoryVideos(id: string, page = 1) {
       limit: 20,
     };
   }
+}
+
+import type { Video } from "@/lib/adapters/types";
+
+export async function searchVideosStream(query: string) {
+  return sourceProvider.searchStream(query);
+}
+
+export async function findMatchesStream(video: Video) {
+  return sourceProvider.findMatchesStream(video);
+}
+
+export async function getCategoryVideosStream(id: string, page = 1) {
+  return sourceProvider.getVideosStream({
+    t: id,
+    pg: page,
+    ac: "detail",
+  });
 }

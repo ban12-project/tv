@@ -1,43 +1,16 @@
-import { Loader2Icon } from "lucide-react";
-import { Suspense, ViewTransition } from "react";
-import { fetchHomeContent } from "@/app/actions/content";
-import { ContentRow } from "@/components/content-row";
-import { HeroCarousel } from "@/components/hero-carousel";
+import { HomeSearch } from "@/components/home-search";
+import { getDictionary } from "@/get-dictionary";
+import type { Locale } from "@/i18n-config";
 
-export default function Home() {
+export default async function Home(props: {
+  params: Promise<{ lang: Locale }>;
+}) {
+  const { lang } = await props.params;
+  const dict = await getDictionary(lang);
+
   return (
-    <main>
-      <ViewTransition>
-        <Suspense
-          fallback={
-            <div className="flex h-screen items-center justify-center">
-              <Loader2Icon className="animate-spin" />
-            </div>
-          }
-        >
-          <Suspended />
-        </Suspense>
-      </ViewTransition>
+    <main className="min-h-[calc(100dvh-65px)]">
+      <HomeSearch dictionary={dict} />
     </main>
-  );
-}
-
-async function Suspended() {
-  const { trending, newReleases } = await fetchHomeContent();
-
-  return (
-    <>
-      <HeroCarousel videos={trending.slice(0, 5)} />
-
-      <div className="space-y-4 pb-20 -mt-20 relative z-20">
-        {trending.length > 0 && (
-          <ContentRow title="Trending Now" videos={trending} />
-        )}
-
-        {newReleases.length > 0 && (
-          <ContentRow title="New Releases" videos={newReleases} />
-        )}
-      </div>
-    </>
   );
 }

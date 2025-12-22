@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { useDebounceCallback } from "usehooks-ts";
-import { getTrending, searchVideos } from "@/app/actions/content";
+import { searchVideos } from "@/app/actions/content";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -65,15 +65,9 @@ export function SearchDialog({
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const [trending, setTrending] = React.useState<Video[]>([]);
-
-  React.useEffect(() => {
-    getTrending().then(setTrending);
-  }, []);
-
-  const handleSelect = (id: string) => {
+  const handleSelect = (video: Video) => {
     setOpen(false);
-    router.push(`/watch/${id}/1`);
+    router.push(`/watch/${video.sourceId || "default"}/${video.id}/1`);
   };
 
   return (
@@ -116,28 +110,13 @@ export function SearchDialog({
             <CommandEmpty>No results found.</CommandEmpty>
           )}
 
-          {!query && trending.length > 0 && (
-            <CommandGroup heading="Trending">
-              {trending.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.id}
-                  onSelect={() => handleSelect(item.id)}
-                >
-                  <Search className="mr-2 h-4 w-4" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-
           {query && state.results.length > 0 && (
             <CommandGroup heading="Results">
               {state.results.map((item: Video) => (
                 <CommandItem
                   key={item.id}
                   value={item.id}
-                  onSelect={() => handleSelect(item.id)}
+                  onSelect={() => handleSelect(item)}
                 >
                   {item.image && (
                     <div className="mr-2 h-8 w-14 relative rounded overflow-hidden shrink-0">
