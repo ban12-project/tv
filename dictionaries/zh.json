@@ -47,5 +47,15 @@
       "checking": "让子弹飞一会儿... 正在查验身份",
       "unlocking": "原来是家乡父老！请，进城！"
     }
+  },
+  "watch": {
+    "source-label": "选择码头",
+    "episode-list": "集数列表",
+    "sources-list": "更换码头",
+    "no-source": "这地界儿没搜到能放的，再等等？",
+    "cast": "演员阵容",
+    "director": "导演",
+    "released": "上映日期",
+    "episodes": "集"
   }
 }

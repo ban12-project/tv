@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { getApiSources } from "@/app/actions/cms";
-import {
-  MacCMSAdapter,
-  type MacCMSListParams,
-} from "./adapters/mac-cms-adapter";
-import type { SearchResult, Video, VideoSourceAdapter } from "./adapters/types";
+import { MacCMSAdapter } from "./adapters/mac-cms-adapter";
+import type {
+  MacCMSListParams,
+  SearchResult,
+  Video,
+  VideoSourceAdapter,
+} from "./adapters/types";
+import { getVideoUniqueKey } from "./adapters/util";
 
 export class MultiSourceProvider implements VideoSourceAdapter {
   async getAdapters(): Promise<
@@ -35,18 +38,12 @@ export class MultiSourceProvider implements VideoSourceAdapter {
     return new MacCMSAdapter(source.url, source.id, source.name);
   }
 
-  private getCompositeKey(video: Video): string {
-    return `${video.title.replaceAll(" ", "")}-${video.year || "unknown"}-${
-      video.episodes && video.episodes.length === 1 ? "movie" : "tv"
-    }`;
-  }
-
   // Aggregate and dedup videos
   private aggregateVideos(allVideos: Video[]): Video[] {
     const videoMap = new Map<string, Video>();
 
     for (const video of allVideos) {
-      const key = this.getCompositeKey(video);
+      const key = getVideoUniqueKey(video);
       if (!videoMap.has(key)) {
         // Tag with composite key for debugging/client usage if needed
         video.uniqueKey = key;
@@ -58,53 +55,35 @@ export class MultiSourceProvider implements VideoSourceAdapter {
     return Array.from(videoMap.values());
   }
 
-  async getDetails(id: string): Promise<Video | null> {
+  async getDetails(id: string, sourceId?: string): Promise<Video | null> {
     const adapters = await this.ensureAdapters();
-    for (const { id: sourceId, name, adapter } of adapters) {
+
+    if (sourceId) {
+      const source = adapters.find((s) => s.id === sourceId);
+      if (source) {
+        try {
+          const video = await source.adapter.getDetails(id);
+          if (video) {
+            return { ...video, sourceId: source.id, sourceName: source.name };
+          }
+        } catch (e) {
+          console.error(`Failed to get details from source ${sourceId}`, e);
+        }
+        return null;
+      }
+    }
+
+    for (const { id: sId, name, adapter } of adapters) {
       try {
         const video = await adapter.getDetails(id);
         if (video) {
-          return { ...video, sourceId, sourceName: name };
+          return { ...video, sourceId: sId, sourceName: name };
         }
       } catch (_) {
         // ignore
       }
     }
     return null;
-  }
-
-  async search(query: string, page?: number): Promise<SearchResult> {
-    const adapters = await this.ensureAdapters();
-    const results = await Promise.all(
-      adapters.map(async ({ id, name, adapter }) => {
-        try {
-          const res = await adapter.search(query, page);
-          return {
-            ...res,
-            videos: res.videos.map((v) => ({
-              ...v,
-              sourceId: id,
-              sourceName: name,
-            })),
-          };
-        } catch (e) {
-          console.error(`Failed to search source ${id}`, e);
-          return null;
-        }
-      }),
-    );
-
-    const validResults = results.filter((r) => r !== null);
-    const allVideos = validResults.flatMap((r) => r!.videos);
-
-    const total = validResults.reduce((acc, r) => acc + r!.total, 0);
-
-    return {
-      videos: this.aggregateVideos(allVideos),
-      total,
-      page: page || 1,
-      limit: 20, // nominal
-    };
   }
 
   async getCategories() {
@@ -153,7 +132,49 @@ export class MultiSourceProvider implements VideoSourceAdapter {
   }
 
   /**
+   * Merges multiple AsyncGenerators into one, yielding values as they arrive.
+   */
+  private async *mergeGenerators<T>(
+    generators: AsyncGenerator<T>[],
+  ): AsyncGenerator<T> {
+    const nextPromises = generators.map(async (g, index) => {
+      try {
+        const result = await g.next();
+        return { result, index };
+      } catch {
+        return { result: { done: true as const, value: undefined }, index };
+      }
+    });
+
+    const activeIndices = new Set(generators.keys());
+
+    while (activeIndices.size > 0) {
+      const { result, index } = await Promise.race(
+        Array.from(activeIndices).map((i) => nextPromises[i]),
+      );
+
+      if (result.done) {
+        activeIndices.delete(index);
+      } else {
+        yield result.value;
+        // Schedule next pull from this generator
+        nextPromises[index] = generators[index]
+          .next()
+          .then((res) => ({
+            result: res,
+            index,
+          }))
+          .catch(() => ({
+            result: { done: true as const, value: undefined },
+            index,
+          }));
+      }
+    }
+  }
+
+  /**
    * Helper to stream results from adapters as they complete.
+   * Keeps compatibility with Promise-based adapter calls.
    */
   private async *streamAdapters<T>(
     adapterPromises: Promise<{ id: string; name: string; result: T | null }>[],
@@ -178,73 +199,69 @@ export class MultiSourceProvider implements VideoSourceAdapter {
     page?: number,
   ): AsyncGenerator<SearchResult> {
     const adapters = await this.ensureAdapters();
-    const promises = adapters.map(async ({ id, name, adapter }) => {
-      try {
-        const result = await adapter.search(query, page);
-        return {
-          id,
-          name,
-          result: {
-            ...result,
-            videos: result.videos.map((v) => ({
-              ...v,
-              sourceId: id,
-              sourceName: name,
-            })),
-          },
-        };
-      } catch (e) {
-        console.error(`Failed to search source ${id}`, e);
-        return { id, name, result: null };
-      }
+
+    const generators = adapters.map(({ id, name, adapter }) => {
+      const g = (async function* () {
+        try {
+          for await (const result of adapter.searchStream(query, page)) {
+            yield {
+              ...result,
+              videos: result.videos.map((v) => ({
+                ...v,
+                sourceId: id,
+                sourceName: name,
+              })),
+            };
+          }
+        } catch (e) {
+          console.error(`Failed to stream search from source ${id}`, e);
+        }
+      })();
+      return g;
     });
 
-    for await (const { result } of this.streamAdapters(promises)) {
-      yield result;
-    }
+    yield* this.mergeGenerators(generators);
   }
 
   async *getVideosStream(
     params: MacCMSListParams,
   ): AsyncGenerator<SearchResult> {
     const adapters = await this.ensureAdapters();
-    const promises = adapters.map(async ({ id, name, adapter }) => {
-      try {
-        const result = await adapter.getVideos(params);
-        return {
-          id,
-          name,
-          result: {
-            ...result,
-            videos: result.videos.map((v) => ({
-              ...v,
-              sourceId: id,
-              sourceName: name,
-            })),
-          },
-        };
-      } catch (e) {
-        console.error(`Failed to get videos from source ${id}`, e);
-        return { id, name, result: null };
-      }
+
+    const generators = adapters.map(({ id, name, adapter }) => {
+      const g = (async function* () {
+        try {
+          for await (const result of adapter.getVideosStream(params)) {
+            yield {
+              ...result,
+              videos: result.videos.map((v) => ({
+                ...v,
+                sourceId: id,
+                sourceName: name,
+              })),
+            };
+          }
+        } catch (e) {
+          console.error(`Failed to stream videos from source ${id}`, e);
+        }
+      })();
+      return g;
     });
 
-    for await (const { result } of this.streamAdapters(promises)) {
-      yield result;
-    }
+    yield* this.mergeGenerators(generators);
   }
 
   async *findMatchesStream(
     video: Video,
   ): AsyncGenerator<{ sourceId: string; sourceName: string; video: Video }[]> {
     const adapters = await this.ensureAdapters();
-    const simpleKey = this.getCompositeKey(video);
+    const simpleKey = getVideoUniqueKey(video);
 
     const promises = adapters.map(async ({ id, name, adapter }) => {
       try {
         const res = await adapter.search(video.title);
         const matches = res.videos
-          .filter((v) => this.getCompositeKey(v) === simpleKey)
+          .filter((v) => getVideoUniqueKey(v) === simpleKey)
           .map((v) => ({
             sourceId: id,
             sourceName: name,

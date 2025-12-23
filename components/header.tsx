@@ -43,7 +43,7 @@ export default async function Header({
 
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
-              <SearchDialog dictionary={dictionary.common} />
+              <SearchDialog dictionary={dictionary} lang={lang} />
 
               <ViewTransition>
                 <Suspense fallback={<Skeleton className="w-12 h-8" />}>

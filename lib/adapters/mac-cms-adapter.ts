@@ -1,9 +1,12 @@
 import type {
   Category,
+  MacCMSListParams,
+  MacCMSVideo,
   SearchResult,
   Video,
   VideoSourceAdapter,
 } from "./types";
+import { getType, getVideoUniqueKey, parseEpisodes } from "./util";
 
 /**
  * Response structure from MacCMS V10 API.
@@ -27,46 +30,6 @@ export interface MacCMSCategory {
   type_id: number;
   type_name: string;
   type_pid?: number;
-}
-
-/**
- * Video Data from MacCMS
- */
-interface MacCMSVideo {
-  vod_id: number;
-  vod_name: string;
-  type_name: string;
-  vod_pic: string;
-  vod_remarks: string;
-  vod_year: string;
-  vod_area: string;
-  vod_director: string;
-  vod_actor: string;
-  vod_content: string;
-  vod_play_from: string;
-  vod_play_url: string;
-  vod_time: string;
-  vod_blurb?: string;
-  vod_lang?: string;
-}
-
-/**
- * Parameters for fetching video lists.
- * Based on MacCMS V10 Provide/Vod API.
- */
-export interface MacCMSListParams {
-  ac?: "list" | "detail" | "videolist";
-  t?: number | string; // Category ID
-  pg?: number | string; // Page number
-  wd?: string; // Search keyword
-  h?: number | string; // Within N hours
-  ids?: string; // Comma separated IDs
-  year?: string; // Year
-  area?: string; // Region
-  lang?: string; // Language
-  isend?: number | string; // 1 for finished
-  limit?: number | string; // Page size (mapped to 'pagesize')
-  pagesize?: number | string; // Explicit page size
 }
 
 /**
@@ -123,43 +86,24 @@ export class MacCMSAdapter implements VideoSourceAdapter {
     }
   }
 
-  private getType(item: MacCMSVideo) {
-    const isMovie =
-      item.type_name === "电影" ||
-      this.parseEpisodes(item.vod_play_url).length <= 1;
-    const type = isMovie ? "movie" : "tv";
-    return type;
-  }
-
-  /**
-   * Generates a composite key for de-duplication.
-   */
-  private getUniqueKey(item: MacCMSVideo): string {
-    const type = this.getType(item);
-    // heuristic: type_name might be chinese.
-    // Using episode count is safer if type_name is unreliable.
-    // Also match MultiSourceProvider logic:
-    // `${video.title.replaceAll(" ", "")}-${video.year || "unknown"}-${video.episodes && video.episodes.length === 1 ? "movie" : "tv"}`
-
-    // We can just rely on the same logic if we map first. But we need key inside map.
-    // Let's replicate strict logic:
-    const title = item.vod_name.replaceAll(" ", "");
-    const year = item.vod_year || "unknown";
-    return `${title}-${year}-${type}`;
-  }
-
   /**
    * Maps MacCMS video object to internal Video interface.
    * @param item MacCMSVideo object
    */
   private mapToVideo = (item: MacCMSVideo): Video => {
+    const type = getType(item);
+
     return {
       id: item.vod_id.toString(),
       sourceId: this.id,
       sourceName: this.name,
-      uniqueKey: this.getUniqueKey(item),
+      uniqueKey: getVideoUniqueKey({
+        title: item.vod_name,
+        year: item.vod_year,
+        type,
+      }), // Generates a composite key for de-duplication.
       title: item.vod_name,
-      type: this.getType(item),
+      type,
       genre: [item.type_name],
       year: item.vod_year,
       description: item.vod_content
@@ -171,74 +115,9 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       cast: item.vod_actor ? item.vod_actor.split(",") : [],
       vod_play_url: item.vod_play_url.replace(/^http:\/\//i, "https://"),
       vod_play_from: item.vod_play_from,
-      episodes: this.parseEpisodes(item.vod_play_url),
+      episodes: parseEpisodes(item.vod_play_url),
     };
   };
-
-  /**
-   * Parses video play URLs into structured episodes.
-   * Supports `$` delimited formats and `#` delimited lists.
-   * @param playUrl The raw play URL string from API
-   */
-  private parseEpisodes(playUrl: string): { name: string; url: string }[] {
-    let episodes: string[] = [];
-
-    if (playUrl) {
-      const m3u8Regex = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
-      // Split by $$$ to handle multiple sources/playlists
-      const vod_play_url_array = playUrl.split("$$$");
-
-      // Find the segment with the most m3u8 matches
-      vod_play_url_array.forEach((url: string) => {
-        const matches = url.match(m3u8Regex) || [];
-        if (matches.length > episodes.length) {
-          episodes = matches;
-        }
-      });
-    }
-
-    if (episodes.length > 0) {
-      return Array.from(new Set(episodes)).map(
-        (link: string, index: number) => {
-          let cleanLink = link.substring(1); // Remove leading $
-          const parenIndex = cleanLink.indexOf("(");
-          if (parenIndex > 0) {
-            cleanLink = cleanLink.substring(0, parenIndex);
-          }
-
-          return {
-            name: `Episode ${index + 1}`,
-            url: cleanLink.replace(/^http:\/\//i, "https://"),
-          };
-        },
-      );
-    }
-
-    // Fallback/Legacy parsing if regex logic yields nothing
-    if (playUrl) {
-      return playUrl
-        .split("#")
-        .map((segment) => {
-          const parts = segment.split("$");
-          if (parts.length >= 2) {
-            return {
-              name: parts[0],
-              url: parts[1].replace(/^http:\/\//i, "https://"),
-            };
-          }
-          return {
-            name: `Episode ${playUrl.split("#").indexOf(segment) + 1}`,
-            url: segment.replace(/^http:\/\//i, "https://"),
-          };
-        })
-        .filter(
-          (ep) =>
-            ep.url && (ep.url.startsWith("http") || ep.url.startsWith("//")),
-        );
-    }
-
-    return [];
-  }
 
   /**
    * Fetches videos with advanced filtering.
@@ -316,5 +195,133 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       pg: page,
       ac: "detail",
     });
+  }
+
+  /**
+   * Searches for videos by keyword with streaming results.
+   * @param query Search query
+   * @param page Page number
+   */
+  async *searchStream(query: string, page = 1): AsyncGenerator<SearchResult> {
+    yield* this.getVideosStream({
+      wd: query,
+      pg: page,
+      ac: "detail",
+    });
+  }
+
+  /**
+   * Fetches videos using a streaming response parser to yield items as they arrive.
+   */
+  async *getVideosStream(
+    params: MacCMSListParams,
+  ): AsyncGenerator<SearchResult> {
+    const apiParams: Record<string, string> = {
+      ac: params.ac || "detail",
+    };
+
+    if (params.t) apiParams.t = params.t.toString();
+    if (params.pg) apiParams.pg = params.pg.toString();
+    if (params.wd) apiParams.wd = params.wd;
+    if (params.ids) apiParams.ids = params.ids;
+    if (params.pagesize) apiParams.pagesize = params.pagesize.toString();
+    else if (params.limit) apiParams.pagesize = params.limit.toString();
+
+    const url = `${this.baseUrl}?${new URLSearchParams(apiParams).toString()}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok || !res.body) {
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let hasFoundList = false;
+      let total = 0;
+      let page = 1;
+      let limit = 20;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Extract metadata if not already found
+        if (total === 0) {
+          const totalMatch = buffer.match(/"total":\s*(\d+)/);
+          if (totalMatch) total = Number.parseInt(totalMatch[1], 10);
+          const pageMatch = buffer.match(/"page":\s*(\d+)/);
+          if (pageMatch) page = Number.parseInt(pageMatch[1], 10);
+          const limitMatch = buffer.match(/"limit":\s*(\d+)/);
+          if (limitMatch) limit = Number.parseInt(limitMatch[1], 10);
+        }
+
+        if (!hasFoundList) {
+          const listStart = buffer.indexOf('"list":[');
+          if (listStart !== -1) {
+            hasFoundList = true;
+            buffer = buffer.substring(listStart + 8);
+          } else {
+            // Keep small tail in case the tag is split
+            if (buffer.length > 20)
+              buffer = buffer.substring(buffer.length - 10);
+            continue;
+          }
+        }
+
+        // Lightweight object extractor
+        let braceCount = 0;
+        let inString = false;
+        let startPos = -1;
+
+        for (let i = 0; i < buffer.length; i++) {
+          const char = buffer[i];
+          if (char === '"' && buffer[i - 1] !== "\\") inString = !inString;
+
+          if (!inString) {
+            if (char === "{") {
+              if (braceCount === 0) startPos = i;
+              braceCount++;
+            } else if (char === "}") {
+              braceCount--;
+              if (braceCount === 0 && startPos !== -1) {
+                const objStr = buffer.substring(startPos, i + 1);
+                try {
+                  const item = JSON.parse(objStr) as MacCMSVideo;
+                  yield {
+                    videos: [this.mapToVideo(item)],
+                    total,
+                    page,
+                    limit,
+                  };
+                } catch {
+                  /* Skip invalid items */
+                }
+                buffer = buffer.substring(i + 1);
+                i = -1;
+                startPos = -1;
+              }
+            } else if (char === "]" && braceCount === 0) {
+              return;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if ((e as Error).name === "AbortError") {
+        console.warn(`Streaming fetch timeout for ${this.name}`);
+      } else {
+        console.error(`Streaming fetch error for ${this.name}:`, e);
+      }
+    }
   }
 }

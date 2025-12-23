@@ -39,7 +39,7 @@ async function Suspended({ params }: Props) {
     notFound();
   }
 
-  const episodeIndex = parseInt(ep, 10) - 1;
+  const episodeIndex = Number.parseInt(ep, 10) - 1;
   const validIndex =
     !Number.isNaN(episodeIndex) && episodeIndex >= 0 ? episodeIndex : 0;
 
@@ -47,6 +47,7 @@ async function Suspended({ params }: Props) {
   const sourceGroups: {
     name: string;
     sourceId: string;
+    videoId: string;
     episodes: Episode[];
   }[] = [];
 
@@ -54,6 +55,7 @@ async function Suspended({ params }: Props) {
   sourceGroups.push({
     name: video.sourceName || `Source (${decodedSourceId})`,
     sourceId: decodedSourceId,
+    videoId: id,
     episodes: video.episodes || [],
   });
 
@@ -100,7 +102,7 @@ async function Suspended({ params }: Props) {
             {video.cast && video.cast.length > 0 && (
               <>
                 <h3 className="text-xl font-semibold mb-4 text-gray-200">
-                  Cast
+                  {dictionary.watch?.cast ?? "Cast"}
                 </h3>
                 <div className="flex flex-wrap gap-2 text-gray-400">
                   {video.cast.map((c) => (
@@ -119,13 +121,17 @@ async function Suspended({ params }: Props) {
           <div className="space-y-6 text-sm text-gray-400">
             {video.director && (
               <div>
-                <span className="block text-gray-500 mb-1">Director</span>
+                <span className="block text-gray-500 mb-1">
+                  {dictionary.watch?.director ?? "Director"}
+                </span>
                 <span className="text-white">{video.director}</span>
               </div>
             )}
             {video.releaseDate && (
               <div>
-                <span className="block text-gray-500 mb-1">Released</span>
+                <span className="block text-gray-500 mb-1">
+                  {dictionary.watch?.released ?? "Released"}
+                </span>
                 <span className="text-white">{video.releaseDate}</span>
               </div>
             )}
@@ -138,7 +144,7 @@ async function Suspended({ params }: Props) {
 
 function Loading() {
   return (
-    <main className="grid gap-8">
+    <main className="space-y-8">
       {/* Main Player Area Skeleton */}
       <div className="w-full max-w-7xl mx-auto lg:mx-8 aspect-video">
         <div className="w-full h-full bg-neutral-900 animate-pulse flex items-center justify-center">

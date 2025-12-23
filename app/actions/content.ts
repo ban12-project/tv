@@ -2,6 +2,7 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import * as z from "zod";
+import type { Video } from "@/lib/adapters/types";
 import { sourceProvider } from "@/lib/source-provider";
 
 const searchSchema = z.object({
@@ -17,45 +18,10 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
   cacheLife("days");
 
   try {
-    const adapter = await sourceProvider.getAdapter(sourceId);
-    if (adapter) {
-      const video = await adapter.getDetails(id);
-      return video ? { ...video, sourceId } : null;
-    }
-
-    // Fallback or "Try All" if no sourceId
-    const video = await sourceProvider.getDetails(id);
-    return video;
+    return await sourceProvider.getDetails(id, sourceId);
   } catch (error) {
     console.error(`Error fetching details for ${id}:`, error);
     return null;
-  }
-}
-
-export async function searchVideos(_prevState: unknown, formData: FormData) {
-  const query = formData.get("query");
-
-  const validatedFields = searchSchema.safeParse({ query });
-
-  if (!validatedFields.success) {
-    return {
-      errors: z.flattenError(validatedFields.error).fieldErrors,
-      results: [],
-    };
-  }
-
-  try {
-    const results = await sourceProvider.search(validatedFields.data.query);
-    return {
-      errors: null,
-      results: results.videos,
-    };
-  } catch (error) {
-    console.error("Search error:", error);
-    return {
-      errors: { query: ["An unexpected error occurred"] },
-      results: [],
-    };
   }
 }
 
@@ -95,10 +61,14 @@ export async function getCategoryVideos(id: string, page = 1) {
   }
 }
 
-import type { Video } from "@/lib/adapters/types";
-
 export async function searchVideosStream(query: string) {
-  return sourceProvider.searchStream(query);
+  const validatedFields = searchSchema.safeParse({ query });
+
+  if (!validatedFields.success) {
+    throw new Error(validatedFields.error.message);
+  }
+
+  return sourceProvider.searchStream(validatedFields.data.query);
 }
 
 export async function findMatchesStream(video: Video) {

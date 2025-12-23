@@ -1,12 +1,10 @@
 "use client";
 
-import type { DialogProps } from "@radix-ui/react-dialog";
-import { Search } from "lucide-react";
-import Image from "next/image";
+import IntlMessageFormat from "intl-messageformat";
+import { Loader2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { useDebounceCallback } from "usehooks-ts";
-import { searchVideos } from "@/app/actions/content";
+import { CMSImage } from "@/components/cms-image";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -18,40 +16,29 @@ import {
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
 import type { Messages } from "@/get-dictionary";
+import { useVideoSearch } from "@/hooks/use-video-search";
 import type { Video } from "@/lib/adapters/types";
-
-const initialState = {
-  errors: null,
-  results: [],
-};
-
+import { cn } from "@/lib/utils";
 export function SearchDialog({
   dictionary,
-  ...props
-}: DialogProps & {
-  dictionary: Messages["common"];
+  lang,
+}: {
+  dictionary: Messages;
+  lang: string;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
+  const {
+    query,
+    results,
+    isPending,
+    onQueryChange,
+    onCompositionStart,
+    onCompositionEnd,
+  } = useVideoSearch(300);
   const router = useRouter();
 
-  const [state, dispatch, isPending] = React.useActionState(
-    searchVideos,
-    initialState,
-  );
-  const formRef = React.useRef<HTMLFormElement>(null);
-
-  const performSearch = useDebounceCallback(() => {
-    formRef.current?.requestSubmit();
-  }, 300);
-
   const handleQueryChange = (value: string) => {
-    setQuery(value);
-    if (!value) {
-      performSearch.cancel();
-      return;
-    }
-    performSearch();
+    onQueryChange(value);
   };
 
   React.useEffect(() => {
@@ -67,7 +54,7 @@ export function SearchDialog({
 
   const handleSelect = (video: Video) => {
     setOpen(false);
-    router.push(`/watch/${video.sourceId || "default"}/${video.id}/1`);
+    router.push(`/${lang}/watch/${video.sourceId}/${video.id}/1`);
   };
 
   return (
@@ -85,42 +72,58 @@ export function SearchDialog({
         open={open}
         onOpenChange={setOpen}
         shouldFilter={false}
-        {...props}
+        className={cn(
+          "bg-neutral-900/80 border-white/5 **:data-[slot=command-input-wrapper]:border-white/5",
+          !isPending &&
+            !query &&
+            results.length === 0 &&
+            "**:data-[slot=command-input-wrapper]:border-transparent",
+        )}
       >
         <DialogTitle className="hidden">Search</DialogTitle>
 
-        <form ref={formRef} action={dispatch} className="hidden">
-          <input type="hidden" name="query" value={query} />
-        </form>
-
         <CommandInput
-          placeholder="Search movies and TV shows..."
+          placeholder={dictionary.header["search-placeholder"]}
           value={query}
           onValueChange={handleQueryChange}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
+          className="animate-caret-cycle"
         />
 
         <CommandList>
-          {isPending && (
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              {dictionary.loading}
+          {isPending && results.length === 0 && (
+            <div className="py-6 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground animate-pulse">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>{dictionary.common.loading}</span>
             </div>
           )}
 
-          {query && state.results.length === 0 && !isPending && (
-            <CommandEmpty>No results found.</CommandEmpty>
+          {query && results.length === 0 && !isPending && (
+            <CommandEmpty>
+              {dictionary.header["search-no-results-found"].replace(
+                "{query}",
+                query,
+              )}
+            </CommandEmpty>
           )}
 
-          {query && state.results.length > 0 && (
-            <CommandGroup heading="Results">
-              {state.results.map((item: Video) => (
+          {results.length > 0 && (
+            <CommandGroup
+              heading={new IntlMessageFormat(
+                dictionary.header["search-results-count"],
+                lang,
+              ).format({ count: results.length })}
+            >
+              {results.map((item: Video) => (
                 <CommandItem
-                  key={item.id}
-                  value={item.id}
+                  key={item.uniqueKey}
+                  value={`${item.sourceId}-${item.id}`}
                   onSelect={() => handleSelect(item)}
                 >
                   {item.image && (
                     <div className="mr-2 h-8 w-14 relative rounded overflow-hidden shrink-0">
-                      <Image
+                      <CMSImage
                         src={item.image || "/placeholder.jpg"}
                         alt={item.title}
                         fill
@@ -129,10 +132,11 @@ export function SearchDialog({
                       />
                     </div>
                   )}
-                  <div className="flex flex-col">
-                    <span>{item.title}</span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="truncate">{item.title}</span>
                     <span className="text-xs text-muted-foreground">
-                      {item.year} {item.type ? `• ${item.type}` : ""}
+                      {item.year} {item.type ? `• ${item.type}` : ""} •{" "}
+                      {item.sourceName}
                     </span>
                   </div>
                 </CommandItem>

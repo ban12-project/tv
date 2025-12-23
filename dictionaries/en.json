@@ -47,5 +47,15 @@
       "checking": "Scanning biological signatures...",
       "unlocking": "Clearance verified. Welcome to the sector."
     }
+  },
+  "watch": {
+    "source-label": "Select Frequency",
+    "episode-list": "Mission Logs",
+    "sources-list": "Frequency List",
+    "no-source": "Static. No signal detected in this sector.",
+    "cast": "The Crew",
+    "director": "The Architect",
+    "released": "Activation Date",
+    "episodes": "Episodes"
   }
 }

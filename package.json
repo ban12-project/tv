@@ -1,6 +1,6 @@
 {
   "name": "ban12-tv",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "private": true,
   "scripts": {
@@ -34,6 +34,7 @@
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/postcss": "^4.1.18",
     "better-auth": "^1.4.7",
@@ -44,6 +45,7 @@
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "hls.js": "^1.6.15",
+    "intl-messageformat": "^11.0.4",
     "lucide-react": "^0.561.0",
     "negotiator": "^1.0.0",
     "next": "^16.0.10",

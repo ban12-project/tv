@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CMSImage } from "@/components/cms-image";
 import HoverPrefetchLink from "@/components/hover-prefetch-link";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ export function VideoCard({
           height: height ? height : "auto",
         }}
       >
-        <Image
+        <CMSImage
           src={video.image || video.backgroundImage || "/placeholder.jpg"}
           alt={video.title}
           fill

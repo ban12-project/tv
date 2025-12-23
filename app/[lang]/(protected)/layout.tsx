@@ -19,7 +19,7 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
       <Suspense
         fallback={
           <ViewTransition>
-            <div className="flex items-center justify-center h-screen">
+            <div className="flex items-center justify-center h-[calc(100vh-56px)]">
               <Bailiff messages={dict.protected.bailiff} />
             </div>
           </ViewTransition>

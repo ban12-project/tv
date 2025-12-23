@@ -1,3 +1,43 @@
+/**
+ * Video Data from MacCMS
+ */
+export interface MacCMSVideo {
+  vod_id: number;
+  vod_name: string;
+  type_name: string;
+  vod_pic: string;
+  vod_remarks: string;
+  vod_year: string;
+  vod_area: string;
+  vod_director: string;
+  vod_actor: string;
+  vod_content: string;
+  vod_play_from: string;
+  vod_play_url: string;
+  vod_time: string;
+  vod_blurb?: string;
+  vod_lang?: string;
+}
+
+/**
+ * Parameters for fetching video lists.
+ * Based on MacCMS V10 Provide/Vod API.
+ */
+export interface MacCMSListParams {
+  ac?: "list" | "detail" | "videolist";
+  t?: number | string; // Category ID
+  pg?: number | string; // Page number
+  wd?: string; // Search keyword
+  h?: number | string; // Within N hours
+  ids?: string; // Comma separated IDs
+  year?: string; // Year
+  area?: string; // Region
+  lang?: string; // Language
+  isend?: number | string; // 1 for finished
+  limit?: number | string; // Page size (mapped to 'pagesize')
+  pagesize?: number | string; // Explicit page size
+}
+
 export interface Video {
   id: string;
   sourceId: string; // ID of the API source
@@ -49,7 +89,9 @@ export interface SearchResult {
 }
 
 export interface VideoSourceAdapter {
-  getDetails(id: string): Promise<Video | null>;
-  search(query: string, page?: number): Promise<SearchResult>;
+  getDetails(id: string, sourceId?: string): Promise<Video | null>;
+  searchStream(query: string, page?: number): AsyncGenerator<SearchResult>;
+  getVideos(params: MacCMSListParams): Promise<SearchResult>;
+  getVideosStream(params: MacCMSListParams): AsyncGenerator<SearchResult>;
   getCategories(): Promise<Category[]>;
 }
