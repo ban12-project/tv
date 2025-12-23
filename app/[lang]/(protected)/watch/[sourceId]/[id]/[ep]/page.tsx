@@ -146,10 +146,8 @@ function Loading() {
   return (
     <main className="space-y-8">
       {/* Main Player Area Skeleton */}
-      <div className="w-full max-w-7xl mx-auto lg:mx-8 aspect-video">
-        <div className="w-full h-full bg-neutral-900 animate-pulse flex items-center justify-center">
-          <div className="w-16 h-16 rounded-full bg-white/10" />
-        </div>
+      <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video">
+        <div className="w-full h-full bg-neutral-900 animate-pulse"></div>
       </div>
 
       {/* Episode Selector Skeleton */}
