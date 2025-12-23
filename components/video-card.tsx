@@ -1,5 +1,6 @@
 import { CMSImage } from "@/components/cms-image";
 import HoverPrefetchLink from "@/components/hover-prefetch-link";
+import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,13 @@ export function VideoCard({
           height: height ? height : "auto",
         }}
       >
+        {/* Source Badge */}
+        <div className="absolute top-2 left-2 z-10 pointer-events-none">
+          <Badge className="bg-black/40 backdrop-blur-md border-white/10 text-white/90 text-[10px] px-2 py-0.5 font-normal">
+            {video.sourceName}
+          </Badge>
+        </div>
+
         <CMSImage
           src={video.image || video.backgroundImage || "/placeholder.jpg"}
           alt={video.title}
