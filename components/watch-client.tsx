@@ -114,6 +114,7 @@ export default function WatchClient({
   const currentSource =
     sources.find((s) => s.sourceId === activeSourceId) || sources[0];
   const currentEpisode = currentSource.episodes[activeEpisodeIndex];
+  const showEpisodeList = sources.length > 1;
 
   // Logic to handle source change (tabs click)
   const handleSourceChange = (newSourceId: string) => {
@@ -181,14 +182,19 @@ export default function WatchClient({
       )}
 
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <Tabs defaultValue="episodes" className="w-full">
+        <Tabs
+          defaultValue={showEpisodeList ? "episodes" : "sources"}
+          className="w-full"
+        >
           <TabsList className="bg-neutral-900 border border-neutral-800 h-11 w-full sm:w-fit justify-start p-1 gap-1 mb-6">
-            <TabsTrigger
-              value="episodes"
-              className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-all duration-200"
-            >
-              {dictionary.watch["episode-list"]}
-            </TabsTrigger>
+            {showEpisodeList && (
+              <TabsTrigger
+                value="episodes"
+                className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-all duration-200"
+              >
+                {dictionary.watch["episode-list"]}
+              </TabsTrigger>
+            )}
             {sources.length > 1 && (
               <TabsTrigger
                 value="sources"
@@ -199,40 +205,28 @@ export default function WatchClient({
             )}
           </TabsList>
 
-          <TabsContent
-            value="episodes"
-            className="mt-0 outline-none focus-visible:ring-0"
-          >
-            <div className="flex flex-col gap-4">
-              <h3 className="text-lg font-medium text-neutral-400 mb-2">
-                {currentSource.name}
-              </h3>
-              {currentSource.episodes.length > 0 ? (
-                <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
-                  {currentSource.episodes.map((ep, index) => (
-                    <li key={`${ep.name}-${index}`}>
-                      <EpisodeCard
-                        index={index}
-                        isActive={activeEpisodeIndex === index}
-                        href={`/watch/${currentSource.sourceId}/${video.id}/${index + 1}`}
-                        onNavigate={(e) => {
-                          e.preventDefault();
-                          handleEpisodeClick(index, currentSource.sourceId);
-                        }}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-neutral-500 border border-dashed border-neutral-800 rounded-2xl bg-neutral-900/50">
-                  <p className="text-sm">
-                    {dictionary.watch["no-source"] ??
-                      "No playable episodes found."}
-                  </p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
+          {showEpisodeList && (
+            <TabsContent
+              value="episodes"
+              className="mt-0 outline-none focus-visible:ring-0"
+            >
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+                {currentSource.episodes.map((ep, index) => (
+                  <li key={`${ep.name}-${index}`}>
+                    <EpisodeCard
+                      index={index}
+                      isActive={activeEpisodeIndex === index}
+                      href={`/watch/${currentSource.sourceId}/${video.id}/${index + 1}`}
+                      onNavigate={(e) => {
+                        e.preventDefault();
+                        handleEpisodeClick(index, currentSource.sourceId);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </TabsContent>
+          )}
 
           {sources.length > 1 && (
             <TabsContent

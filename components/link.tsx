@@ -1,27 +1,20 @@
 "use client";
 
 import NextLink from "next/link";
-import { usePathname } from "next/navigation";
-import * as React from "react";
-import { i18n, type Locale } from "@/i18n-config";
+import { useLocale } from "./i18n";
 
-type Props = React.ComponentPropsWithRef<typeof NextLink>;
-
-export default React.forwardRef<React.ComponentRef<"a">, Props>(function Link(
-  { href, ...rest },
-  forwardedRef,
-) {
-  const pathname = usePathname();
-  const segment = pathname.split("/")[1];
-  const locale = i18n.locales.includes(segment as Locale) ? segment : null;
+export default function Link({
+  href,
+  ...rest
+}: React.ComponentProps<typeof NextLink>) {
+  const { locale } = useLocale();
 
   const isExternal =
     typeof href === "string"
       ? href.startsWith("http")
       : Boolean(href.pathname?.startsWith("http"));
 
-  if (isExternal || !locale)
-    return <NextLink {...rest} href={href} ref={forwardedRef} />;
+  if (isExternal) return <NextLink {...rest} href={href} />;
 
   const hrefWithLocale =
     typeof href === "string"
@@ -31,5 +24,5 @@ export default React.forwardRef<React.ComponentRef<"a">, Props>(function Link(
           pathname: `/${locale}${href.pathname ?? ""}`,
         };
 
-  return <NextLink {...rest} href={hrefWithLocale} ref={forwardedRef} />;
-});
+  return <NextLink {...rest} href={hrefWithLocale} />;
+}
