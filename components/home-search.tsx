@@ -19,6 +19,12 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
     onCompositionEnd,
   } = useVideoSearch(300);
 
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onQueryChange(e.target.value);
   };
@@ -51,6 +57,7 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
             <div className="relative flex items-center">
               <Search className="absolute left-6 h-6 w-6 text-neutral-500 group-focus-within:text-primary transition-colors duration-300" />
               <input
+                ref={inputRef}
                 name="query"
                 type="text"
                 value={query}
