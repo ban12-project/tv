@@ -90,9 +90,14 @@ export function useVideoSearch(debounceMs = 300) {
         }
       } catch (err) {
         if (currentSearchRef.current === searchId) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : typeof err === "string"
+                ? err
+                : "An error occurred while searching.";
           console.error("Search error:", err);
-          setError("An error occurred while searching.");
-          setResults([]);
+          setError(message);
         }
       } finally {
         if (currentSearchRef.current === searchId) {
