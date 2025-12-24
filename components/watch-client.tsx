@@ -114,7 +114,7 @@ export default function WatchClient({
   const currentSource =
     sources.find((s) => s.sourceId === activeSourceId) || sources[0];
   const currentEpisode = currentSource.episodes[activeEpisodeIndex];
-  const showEpisodeList = sources.length > 1;
+  const showEpisodeList = currentSource.episodes.length > 1;
 
   // Logic to handle source change (tabs click)
   const handleSourceChange = (newSourceId: string) => {
@@ -190,19 +190,17 @@ export default function WatchClient({
             {showEpisodeList && (
               <TabsTrigger
                 value="episodes"
-                className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-all duration-200"
+                className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-colors duration-200"
               >
                 {dictionary.watch["episode-list"]}
               </TabsTrigger>
             )}
-            {sources.length > 1 && (
-              <TabsTrigger
-                value="sources"
-                className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-all duration-200"
-              >
-                {dictionary.watch["sources-list"]}
-              </TabsTrigger>
-            )}
+            <TabsTrigger
+              value="sources"
+              className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-colors duration-200"
+            >
+              {dictionary.watch["sources-list"]}
+            </TabsTrigger>
           </TabsList>
 
           {showEpisodeList && (
@@ -228,43 +226,31 @@ export default function WatchClient({
             </TabsContent>
           )}
 
-          {sources.length > 1 && (
-            <TabsContent
-              value="sources"
-              className="mt-0 outline-none focus-visible:ring-0"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {sources.map((source) => (
-                  <Button
-                    key={source.sourceId}
-                    type="button"
-                    onClick={() => handleSourceChange(source.sourceId)}
-                    className={cn(
-                      "w-full justify-around group",
-                      activeSourceId === source.sourceId
-                        ? "bg-neutral-800 border-neutral-700 ring-1 ring-white/10"
-                        : "bg-neutral-900/50 border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        activeSourceId === source.sourceId
-                          ? "text-white"
-                          : "text-neutral-400 group-hover:text-neutral-200",
-                      )}
-                    >
-                      {source.name}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {source.episodes.length}{" "}
-                      {dictionary.watch.episodes ?? "Episodes"}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-            </TabsContent>
-          )}
+          <TabsContent
+            value="sources"
+            className="mt-0 outline-none focus-visible:ring-0"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {sources.map((source) => (
+                <Button
+                  key={source.sourceId}
+                  type="button"
+                  onClick={() => handleSourceChange(source.sourceId)}
+                  className={cn(
+                    "w-full justify-around group hover:bg-neutral-700 hover:text-white",
+                    activeSourceId === source.sourceId
+                      ? "bg-neutral-700 text-white"
+                      : "bg-neutral-800 text-gray-300",
+                  )}
+                >
+                  {source.name}
+                  <span className="text-xs text-neutral-500">
+                    {source.episodes.length} {dictionary.watch.episodes}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </TabsContent>
         </Tabs>
       </div>
     </>
