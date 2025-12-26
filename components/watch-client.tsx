@@ -153,14 +153,8 @@ export default function WatchClient({
 
   // Logic to handle episode change
   const handleEpisodeClick = (index: number, sourceId: string) => {
-    const source = sources.find((s) => s.sourceId === sourceId);
-    const targetVideoId = source?.videoId || video.id;
-
     setActiveSourceId(sourceId);
     setActiveEpisodeIndex(index);
-    router.push(`/${lang}/watch/${sourceId}/${targetVideoId}/${index + 1}`, {
-      scroll: false,
-    });
   };
 
   return (
