@@ -26,27 +26,44 @@ export default function VideoPlayer({
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  const performSkip = React.useCallback(() => {
+    const video = videoRef.current;
+    if (!video || isSeekingRef.current) return false;
+
+    const currentTime = video.currentTime;
+    for (const range of skipRangesRef.current) {
+      if (currentTime >= range.start && currentTime < range.end) {
+        console.log(
+          `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
+        );
+        isAutoSkippingRef.current = true;
+        video.currentTime = range.end;
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
+  const handleSeeking = React.useCallback(() => {
+    // If this seek was triggered by our auto-skip, don't block
+    if (isAutoSkippingRef.current) {
+      isAutoSkippingRef.current = false;
+      return;
+    }
+
+    isSeekingRef.current = true;
+    if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+
+    seekTimeoutRef.current = setTimeout(() => {
+      isSeekingRef.current = false;
+      // Check if we seeked into an ad and skip it immediately
+      performSkip();
+    }, 200);
+  }, [performSkip]);
+
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    const performSkip = () => {
-      const video = videoRef.current;
-      if (!video || isSeekingRef.current) return false;
-
-      const currentTime = video.currentTime;
-      for (const range of skipRangesRef.current) {
-        if (currentTime >= range.start && currentTime < range.end) {
-          console.log(
-            `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
-          );
-          isAutoSkippingRef.current = true;
-          video.currentTime = range.end;
-          return true;
-        }
-      }
-      return false;
-    };
 
     let hls: HlsType | null = null;
     const initHls = async () => {
@@ -159,40 +176,25 @@ export default function VideoPlayer({
       hls.attachMedia(video);
     };
 
-    const handleTimeUpdate = () => {
-      performSkip();
-    };
-
-    const handleSeeking = () => {
-      // If this seek was triggered by our auto-skip, don't block
-      if (isAutoSkippingRef.current) {
-        isAutoSkippingRef.current = false;
-        return;
-      }
-
-      isSeekingRef.current = true;
-      if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
-
-      // Reduce grace period from 1s to 200ms to avoid seeing ads when starting/seeking
-      // 200ms is enough to debounce slider interactions
-      seekTimeoutRef.current = setTimeout(() => {
-        isSeekingRef.current = false;
-        // Check if we seeked into an ad and skip it immediately
-        performSkip();
-      }, 200);
-    };
-
-    video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("seeking", handleSeeking);
     initHls();
 
+    let frameId: number;
+    const loop = () => {
+      if (!video.paused && !video.ended) {
+        performSkip();
+      }
+      frameId = video.requestVideoFrameCallback(loop);
+    };
+    frameId = video.requestVideoFrameCallback(loop);
+
     return () => {
-      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.cancelVideoFrameCallback(frameId);
       video.removeEventListener("seeking", handleSeeking);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay]);
+  }, [videoUrl, autoPlay, handleSeeking, performSkip]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -220,18 +222,22 @@ export default function VideoPlayer({
           break;
         case "arrowleft": // Seek backward 5s
           e.preventDefault();
+          handleSeeking();
           video.currentTime = Math.max(0, video.currentTime - 5);
           break;
         case "arrowright": // Seek forward 5s
           e.preventDefault();
+          handleSeeking();
           video.currentTime = Math.min(video.duration, video.currentTime + 5);
           break;
         case "j": // Seek backward 10s
           e.preventDefault();
+          handleSeeking();
           video.currentTime = Math.max(0, video.currentTime - 10);
           break;
         case "l": // Seek forward 10s
           e.preventDefault();
+          handleSeeking();
           video.currentTime = Math.min(video.duration, video.currentTime + 10);
           break;
         case "arrowup": // Volume up
@@ -261,7 +267,7 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [handleSeeking]);
 
   return (
     <div
