@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { findMatchesStream } from "@/app/actions/content";
 import { EpisodeCard } from "@/components/episode-card";
@@ -45,6 +45,26 @@ export default function WatchClient({
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
     React.useState(initialEpisodeIndex);
+
+  const pathname = usePathname();
+
+  // Sync state with URL changes (supports pushState and browser back/forward)
+  React.useEffect(() => {
+    const parts = pathname.split("/");
+    // Structure: /.../watch/[sourceId]/[id]/[ep]
+    const epStr = parts[parts.length - 1];
+    const sourceId = parts[parts.length - 3];
+
+    const epIndex = Number.parseInt(epStr, 10) - 1;
+
+    if (!Number.isNaN(epIndex) && epIndex !== activeEpisodeIndex) {
+      setActiveEpisodeIndex(epIndex);
+    }
+
+    if (sourceId && decodeURIComponent(sourceId) !== activeSourceId) {
+      setActiveSourceId(decodeURIComponent(sourceId));
+    }
+  }, [pathname, activeEpisodeIndex, activeSourceId]);
 
   // Sources state initialized with cached matches if any
   const [sources, setSources] = React.useState(() => {
@@ -152,9 +172,13 @@ export default function WatchClient({
   };
 
   // Logic to handle episode change
-  const handleEpisodeClick = (index: number, sourceId: string) => {
-    setActiveSourceId(sourceId);
+  const handleEpisodeClick = (index: number) => {
+    if (index === activeEpisodeIndex) return;
+
     setActiveEpisodeIndex(index);
+    // Update URL shallowly - browser back/forward will be handled by the pathname sync effect
+    const url = new URL(`./${index + 1}`, window.location.href);
+    window.history.pushState(null, "", url.toString());
   };
 
   return (
@@ -175,7 +199,7 @@ export default function WatchClient({
         </div>
       )}
 
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Tabs
           defaultValue={showEpisodeList ? "episodes" : "sources"}
           className="w-full"
@@ -211,7 +235,7 @@ export default function WatchClient({
                       href={`/watch/${currentSource.sourceId}/${video.id}/${index + 1}`}
                       onNavigate={(e) => {
                         e.preventDefault();
-                        handleEpisodeClick(index, currentSource.sourceId);
+                        handleEpisodeClick(index);
                       }}
                     />
                   </li>
