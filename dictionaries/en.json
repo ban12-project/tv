@@ -3,7 +3,7 @@
     "loading": "Hold on, let the bullets fly for a bit..."
   },
   "brand-name": "Ban12 TV",
-  "root-description": "Browse all movies, TV shows, and more from Apple TV+. Watch all Apple Originals here and on the Apple TV app across your devices.",
+  "root-description": "Access the mainframe. movies, and TV shows decrypted and ready for infiltration. Execute stream sequence on any authorized device.",
   "header": {
     "home": "Command Center",
     "search-placeholder": "Initiate protocol: Find target...",
@@ -56,6 +56,6 @@
     "cast": "The Crew",
     "director": "The Architect",
     "released": "Activation Date",
-    "episodes": "Episodes"
+    "episodes": "Logs"
   }
 }

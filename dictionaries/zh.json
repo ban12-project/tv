@@ -3,7 +3,7 @@
     "loading": "呜————咔嚓咔嚓咔嚓..."
   },
   "brand-name": "Ban12 TV",
-  "root-description": "浏览 Apple TV+ 中的所有电影、电视节目等。在此处和您设备上的 Apple TV 应用程序中观看所有 Apple Originals。",
+  "root-description": "来鹅城，只办三件事：公平，公平，还是他妈的公平！在这里，不管是大银幕还是小荧屏，一网打尽，让你看个痛快！",
   "header": {
     "home": "鹅城",
     "search-placeholder": "给师爷翻译翻译，你想看什么...",
@@ -50,12 +50,12 @@
   },
   "watch": {
     "source-label": "选择码头",
-    "episode-list": "集数列表",
-    "sources-list": "更换码头",
+    "episode-list": "戏骨切磋 (选集)",
+    "sources-list": "换个码头 (切换源码)",
     "no-source": "这地界儿没搜到能放的，再等等？",
-    "cast": "演员阵容",
-    "director": "导演",
-    "released": "上映日期",
-    "episodes": "集"
+    "cast": "各路神仙 (演员)",
+    "director": "幕后主使 (导演)",
+    "released": "开张大吉 (上映)",
+    "episodes": "回"
   }
 }
