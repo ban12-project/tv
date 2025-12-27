@@ -8,9 +8,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { CategoryNode } from "./index";
+import type { MenuNode } from "./index";
 
-export function MobileMenu({ categories }: { categories: CategoryNode[] }) {
+export function MobileMenu({
+  nodes,
+  children,
+}: {
+  nodes: MenuNode[];
+  children?: React.ReactNode;
+}) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -25,21 +31,25 @@ export function MobileMenu({ categories }: { categories: CategoryNode[] }) {
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popper-available-width) h-(--radix-popper-available-height) bg-zinc-900/95 backdrop-blur-2xl border-none p-6 shadow-none overflow-auto">
         <div className="flex flex-col space-y-6 w-full">
-          {categories.map((category) => (
-            <div key={category.id} className="flex flex-col text-center">
-              <h3 className="px-4 py-3 hover:bg-white/10 active:scale-[0.98] rounded-2xl text-2xl font-semibold text-white  transition-transform">
-                {category.name}
-              </h3>
+          {nodes.map((node) => (
+            <div key={node.href} className="flex flex-col text-center">
+              <PopoverPrimitive.Close asChild>
+                <Link href={node.href}>
+                  <h3 className="px-4 py-3 hover:bg-white/10 active:scale-[0.98] rounded-2xl text-2xl font-semibold text-white transition-transform">
+                    {node.title}
+                  </h3>
+                </Link>
+              </PopoverPrimitive.Close>
 
-              {category.children && category.children.length > 0 && (
+              {node.children && node.children.length > 0 && (
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
-                  {category.children.map((child) => (
-                    <PopoverPrimitive.Close key={child.id} asChild>
+                  {node.children.map((child) => (
+                    <PopoverPrimitive.Close key={child.href} asChild>
                       <Link
-                        href={`/category/${child.id}`}
+                        href={child.href}
                         className="px-4 py-2 hover:bg-white/10 active:scale-[0.98] rounded-xl text-lg text-gray-400 hover:text-white transition-all bg-white/5"
                       >
-                        {child.name}
+                        {child.title}
                       </Link>
                     </PopoverPrimitive.Close>
                   ))}
@@ -47,6 +57,9 @@ export function MobileMenu({ categories }: { categories: CategoryNode[] }) {
               )}
             </div>
           ))}
+          {children && (
+            <div className="flex flex-col items-center">{children}</div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

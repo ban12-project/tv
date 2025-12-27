@@ -11,7 +11,8 @@
     "search-result-new": "新案子",
     "search-view-all-results": "带上来！查看全部 {count} 个",
     "search-no-results-found": "坏了，\"{query}\" 被麻匪劫走了！",
-    "search-try-searching": "换个搜法？站着把片子搜了！"
+    "search-try-searching": "换个搜法？站着把片子搜了！",
+    "verify-cms": "山头"
   },
   "auth": {
     "signIn": {
@@ -57,5 +58,16 @@
     "director": "幕后主使 (导演)",
     "released": "开张大吉 (上映)",
     "episodes": "回"
+  },
+  "allowlist": {
+    "button": "鹅城名册",
+    "title": "名册管理",
+    "description": "在此处勾画入伙名单，只有名册上的人，才能领取密钥、进城办事。",
+    "placeholder": "马邦德@鹅城.com",
+    "table-email": "接头暗号 (邮箱)",
+    "table-actions": "处置",
+    "empty": "册子上干干净净，一个活物都没有。",
+    "add-success": "成了！名字勾上了，自己人！",
+    "remove-success": "名字抠了，各走各路。"
   }
 }

@@ -11,7 +11,8 @@
     "search-result-new": "Fresh Intel",
     "search-view-all-results": "Decrypt all {count} records →",
     "search-no-results-found": "Void returned for \"{query}\". System silent.",
-    "search-try-searching": "Re-calibrate sensors. Try codenames or genres."
+    "search-try-searching": "Re-calibrate sensors. Try codenames or genres.",
+    "verify-cms": "Outposts"
   },
   "auth": {
     "signIn": {
@@ -57,5 +58,16 @@
     "director": "The Architect",
     "released": "Activation Date",
     "episodes": "Logs"
+  },
+  "allowlist": {
+    "button": "Mainframe Access",
+    "title": "Identity Database",
+    "description": "Authorize biological signatures for passkey decryption and sector infiltration. Unauthorized access will be purged.",
+    "placeholder": "neo@matrix.com",
+    "table-email": "Biological ID",
+    "table-actions": "Protocols",
+    "empty": "No active authorizations found. System status: DARK.",
+    "add-success": "Subject authorized. Clearance upgraded.",
+    "remove-success": "Authorization revoked. Subject purged from the mainframe."
   }
 }

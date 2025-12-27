@@ -5,16 +5,26 @@ import Link from "@/components/link";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { auth } from "@/lib/auth";
 import { sourceProvider } from "@/lib/source-provider";
 import { AllowlistDialog } from "./allowlist-dialog";
 
-async function MenuLoader() {
+async function MenuLoader({
+  lang,
+  children,
+}: {
+  lang: Locale;
+  children?: React.ReactNode;
+}) {
   const categories = await sourceProvider.getCategories();
-  return <Menu categories={categories} />;
+  const dictionary = await getDictionary(lang);
+  return (
+    <Menu categories={categories} dictionary={dictionary}>
+      {children}
+    </Menu>
+  );
 }
 
 export default async function Header({
@@ -36,7 +46,9 @@ export default async function Header({
 
               <ViewTransition>
                 <Suspense>
-                  <MenuLoader />
+                  <MenuLoader lang={lang as Locale}>
+                    <SuspendedAllowlistDialog lang={lang as Locale} />
+                  </MenuLoader>
                 </Suspense>
               </ViewTransition>
             </div>
@@ -44,12 +56,6 @@ export default async function Header({
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
               <SearchDialog dictionary={dictionary} lang={lang} />
-
-              <ViewTransition>
-                <Suspense fallback={<Skeleton className="w-12 h-8" />}>
-                  <SuspendedAllowlistDialog />
-                </Suspense>
-              </ViewTransition>
             </div>
           </div>
         </div>
@@ -58,7 +64,7 @@ export default async function Header({
   );
 }
 
-async function SuspendedAllowlistDialog() {
+async function SuspendedAllowlistDialog({ lang }: { lang: Locale }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -68,6 +74,9 @@ async function SuspendedAllowlistDialog() {
   if (!isRealUser) return null;
 
   const emailsPromise = getAllowList();
+  const dictionary = await getDictionary(lang);
 
-  return <AllowlistDialog emailsPromise={emailsPromise} />;
+  return (
+    <AllowlistDialog emailsPromise={emailsPromise} dictionary={dictionary} />
+  );
 }

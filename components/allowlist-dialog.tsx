@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Messages } from "@/get-dictionary";
 
 const initialState = {
   error: "",
@@ -31,8 +32,10 @@ const initialState = {
 
 export function AllowlistDialog({
   emailsPromise,
+  dictionary,
 }: {
   emailsPromise: Promise<{ id: string; email: string }[]>;
+  dictionary: Messages;
 }) {
   const [newEmail, setNewEmail] = React.useState("");
 
@@ -44,13 +47,13 @@ export function AllowlistDialog({
   React.useEffect(() => {
     if (state.timestamp > 0) {
       if (state.success) {
-        toast.success("Email added to allowlist");
+        toast.success(dictionary.allowlist["add-success"]);
         setNewEmail("");
       } else if (state.error) {
         toast.error(state.error);
       }
     }
-  }, [state]);
+  }, [state, dictionary]);
 
   return (
     <Dialog>
@@ -61,22 +64,21 @@ export function AllowlistDialog({
           className="hidden sm:flex gap-2 text-white/70 hover:text-white"
         >
           <ShieldCheck className="h-4 w-4" />
-          Allowlist
+          {dictionary.allowlist.button}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg border-white/10 bg-black/60 backdrop-blur-2xl text-white">
         <DialogHeader>
-          <DialogTitle>Allowlist Management</DialogTitle>
+          <DialogTitle>{dictionary.allowlist.title}</DialogTitle>
           <DialogDescription className="text-white/40">
-            Add or remove emails that are allowed to link passkeys and access
-            protected content.
+            {dictionary.allowlist.description}
           </DialogDescription>
         </DialogHeader>
 
         <form action={dispatch} className="flex gap-2 mt-4">
           <Input
             name="email"
-            placeholder="email@example.com"
+            placeholder={dictionary.allowlist.placeholder}
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
@@ -102,7 +104,10 @@ export function AllowlistDialog({
               </div>
             }
           >
-            <AllowlistList emailsPromise={emailsPromise} />
+            <AllowlistList
+              emailsPromise={emailsPromise}
+              dictionary={dictionary}
+            />
           </React.Suspense>
         </div>
       </DialogContent>
@@ -112,8 +117,10 @@ export function AllowlistDialog({
 
 function AllowlistList({
   emailsPromise,
+  dictionary,
 }: {
   emailsPromise: Promise<{ id: string; email: string }[]>;
+  dictionary: Messages;
 }) {
   const emails = React.use(emailsPromise);
 
@@ -125,26 +132,30 @@ function AllowlistList({
   React.useEffect(() => {
     if (state.timestamp > 0) {
       if (state.success) {
-        toast.success("Email removed from allowlist");
+        toast.success(dictionary.allowlist["remove-success"]);
       } else if (state.error) {
         toast.error(state.error);
       }
     }
-  }, [state]);
+  }, [state, dictionary]);
 
   return (
     <Table>
       <TableHeader className="bg-white/5 sticky top-0 z-10">
         <TableRow className="border-white/10 hover:bg-transparent">
-          <TableHead className="text-white/60">Email</TableHead>
-          <TableHead className="text-right text-white/60">Actions</TableHead>
+          <TableHead className="text-white/60">
+            {dictionary.allowlist["table-email"]}
+          </TableHead>
+          <TableHead className="text-right text-white/60">
+            {dictionary.allowlist["table-actions"]}
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {emails.length === 0 ? (
           <TableRow>
             <TableCell colSpan={2} className="text-center py-8 text-white/20">
-              No allowlisted emails found.
+              {dictionary.allowlist.empty}
             </TableCell>
           </TableRow>
         ) : (
