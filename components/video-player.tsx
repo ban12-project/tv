@@ -93,20 +93,14 @@ export default function VideoPlayer({
         }
 
         // 2. Identify "Content" CCs vs "Ad" CCs
-        // Strategy: Default all to Content. Treat Discontinuities as toggles.
-        // Assumes: Content -> Ad -> Content -> Ad, etc.
-        // Even CCs (0, 2, 4...) = Content
-        // Odd CCs (1, 3, 5...) = Ads
-        const uniqueCCs = Array.from(new Set(fragments.map((f) => f.cc))).sort(
-          (a, b) => a - b,
-        );
-
         const contentCCs = new Set<number>();
-        uniqueCCs.forEach((cc, index) => {
-          if (index % 2 === 0) {
+        for (const ccStr in ccDurations) {
+          const cc = Number.parseInt(ccStr, 10);
+          // Any segment > 20s is assumed to be Content (Safety override for split content)
+          if (ccDurations[cc] > 20) {
             contentCCs.add(cc);
           }
-        });
+        }
 
         // 3. Create skip ranges for fragments NOT in any content CC
         let currentRange: { start: number; end: number } | null = null;
