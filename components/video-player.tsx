@@ -110,15 +110,9 @@ export default function VideoPlayer({
 
         // 3. Create skip ranges for fragments NOT in any content CC
         let currentRange: { start: number; end: number } | null = null;
-        let totalAdDuration = 0;
-        const totalVideoDuration = Object.values(ccDurations).reduce(
-          (a, b) => a + b,
-          0,
-        );
 
         for (const frag of fragments) {
           if (!contentCCs.has(frag.cc)) {
-            totalAdDuration += frag.duration;
             if (!currentRange) {
               currentRange = {
                 start: frag.start,
@@ -138,30 +132,11 @@ export default function VideoPlayer({
           newSkipRanges.push(currentRange);
         }
 
-        // SAFETY CHECK: If detected "ads" take up more than 20% of the video,
-        // it likely means our heuristic failed (e.g. content is fragmented into small CCs).
-        // In this case, it's safer to disable skipping than to skip content.
-        // We only apply this check if the video is reasonably long (> 5 minutes) to avoid edge cases in short clips.
-        const adRatio =
-          totalVideoDuration > 0 ? totalAdDuration / totalVideoDuration : 0;
-        const isFragmentationLikely = totalVideoDuration > 300 && adRatio > 0.2;
-
-        if (isFragmentationLikely) {
-          console.warn(
-            `[VideoPlayer] Ad detection heuristic fallback triggered. Ad ratio: ${(
-              adRatio * 100
-            ).toFixed(1)}%. Disabling auto-skip to protect content.`,
-          );
-          skipRangesRef.current = [];
-        } else {
-          skipRangesRef.current = newSkipRanges;
-          console.log(
-            `[VideoPlayer] Identified content segments (CCs: ${Array.from(
-              contentCCs,
-            ).join(",")}). Skip ranges:`,
-            newSkipRanges,
-          );
-        }
+        skipRangesRef.current = newSkipRanges;
+        console.log(
+          `[VideoPlayer] Identified content segments (CCs: ${Array.from(contentCCs).join(",")}). Skip ranges:`,
+          newSkipRanges,
+        );
 
         // Check immediately after ranges are identified
         performSkip();
