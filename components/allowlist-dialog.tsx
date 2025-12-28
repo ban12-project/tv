@@ -61,7 +61,7 @@ export function AllowlistDialog({
         <Button
           variant="ghost"
           size="sm"
-          className="hidden sm:flex gap-2 text-white/70 hover:text-white"
+          className="gap-2 text-white/70 hover:text-white"
         >
           <ShieldCheck className="h-4 w-4" />
           {dictionary.allowlist.button}
