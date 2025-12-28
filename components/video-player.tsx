@@ -92,28 +92,20 @@ export default function VideoPlayer({
         }
 
         // 2. Identify "Content" CCs vs "Ad" CCs
-        // Threshold: Anything longer than 60 seconds is definitely content.
-        // Also keep the single longest CC as content regardless of duration.
-        let maxDuration = -1;
-        let longestCC = -1;
-        for (const ccStr in ccDurations) {
-          const cc = Number.parseInt(ccStr, 10);
-          if (ccDurations[cc] > maxDuration) {
-            maxDuration = ccDurations[cc];
-            longestCC = cc;
-          }
-        }
+        // Strategy: Default all to Content. Treat Discontinuities as toggles.
+        // Assumes: Content -> Ad -> Content -> Ad, etc.
+        // Even CCs (0, 2, 4...) = Content
+        // Odd CCs (1, 3, 5...) = Ads
+        const uniqueCCs = Array.from(new Set(fragments.map((f) => f.cc))).sort(
+          (a, b) => a - b,
+        );
 
         const contentCCs = new Set<number>();
-        contentCCs.add(longestCC); // Always keep the longest one
-
-        for (const ccStr in ccDurations) {
-          const cc = Number.parseInt(ccStr, 10);
-          // If a part is longer than 60s, it's very likely a video part (not an ad)
-          if (ccDurations[cc] > 60) {
+        uniqueCCs.forEach((cc, index) => {
+          if (index % 2 === 0) {
             contentCCs.add(cc);
           }
-        }
+        });
 
         // 3. Create skip ranges for fragments NOT in any content CC
         let currentRange: { start: number; end: number } | null = null;
