@@ -25,6 +25,7 @@ export default function VideoPlayer({
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
 
   const performSkip = React.useCallback(() => {
     const video = videoRef.current;
@@ -286,6 +287,61 @@ export default function VideoPlayer({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleSeeking]);
+
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const requestWakeLock = async () => {
+      if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+        try {
+          if (!wakeLockRef.current) {
+            wakeLockRef.current = await navigator.wakeLock.request("screen");
+          }
+        } catch (err) {
+          console.warn("Failed to request Wake Lock:", err);
+        }
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLockRef.current) {
+        try {
+          await wakeLockRef.current.release();
+          wakeLockRef.current = null;
+        } catch (err) {
+          console.warn("Failed to release Wake Lock:", err);
+        }
+      }
+    };
+
+    const handlePlay = () => requestWakeLock();
+    const handlePause = () => releaseWakeLock();
+    const handleEnded = () => releaseWakeLock();
+
+    const handleVisibilityChange = async () => {
+      if (
+        document.visibilityState === "visible" &&
+        !video.paused &&
+        !video.ended
+      ) {
+        await requestWakeLock();
+      }
+    };
+
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("ended", handleEnded);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("ended", handleEnded);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, []);
 
   return (
     <div
