@@ -194,7 +194,7 @@ export default function WatchClient({
           dictionary={dictionary}
         />
       ) : (
-        <div className="flex items-center justify-center h-[50vh] text-gray-400">
+        <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
           {dictionary.watch["no-source"] ?? "No playable source found."}
         </div>
       )}
@@ -204,18 +204,18 @@ export default function WatchClient({
           defaultValue={showEpisodeList ? "episodes" : "sources"}
           className="w-full"
         >
-          <TabsList className="bg-neutral-900 border border-neutral-800 h-11 w-full sm:w-fit justify-start p-1 gap-1 mb-6">
+          <TabsList className="bg-secondary border border-border h-11 w-full sm:w-fit justify-start p-1 gap-1 mb-6">
             {showEpisodeList && (
               <TabsTrigger
                 value="episodes"
-                className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-colors duration-200"
+                className="data-[state=active]:bg-muted data-[state=active]:text-foreground rounded-md px-6 py-2 transition-colors duration-200"
               >
                 {dictionary.watch["episode-list"]}
               </TabsTrigger>
             )}
             <TabsTrigger
               value="sources"
-              className="data-[state=active]:bg-neutral-800 data-[state=active]:text-white rounded-md px-6 py-2 transition-colors duration-200"
+              className="data-[state=active]:bg-muted data-[state=active]:text-foreground rounded-md px-6 py-2 transition-colors duration-200"
             >
               {dictionary.watch["sources-list"]}
             </TabsTrigger>
@@ -255,10 +255,10 @@ export default function WatchClient({
                   type="button"
                   onClick={() => handleSourceChange(source.sourceId)}
                   className={cn(
-                    "w-full justify-around group hover:bg-neutral-700 hover:text-white",
+                    "w-full justify-around group hover:bg-accent",
                     activeSourceId === source.sourceId
-                      ? "bg-neutral-700 text-white"
-                      : "bg-neutral-800 text-gray-300",
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted text-muted-foreground",
                   )}
                 >
                   {source.name}

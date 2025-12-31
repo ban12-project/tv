@@ -69,7 +69,7 @@ export function DesktopMenu({
       <div className="absolute left-0 top-full isolate z-50 flex justify-center">
         <NavigationMenuPrimitive.Viewport
           data-slot="navigation-menu-viewport"
-          className="origin-top-center text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 relative mt-1.5 h-(--radix-navigation-menu-viewport-height) w-full overflow-hidden md:w-(--radix-navigation-menu-viewport-width) rounded-md bg-zinc-900/80 backdrop-blur-md border border-white/10 shadow-2xl transition-[width,height] duration-200"
+          className="origin-top-center text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 relative mt-1.5 h-(--radix-navigation-menu-viewport-height) w-full overflow-hidden md:w-(--radix-navigation-menu-viewport-width) rounded-md bg-popover/80 backdrop-blur-md border border-border shadow-2xl transition-[width,height] duration-200"
         />
       </div>
     </NavigationMenu>

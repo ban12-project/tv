@@ -26,7 +26,7 @@ export default function SourceRow({ source }: { source: SelectApiSource }) {
   }, [state]);
 
   return (
-    <TableRow className="border-white/5 hover:bg-white/5 data-[state=active]:bg-white/5">
+    <TableRow className="border-border hover:bg-muted data-[state=active]:bg-muted">
       <TableCell className="font-medium">{source.name}</TableCell>
       <TableCell className="font-mono text-xs text-muted-foreground break-all">
         {source.url}
@@ -44,7 +44,7 @@ export default function SourceRow({ source }: { source: SelectApiSource }) {
             size="icon"
             type="submit"
             disabled={isPending}
-            className="text-red-500/50 hover:text-red-500 hover:bg-red-500/10"
+            className="text-destructive/50 hover:text-destructive hover:bg-destructive/10"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

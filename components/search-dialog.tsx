@@ -62,7 +62,7 @@ export function SearchDialog({
       <Button
         variant="ghost"
         size="icon"
-        className="text-gray-300 hover:text-white"
+        className="text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
       >
         <Search className="h-5 w-5" />
@@ -73,7 +73,7 @@ export function SearchDialog({
         onOpenChange={setOpen}
         shouldFilter={false}
         className={cn(
-          "bg-neutral-900/80 border-white/5 **:data-[slot=command-input-wrapper]:border-white/5",
+          "bg-popover border-border **:data-[slot=command-input-wrapper]:border-border",
           !isPending &&
             !query &&
             results.length === 0 &&

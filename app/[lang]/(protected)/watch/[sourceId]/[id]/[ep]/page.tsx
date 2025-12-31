@@ -76,7 +76,7 @@ async function Suspended({ params }: Props) {
             {video.title}
           </h1>
 
-          <div className="flex items-center space-x-4 text-sm md:text-base text-gray-300 font-medium">
+          <div className="flex items-center space-x-4 text-sm md:text-base text-muted-foreground font-medium">
             {video.year && <span>{video.year}</span>}
             <span>•</span>
             <span>{video.genre.join(", ")}</span>
@@ -88,7 +88,7 @@ async function Suspended({ params }: Props) {
             )}
           </div>
 
-          <p className="text-lg text-gray-100 leading-relaxed line-clamp-4">
+          <p className="text-lg text-foreground/90 leading-relaxed line-clamp-4">
             {video.description}
           </p>
         </div>
@@ -101,14 +101,14 @@ async function Suspended({ params }: Props) {
             {/* Cast */}
             {video.cast && video.cast.length > 0 && (
               <>
-                <h3 className="text-xl font-semibold mb-4 text-gray-200">
+                <h3 className="text-xl font-semibold mb-4 text-foreground/90">
                   {dictionary.watch?.cast ?? "Cast"}
                 </h3>
-                <div className="flex flex-wrap gap-2 text-gray-400">
+                <div className="flex flex-wrap gap-2 text-muted-foreground">
                   {video.cast.map((c) => (
                     <span
                       key={c}
-                      className="bg-neutral-900 px-3 py-1 rounded-full border border-neutral-800"
+                      className="bg-secondary px-3 py-1 rounded-full border border-border"
                     >
                       {c}
                     </span>
@@ -118,21 +118,21 @@ async function Suspended({ params }: Props) {
             )}
           </div>
 
-          <div className="space-y-6 text-sm text-gray-400">
+          <div className="space-y-6 text-sm text-muted-foreground">
             {video.director && (
               <div>
-                <span className="block text-gray-500 mb-1">
+                <span className="block text-muted-foreground/60 mb-1">
                   {dictionary.watch?.director ?? "Director"}
                 </span>
-                <span className="text-white">{video.director}</span>
+                <span className="text-foreground">{video.director}</span>
               </div>
             )}
             {video.releaseDate && (
               <div>
-                <span className="block text-gray-500 mb-1">
+                <span className="block text-muted-foreground/60 mb-1">
                   {dictionary.watch?.released ?? "Released"}
                 </span>
-                <span className="text-white">{video.releaseDate}</span>
+                <span className="text-foreground">{video.releaseDate}</span>
               </div>
             )}
           </div>
@@ -147,7 +147,7 @@ function Loading() {
     <main className="space-y-8">
       {/* Main Player Area Skeleton */}
       <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video">
-        <div className="w-full h-full bg-neutral-900 animate-pulse"></div>
+        <div className="w-full h-full bg-secondary animate-pulse"></div>
       </div>
 
       {/* Episode Selector Skeleton */}
@@ -155,7 +155,7 @@ function Loading() {
         {Array.from({ length: 24 }).map((_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
           <li key={i}>
-            <Skeleton className="w-12 h-12 rounded-lg bg-neutral-800" />
+            <Skeleton className="w-12 h-12 rounded-lg bg-muted" />
           </li>
         ))}
       </ul>
@@ -164,21 +164,21 @@ function Loading() {
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-3xl space-y-6">
           {/* Title */}
-          <Skeleton className="h-10 md:h-16 w-3/4 bg-white/10" />
+          <Skeleton className="h-10 md:h-16 w-3/4 bg-muted" />
 
           {/* Metadata */}
           <div className="flex items-center space-x-4">
-            <Skeleton className="h-5 w-12 bg-white/10" />
+            <Skeleton className="h-5 w-12 bg-muted" />
             <span className="text-gray-600">•</span>
             <Skeleton className="h-5 w-32 bg-white/10" />
             <span className="text-gray-600">•</span>
-            <Skeleton className="h-5 w-16 bg-white/10" />
+            <Skeleton className="h-5 w-16 bg-muted" />
           </div>
 
           {/* Description */}
           <div className="space-y-2">
-            <Skeleton className="h-5 w-full bg-white/10" />
-            <Skeleton className="h-5 w-full bg-white/10" />
+            <Skeleton className="h-5 w-full bg-muted" />
+            <Skeleton className="h-5 w-full bg-muted" />
             <Skeleton className="h-5 w-2/3 bg-white/10" />
           </div>
         </div>
@@ -189,13 +189,13 @@ function Loading() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
-            <Skeleton className="h-7 w-16 mb-4 bg-white/10" />
+            <Skeleton className="h-7 w-16 mb-4 bg-muted" />
             <div className="flex flex-wrap gap-2">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton
                   // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
                   key={i}
-                  className="h-8 w-24 rounded-full bg-neutral-900 border border-neutral-800"
+                  className="h-8 w-24 rounded-full bg-secondary border border-border"
                 />
               ))}
             </div>
@@ -204,13 +204,7 @@ function Loading() {
           <div className="space-y-6">
             {/* Director */}
             <div>
-              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
-              <Skeleton className="h-5 w-32 bg-white/10" />
-            </div>
-            {/* Release Date */}
-            <div>
-              <Skeleton className="h-5 w-16 mb-2 bg-white/10" />
-              <Skeleton className="h-5 w-24 bg-white/10" />
+              <Skeleton className="h-5 w-24 bg-muted" />
             </div>
           </div>
         </div>

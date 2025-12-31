@@ -58,19 +58,15 @@ export function AllowlistDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-white/70 hover:text-white"
-        >
+        <Button variant="ghost" size="sm" className="gap-2 text-foreground">
           <ShieldCheck className="h-4 w-4" />
           {dictionary.allowlist.button}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg border-white/10 bg-black/60 backdrop-blur-2xl text-white">
+      <DialogContent className="sm:max-w-lg border-border bg-background/80 backdrop-blur-2xl text-foreground">
         <DialogHeader>
           <DialogTitle>{dictionary.allowlist.title}</DialogTitle>
-          <DialogDescription className="text-white/40">
+          <DialogDescription className="text-muted-foreground">
             {dictionary.allowlist.description}
           </DialogDescription>
         </DialogHeader>
@@ -81,12 +77,12 @@ export function AllowlistDialog({
             placeholder={dictionary.allowlist.placeholder}
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            className="border-white/10 bg-white/5 text-white placeholder:text-white/30"
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground/50"
           />
           <Button
             type="submit"
             disabled={isAdding || !newEmail}
-            className="bg-white text-black hover:bg-white/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isAdding ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -100,7 +96,7 @@ export function AllowlistDialog({
           <React.Suspense
             fallback={
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-white/20" />
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/20" />
               </div>
             }
           >
@@ -141,12 +137,12 @@ function AllowlistList({
 
   return (
     <Table>
-      <TableHeader className="bg-white/5 sticky top-0 z-10">
-        <TableRow className="border-white/10 hover:bg-transparent">
-          <TableHead className="text-white/60">
+      <TableHeader className="bg-muted sticky top-0 z-10">
+        <TableRow className="border-border hover:bg-transparent">
+          <TableHead className="text-muted-foreground/60">
             {dictionary.allowlist["table-email"]}
           </TableHead>
-          <TableHead className="text-right text-white/60">
+          <TableHead className="text-right text-muted-foreground/60">
             {dictionary.allowlist["table-actions"]}
           </TableHead>
         </TableRow>
@@ -154,7 +150,10 @@ function AllowlistList({
       <TableBody>
         {emails.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={2} className="text-center py-8 text-white/20">
+            <TableCell
+              colSpan={2}
+              className="text-center py-8 text-muted-foreground/20"
+            >
               {dictionary.allowlist.empty}
             </TableCell>
           </TableRow>
@@ -162,7 +161,7 @@ function AllowlistList({
           emails.map((item) => (
             <TableRow
               key={item.id}
-              className="border-white/5 hover:bg-white/5 transition-colors"
+              className="border-border hover:bg-muted transition-colors"
             >
               <TableCell className="font-medium">{item.email}</TableCell>
               <TableCell className="text-right">
@@ -173,7 +172,7 @@ function AllowlistList({
                     size="icon"
                     type="submit"
                     disabled={isPending}
-                    className="text-white/40 hover:text-red-400 hover:bg-red-400/10"
+                    className="text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10"
                   >
                     {isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -60,7 +60,7 @@ export default function SourceForm() {
     <Form {...form}>
       <form
         action={dispatch}
-        className="flex flex-wrap gap-4 w-full items-end border p-4 rounded-lg bg-white/5 border-white/10"
+        className="flex flex-wrap gap-4 w-full items-end border p-4 rounded-lg bg-secondary border-border"
       >
         <FormField
           control={form.control}
@@ -71,7 +71,7 @@ export default function SourceForm() {
               <FormControl>
                 <Input
                   placeholder="Source Name"
-                  className="bg-black/20"
+                  className="bg-background"
                   {...field}
                 />
               </FormControl>
@@ -88,7 +88,7 @@ export default function SourceForm() {
               <FormControl>
                 <Input
                   placeholder="https://example.com/api.php/provide/vod"
-                  className="bg-black/20"
+                  className="bg-background"
                   {...field}
                 />
               </FormControl>

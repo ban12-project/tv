@@ -1,15 +1,18 @@
 import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
 import { getAllowList } from "@/app/actions";
-import Link from "@/components/link";
+
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
+
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { auth } from "@/lib/auth";
 import { sourceProvider } from "@/lib/source-provider";
 import { AllowlistDialog } from "./allowlist-dialog";
+import ColorSchemeToggle from "./color-scheme-toggle-client";
+import { EmojiLogo } from "./emoji-logo";
 
 async function MenuLoader({
   lang,
@@ -35,14 +38,12 @@ export default async function Header({
 
   return (
     <ScrollAwareHeader>
-      <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-black/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-white/10">
+      <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-background/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-border">
         <div className="px-6 md:px-8 lg:px-10">
           <div className="flex items-center justify-between h-16">
             {/* Logo and Navigation */}
-            <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center space-x-2">
-                {dictionary.header.home}
-              </Link>
+            <div className="flex items-center gap-4">
+              <EmojiLogo />
 
               <ViewTransition>
                 <Suspense>
@@ -56,6 +57,7 @@ export default async function Header({
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
               <SearchDialog dictionary={dictionary} lang={lang} />
+              <ColorSchemeToggle />
             </div>
           </div>
         </div>

@@ -69,7 +69,10 @@ export async function generateMetadata({
 }
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9f9fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0b" },
+  ],
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
@@ -89,7 +92,7 @@ export default async function RootLayout({
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className="bg-black text-white selection:bg-white selection:text-black">
+      <body className="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

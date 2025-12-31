@@ -166,7 +166,7 @@ export function CategoryVideoList({
         }
       >
         {videos.length === 0 ? (
-          <div className="text-center py-20 text-neutral-500">
+          <div className="text-center py-20 text-muted-foreground">
             {isPending ? "Loading..." : "No videos found in this category."}
           </div>
         ) : (

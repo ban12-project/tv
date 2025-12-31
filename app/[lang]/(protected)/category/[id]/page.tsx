@@ -34,15 +34,15 @@ export default async function CategoryPage({
   }
 
   return (
-    <main className="min-h-screen pt-24 pb-20 px-4 md:px-8 bg-black">
+    <main className="min-h-screen pt-24 pb-20 px-4 md:px-8 bg-background">
       <div className="max-w-450 mx-auto space-y-8">
         <div className="space-y-2">
           <ViewTransition name="category-title">
-            <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
+            <h1 className="text-3xl md:text-5xl font-bold text-foreground tracking-tight">
               {category.name}
             </h1>
           </ViewTransition>
-          <p className="text-neutral-400">
+          <p className="text-muted-foreground">
             Explore our collection of {category.name}
           </p>
         </div>
@@ -85,10 +85,10 @@ function VideosLoading() {
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-6 animate-pulse">
       {[...Array(10)].map((_, i) => (
         <div key={String(i)} className="space-y-3">
-          <div className="aspect-video rounded-xl bg-neutral-800" />
+          <div className="aspect-video rounded-xl bg-muted" />
           <div className="space-y-2">
-            <div className="h-4 w-3/4 bg-neutral-800 rounded" />
-            <div className="h-3 w-1/2 bg-neutral-800 rounded" />
+            <div className="h-4 w-3/4 bg-muted rounded" />
+            <div className="h-3 w-1/2 bg-muted rounded" />
           </div>
         </div>
       ))}

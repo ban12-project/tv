@@ -42,10 +42,10 @@ async function Suspended() {
   const sources = await getApiSources();
 
   return (
-    <div className="border rounded-md border-white/10 overflow-hidden">
+    <div className="border rounded-md border-border overflow-hidden">
       <Table>
-        <TableHeader className="bg-white/5">
-          <TableRow className="border-white/10 hover:bg-transparent">
+        <TableHeader className="bg-muted">
+          <TableRow className="border-border hover:bg-transparent">
             <TableHead className="w-50">Name</TableHead>
             <TableHead>URL</TableHead>
             <TableHead className="w-25">Type</TableHead>

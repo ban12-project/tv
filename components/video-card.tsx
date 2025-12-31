@@ -29,7 +29,7 @@ export function VideoCard({
     >
       <div
         className={cn(
-          "relative overflow-hidden rounded-xl bg-neutral-900 shadow-md transition-transform duration-300 ease-out group-hover:scale-105 group-focus-visible:scale-105 group-focus-visible:ring-4 ring-white",
+          "relative overflow-hidden rounded-xl bg-secondary shadow-md transition-transform duration-300 ease-out group-hover:scale-105 group-focus-visible:scale-105 group-focus-visible:ring-4 ring-primary",
           aspectRatio === "16/9"
             ? "aspect-video"
             : aspectRatio === "2/3"
@@ -43,7 +43,7 @@ export function VideoCard({
       >
         {/* Source Badge */}
         <div className="absolute top-2 left-2 z-10 pointer-events-none">
-          <Badge className="bg-black/40 backdrop-blur-md border-white/10 text-white/90 text-[10px] px-2 py-0.5 font-normal">
+          <Badge className="bg-background/40 backdrop-blur-md border-border text-foreground/90 text-[10px] px-2 py-0.5 font-normal">
             {video.sourceName}
           </Badge>
         </div>
@@ -55,20 +55,13 @@ export function VideoCard({
           className="object-cover transition-opacity duration-300 group-hover:opacity-100 opacity-90"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
-
-        {/* Optional Overlay on Hover */}
-        <div className="absolute inset-0 bg-black/40 duration-300 flex items-center justify-center group-hover:opacity-100 opacity-0">
-          <span className="text-white font-semibold tracking-wide drop-shadow-md">
-            Play
-          </span>
-        </div>
       </div>
 
       <div className="mt-3 duration-300 group-focus-visible:opacity-100">
-        <h3 className="text-base font-medium text-white truncate w-full">
+        <h3 className="text-base font-medium text-foreground truncate w-full">
           {video.title}
         </h3>
-        <p className="text-sm text-neutral-400 truncate">
+        <p className="text-sm text-muted-foreground truncate">
           {video.year} • {video.genre.join(", ")}
         </p>
       </div>

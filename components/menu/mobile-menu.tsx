@@ -23,19 +23,19 @@ export function MobileMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden text-white hover:bg-white/10 group"
+          className="md:hidden text-foreground hover:bg-accent group"
           aria-label="open menu"
         >
-          <div className="flex flex-col justify-center items-center w-full h-full pointer-events-none before:bg-white before:w-5.5 before:h-[1.5px] before:transition-transform before:duration-150 before:block after:bg-white after:w-5.5 after:h-[1.5px] after:transition-transform after:duration-150 after:block group-data-[state=closed]:before:-translate-y-1 group-data-[state=closed]:before:rotate-0 group-data-[state=open]:before:translate-y-px group-data-[state=open]:before:rotate-45 group-data-[state=closed]:after:translate-y-1 group-data-[state=closed]:after:rotate-0 group-data-[state=open]:after:-translate-y-px group-data-[state=open]:after:-rotate-45"></div>
+          <div className="flex flex-col justify-center items-center w-full h-full pointer-events-none before:bg-current before:w-8.25 before:h-0.5 before:transition-transform before:duration-150 before:block before:scale-75 after:bg-current after:w-8.25 after:h-0.5 after:transition-transform after:duration-150 after:block after:scale-75 group-data-[state=closed]:before:-translate-y-1 group-data-[state=closed]:before:rotate-0 group-data-[state=open]:before:translate-y-px group-data-[state=open]:before:rotate-45 group-data-[state=closed]:after:translate-y-1 group-data-[state=closed]:after:rotate-0 group-data-[state=open]:after:-translate-y-px group-data-[state=open]:after:-rotate-45"></div>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popper-available-width) h-(--radix-popper-available-height) bg-zinc-900/95 backdrop-blur-2xl border-none p-6 shadow-none overflow-auto">
+      <PopoverContent className="w-(--radix-popper-available-width) h-(--radix-popper-available-height) bg-background/95 backdrop-blur-2xl border-none p-6 shadow-none overflow-auto">
         <div className="flex flex-col space-y-6 w-full">
           {nodes.map((node) => (
             <div key={node.href} className="flex flex-col text-center">
               <PopoverPrimitive.Close asChild>
                 <Link href={node.href}>
-                  <h3 className="px-4 py-3 hover:bg-white/10 active:scale-[0.98] rounded-2xl text-2xl font-semibold text-white transition-transform">
+                  <h3 className="px-4 py-3 hover:bg-accent active:scale-[0.98] rounded-2xl text-2xl font-semibold text-foreground transition-transform">
                     {node.title}
                   </h3>
                 </Link>
@@ -47,7 +47,7 @@ export function MobileMenu({
                     <PopoverPrimitive.Close key={child.href} asChild>
                       <Link
                         href={child.href}
-                        className="px-4 py-2 hover:bg-white/10 active:scale-[0.98] rounded-xl text-lg text-gray-400 hover:text-white transition-all bg-white/5"
+                        className="px-4 py-2 hover:bg-accent active:scale-[0.98] rounded-xl text-lg text-muted-foreground hover:text-foreground transition-all bg-secondary"
                       >
                         {child.title}
                       </Link>

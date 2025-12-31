@@ -43,7 +43,7 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
         <div className="w-full max-w-2xl space-y-8">
           {!hasResults && !isPending && !query && (
             <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-              <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white">
+              <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground">
                 Ban12 <span className="text-primary italic">TV</span>
               </h1>
               <p className="text-neutral-400 text-lg md:text-xl max-w-md mx-auto">
@@ -65,7 +65,7 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
                 onCompositionStart={onCompositionStart}
                 onCompositionEnd={onCompositionEnd}
                 placeholder={dictionary.header["search-placeholder"]}
-                className="w-full h-16 md:h-20 bg-neutral-900/80 backdrop-blur-xl border-2 border-white/5 group-focus-within:border-primary/50 rounded-2xl px-6 text-xl md:text-2xl text-white placeholder:text-neutral-600 outline-none transition-all duration-300 shadow-2xl animate-caret-cycle"
+                className="w-full h-16 md:h-20 bg-secondary/40 backdrop-blur-xl border-2 border-border group-focus-within:border-primary/50 rounded-2xl px-6 text-xl md:text-2xl text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-300 shadow-2xl animate-caret-cycle"
                 autoComplete="off"
               />
               {isPending && (

@@ -314,7 +314,10 @@ export default function VideoPlayer({
 
   return (
     <div
-      className={cn("relative bg-black rounded-lg overflow-hidden", className)}
+      className={cn(
+        "relative bg-zinc-950 rounded-lg overflow-hidden",
+        className,
+      )}
     >
       <video
         ref={videoRef}
@@ -326,9 +329,9 @@ export default function VideoPlayer({
         autoPlay={autoPlay}
       >
         <track kind="captions" srcLang="en" />
-        <p className="text-white p-4">
+        <p className="text-zinc-400 p-4">
           Browser does not support video.
-          <a href={videoUrl} className="text-blue-400 underline ml-1">
+          <a href={videoUrl} className="text-primary underline ml-1">
             Download Video
           </a>
         </p>
