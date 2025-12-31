@@ -19,13 +19,9 @@ import type { Messages } from "@/get-dictionary";
 import { useVideoSearch } from "@/hooks/use-video-search";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
-export function SearchDialog({
-  dictionary,
-  lang,
-}: {
-  dictionary: Messages;
-  lang: string;
-}) {
+import { useLocale } from "./i18n";
+
+export function SearchDialog({ dictionary }: { dictionary: Messages }) {
   const [open, setOpen] = React.useState(false);
   const {
     query,
@@ -36,6 +32,7 @@ export function SearchDialog({
     onCompositionEnd,
   } = useVideoSearch(300);
   const router = useRouter();
+  const { locale } = useLocale();
 
   const handleQueryChange = (value: string) => {
     onQueryChange(value);
@@ -54,7 +51,7 @@ export function SearchDialog({
 
   const handleSelect = (video: Video) => {
     setOpen(false);
-    router.push(`/${lang}/watch/${video.sourceId}/${video.id}/1`);
+    router.push(`/${locale}/watch/${video.sourceId}/${video.id}/1`);
   };
 
   return (
@@ -112,7 +109,7 @@ export function SearchDialog({
             <CommandGroup
               heading={new IntlMessageFormat(
                 dictionary.header["search-results-count"],
-                lang,
+                locale,
               ).format({ count: results.length })}
             >
               {results.map((item: Video) => (

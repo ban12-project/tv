@@ -12,7 +12,8 @@
     "search-view-all-results": "Decrypt all {count} records →",
     "search-no-results-found": "Void returned for \"{query}\". System silent.",
     "search-try-searching": "Re-calibrate sensors. Try codenames or genres.",
-    "verify-cms": "Outposts"
+    "verify-cms": "Outposts",
+    "recommended": "Priority Intel"
   },
   "auth": {
     "signIn": {
@@ -57,7 +58,22 @@
     "cast": "The Crew",
     "director": "The Architect",
     "released": "Activation Date",
-    "episodes": "Logs"
+    "episodes": "Logs",
+    "recommendation": {
+      "button": "Recommend",
+      "title": "Recommend this video",
+      "description": "Share this video with others. You can edit the title and description.",
+      "label": {
+        "title": "Title",
+        "description": "Description",
+        "image": "Image URL"
+      },
+      "submit": "Submit Recommendation",
+      "submitting": "Submitting...",
+      "success": "Recommendation submitted successfully.",
+      "recommended": "Recommended",
+      "withdraw": "Withdraw"
+    }
   },
   "allowlist": {
     "button": "Mainframe Access",

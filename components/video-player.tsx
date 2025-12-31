@@ -313,12 +313,7 @@ export default function VideoPlayer({
   }, []);
 
   return (
-    <div
-      className={cn(
-        "relative bg-zinc-950 rounded-lg overflow-hidden",
-        className,
-      )}
-    >
+    <div className={cn("relative rounded-lg overflow-hidden", className)}>
       <video
         ref={videoRef}
         className="w-full aspect-video transition-opacity duration-500"

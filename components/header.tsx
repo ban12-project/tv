@@ -1,41 +1,33 @@
 import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
 import { getAllowList } from "@/app/actions";
-
+import { getRecommendations } from "@/app/actions/recommendations";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
-
-import { getDictionary } from "@/get-dictionary";
-import type { Locale } from "@/i18n-config";
+import type { Messages } from "@/get-dictionary";
 import { auth } from "@/lib/auth";
-import { sourceProvider } from "@/lib/source-provider";
 import { AllowlistDialog } from "./allowlist-dialog";
 import ColorSchemeToggle from "./color-scheme-toggle-client";
 import { EmojiLogo } from "./emoji-logo";
 
-async function MenuLoader({
-  lang,
+async function SuspendedMenu({
   children,
+  messages,
 }: {
-  lang: Locale;
   children?: React.ReactNode;
+  messages: Messages;
 }) {
-  const categories = await sourceProvider.getCategories();
-  const dictionary = await getDictionary(lang);
+  const recommendations = await getRecommendations();
+
   return (
-    <Menu categories={categories} dictionary={dictionary}>
+    <Menu recommendations={recommendations} dictionary={messages}>
       {children}
     </Menu>
   );
 }
 
-export default async function Header({
-  params,
-}: Pick<LayoutProps<"/[lang]">, "params">) {
-  const { lang } = await params;
-  const dictionary = await getDictionary(lang as Locale);
-
+export default function Header({ messages }: { messages: Messages }) {
   return (
     <ScrollAwareHeader>
       <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-background/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-border">
@@ -47,16 +39,16 @@ export default async function Header({
 
               <ViewTransition>
                 <Suspense>
-                  <MenuLoader lang={lang as Locale}>
-                    <SuspendedAllowlistDialog lang={lang as Locale} />
-                  </MenuLoader>
+                  <SuspendedMenu messages={messages}>
+                    <SuspendedAllowlistDialog messages={messages} />
+                  </SuspendedMenu>
                 </Suspense>
               </ViewTransition>
             </div>
 
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
-              <SearchDialog dictionary={dictionary} lang={lang} />
+              <SearchDialog dictionary={messages} />
               <ColorSchemeToggle />
             </div>
           </div>
@@ -66,7 +58,7 @@ export default async function Header({
   );
 }
 
-async function SuspendedAllowlistDialog({ lang }: { lang: Locale }) {
+async function SuspendedAllowlistDialog({ messages }: { messages: Messages }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -76,9 +68,8 @@ async function SuspendedAllowlistDialog({ lang }: { lang: Locale }) {
   if (!isRealUser) return null;
 
   const emailsPromise = getAllowList();
-  const dictionary = await getDictionary(lang);
 
   return (
-    <AllowlistDialog emailsPromise={emailsPromise} dictionary={dictionary} />
+    <AllowlistDialog emailsPromise={emailsPromise} dictionary={messages} />
   );
 }

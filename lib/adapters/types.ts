@@ -93,5 +93,4 @@ export interface VideoSourceAdapter {
   searchStream(query: string, page?: number): AsyncGenerator<SearchResult>;
   getVideos(params: MacCMSListParams): Promise<SearchResult>;
   getVideosStream(params: MacCMSListParams): AsyncGenerator<SearchResult>;
-  getCategories(): Promise<Category[]>;
 }

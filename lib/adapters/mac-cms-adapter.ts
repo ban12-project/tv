@@ -1,5 +1,4 @@
 import type {
-  Category,
   MacCMSListParams,
   MacCMSVideo,
   SearchResult,
@@ -158,20 +157,6 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       limit: Number(response.limit),
     };
   }
-  /**
-   * Fetches the list of video categories.
-   */
-  async getCategories(): Promise<Category[]> {
-    // ac=list usually returns the category list in the 'class' field
-    const response = await this.fetchAPI({ ac: "list" });
-    const classes = response.class || [];
-    return classes.map((c: MacCMSCategory) => ({
-      id: c.type_id,
-      name: c.type_name,
-      parentId: c.type_pid,
-    }));
-  }
-
   /**
    * Fetches details for a specific video ID.
    * @param id The video ID

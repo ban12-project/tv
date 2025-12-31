@@ -1,6 +1,7 @@
 "use client";
 
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
+import { CMSImage } from "@/components/cms-image";
 import Link from "@/components/link";
 import {
   NavigationMenu,
@@ -37,17 +38,41 @@ export function DesktopMenu({
                   <Link href={node.href}>{node.title}</Link>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <ul className="grid gap-2 p-2 md:w-xs md:grid-cols-3 lg:w-sm">
+                  <ul className="grid gap-3 p-4 w-[350px] md:w-[600px] lg:w-[800px] md:grid-cols-2 lg:grid-cols-3">
                     {node.children.map((child) => (
-                      <li key={child.href}>
+                      <li key={child.href} className="row-span-1">
                         <NavigationMenuLink
                           asChild
                           className={cn(
                             navigationMenuTriggerStyle(),
-                            "bg-transparent hover:bg-white/10 active:scale-[0.98] rounded-xl transition-all",
+                            "bg-transparent hover:bg-muted/50 focus:bg-muted/50 active:scale-[0.98] rounded-xl transition-all h-full w-full justify-start p-3",
                           )}
                         >
-                          <Link href={child.href}>{child.title}</Link>
+                          <Link
+                            href={child.href}
+                            className="flex gap-3 h-full items-start"
+                          >
+                            {child.image && (
+                              <div className="shrink-0 rounded-md overflow-hidden w-20 aspect-video relative bg-muted">
+                                <CMSImage
+                                  src={child.image}
+                                  alt={child.title}
+                                  fill
+                                  className="object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <span className="text-sm font-medium leading-none truncate w-full block">
+                                {child.title}
+                              </span>
+                              {child.description && (
+                                <span className="text-xs text-muted-foreground line-clamp-2 text-wrap">
+                                  {child.description}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
                         </NavigationMenuLink>
                       </li>
                     ))}

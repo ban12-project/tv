@@ -1,7 +1,8 @@
 "use client";
 
 import type { Messages } from "@/get-dictionary";
-import type { Category } from "@/lib/adapters/types";
+import type { SelectRecommendation } from "@/lib/db/schema";
+import { useLocale } from "../i18n";
 import { DesktopMenu } from "./desktop-menu";
 import { MobileMenu } from "./mobile-menu";
 
@@ -9,53 +10,41 @@ export interface MenuNode {
   title: string;
   href: string;
   description?: string;
+  image?: string;
   children?: MenuNode[];
 }
 
-function buildMenuTree(categories: Category[]): MenuNode[] {
-  const map = new Map<string | number, MenuNode>();
-  const roots: MenuNode[] = [];
-
-  // Initialize all nodes
-  for (const cat of categories) {
-    map.set(cat.id, {
-      title: cat.name,
-      href: `/category/${cat.id}`,
-      children: [],
-    });
-  }
-
-  // Build tree
-  for (const cat of categories) {
-    const node = map.get(cat.id)!;
-    if (
-      cat.parentId &&
-      map.has(cat.parentId) &&
-      cat.parentId !== 0 &&
-      cat.parentId !== "0"
-    ) {
-      map.get(cat.parentId)!.children!.push(node);
-    } else {
-      roots.push(node);
-    }
-  }
-
-  return roots;
-}
-
 export function Menu({
-  categories,
+  recommendations,
   dictionary,
   children,
 }: {
-  categories: Category[];
+  recommendations: SelectRecommendation[];
   dictionary: Messages;
   children?: React.ReactNode;
 }) {
-  const menuTree = buildMenuTree(categories);
+  const { locale } = useLocale();
+
+  const recommendationNodes: MenuNode[] = recommendations.map((rec) => {
+    const href =
+      rec.sourceId && rec.videoId
+        ? `/${locale}/watch/${rec.sourceId}/${rec.videoId}/${rec.epIndex || 1}`
+        : `/${locale}?q=${encodeURIComponent(rec.title)}`;
+
+    return {
+      title: rec.title,
+      description: rec.description,
+      image: rec.image,
+      href,
+    };
+  });
 
   const customNodes: MenuNode[] = [
-    ...menuTree,
+    {
+      title: dictionary.header.recommended,
+      href: "#",
+      children: recommendationNodes,
+    },
     {
       title: dictionary.header["verify-cms"],
       href: "/verify-cms",

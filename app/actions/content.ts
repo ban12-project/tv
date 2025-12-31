@@ -25,20 +25,6 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
   }
 }
 
-export async function getCategory(id: string) {
-  "use cache";
-  cacheTag(`category-${id}`);
-  cacheLife("days");
-
-  try {
-    const categories = await sourceProvider.getCategories();
-    return categories.find((c) => c.id.toString() === id);
-  } catch (error) {
-    console.error(`Error fetching category ${id}:`, error);
-    return null;
-  }
-}
-
 export async function getCategoryVideos(id: string, page = 1) {
   "use cache";
   cacheTag(`category-${id}`);

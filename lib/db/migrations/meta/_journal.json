@@ -36,6 +36,13 @@
       "when": 1766387735378,
       "tag": "0004_aromatic_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1767175748090,
+      "tag": "0005_superb_vargas",
+      "breakpoints": true
     }
   ]
 }

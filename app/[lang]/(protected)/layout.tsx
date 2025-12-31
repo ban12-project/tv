@@ -14,7 +14,7 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
 
   return (
     <>
-      <Header params={props.params} />
+      <Header messages={dict} />
 
       <Suspense
         fallback={

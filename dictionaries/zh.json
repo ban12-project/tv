@@ -12,7 +12,8 @@
     "search-view-all-results": "带上来！查看全部 {count} 个",
     "search-no-results-found": "坏了，\"{query}\" 被麻匪劫走了！",
     "search-try-searching": "换个搜法？站着把片子搜了！",
-    "verify-cms": "山头"
+    "verify-cms": "山头",
+    "recommended": "师爷推荐"
   },
   "auth": {
     "signIn": {
@@ -57,7 +58,22 @@
     "cast": "各路神仙 (演员)",
     "director": "幕后主使 (导演)",
     "released": "开张大吉 (上映)",
-    "episodes": "回"
+    "episodes": "回",
+    "recommendation": {
+      "button": "举荐",
+      "title": "举荐片子",
+      "description": "给师爷递个折子，让大伙儿也开开眼。标题描述你看着改。",
+      "label": {
+        "title": "名号 (标题)",
+        "description": "细说 (描述)",
+        "image": "画像 (图片URL)"
+      },
+      "submit": "呈上来",
+      "submitting": "正在呈送...",
+      "success": "成了！片子上架了，让大家伙儿都瞧瞧。",
+      "recommended": "已举荐",
+      "withdraw": "撤回"
+    }
   },
   "allowlist": {
     "button": "鹅城名册",

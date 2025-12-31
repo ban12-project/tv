@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import { fetchVideoDetails } from "@/app/actions/content";
+import { checkIsRecommended } from "@/app/actions/recommendations";
+import { RecommendationDialog } from "@/components/recommendation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import WatchClient from "@/components/watch-client";
 import { getDictionary } from "@/get-dictionary";
@@ -39,6 +41,9 @@ async function Suspended({ params }: Props) {
     notFound();
   }
 
+  // Promise for checking status (don't await here)
+  const isRecommendedPromise = checkIsRecommended(decodedSourceId, id);
+
   const episodeIndex = Number.parseInt(ep, 10) - 1;
   const validIndex =
     !Number.isNaN(episodeIndex) && episodeIndex >= 0 ? episodeIndex : 0;
@@ -72,9 +77,25 @@ async function Suspended({ params }: Props) {
 
       <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-3xl space-y-6">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-            {video.title}
-          </h1>
+          <div className="flex items-end gap-4">
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+              {video.title}
+            </h1>
+            <Suspense fallback={<Skeleton className="h-4 w-4" />}>
+              <RecommendationDialog
+                video={{
+                  title: video.title,
+                  description: video.description,
+                  image: video.image,
+                  sourceId: decodedSourceId,
+                  id: id,
+                  ep: ep,
+                }}
+                dictionary={dictionary}
+                isRecommended={isRecommendedPromise}
+              />
+            </Suspense>
+          </div>
 
           <div className="flex items-center space-x-4 text-sm md:text-base text-muted-foreground font-medium">
             {video.year && <span>{video.year}</span>}

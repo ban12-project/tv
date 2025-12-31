@@ -86,18 +86,6 @@ export class MultiSourceProvider implements VideoSourceAdapter {
     return null;
   }
 
-  async getCategories() {
-    const adapters = await this.getAdapters();
-    if (adapters.length > 0) {
-      try {
-        return await adapters[0].adapter.getCategories();
-      } catch (e) {
-        console.error("Failed to fetch categories from first source", e);
-      }
-    }
-    return [];
-  }
-
   async getVideos(params: MacCMSListParams): Promise<SearchResult> {
     const adapters = await this.ensureAdapters();
 
