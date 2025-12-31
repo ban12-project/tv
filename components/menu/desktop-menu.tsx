@@ -38,7 +38,7 @@ export function DesktopMenu({
                   <Link href={node.href}>{node.title}</Link>
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <ul className="grid gap-3 p-4 w-[350px] md:w-[600px] lg:w-[800px] md:grid-cols-2 lg:grid-cols-3">
+                  <ul className="grid gap-3 p-4 w-87.5 md:w-150 lg:w-200 md:grid-cols-2 lg:grid-cols-3">
                     {node.children.map((child) => (
                       <li key={child.href} className="row-span-1">
                         <NavigationMenuLink
@@ -50,10 +50,10 @@ export function DesktopMenu({
                         >
                           <Link
                             href={child.href}
-                            className="flex gap-3 h-full items-start"
+                            className="flex flex-row gap-3 h-full items-start"
                           >
                             {child.image && (
-                              <div className="shrink-0 rounded-md overflow-hidden w-20 aspect-video relative bg-muted">
+                              <div className="shrink-0 rounded-md overflow-hidden w-20 aspect-2/3 relative bg-muted">
                                 <CMSImage
                                   src={child.image}
                                   alt={child.title}
@@ -67,9 +67,9 @@ export function DesktopMenu({
                                 {child.title}
                               </span>
                               {child.description && (
-                                <span className="text-xs text-muted-foreground line-clamp-2 text-wrap">
+                                <p className="text-xs text-muted-foreground line-clamp-6">
                                   {child.description}
-                                </span>
+                                </p>
                               )}
                             </div>
                           </Link>

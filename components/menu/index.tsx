@@ -2,7 +2,6 @@
 
 import type { Messages } from "@/get-dictionary";
 import type { SelectRecommendation } from "@/lib/db/schema";
-import { useLocale } from "../i18n";
 import { DesktopMenu } from "./desktop-menu";
 import { MobileMenu } from "./mobile-menu";
 
@@ -23,13 +22,11 @@ export function Menu({
   dictionary: Messages;
   children?: React.ReactNode;
 }) {
-  const { locale } = useLocale();
-
   const recommendationNodes: MenuNode[] = recommendations.map((rec) => {
     const href =
       rec.sourceId && rec.videoId
-        ? `/${locale}/watch/${rec.sourceId}/${rec.videoId}/${rec.epIndex || 1}`
-        : `/${locale}?q=${encodeURIComponent(rec.title)}`;
+        ? `/watch/${rec.sourceId}/${rec.videoId}/${rec.epIndex || 1}`
+        : `?q=${encodeURIComponent(rec.title)}`;
 
     return {
       title: rec.title,

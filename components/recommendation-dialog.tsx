@@ -125,10 +125,12 @@ export function RecommendationDialog({
           {t.button}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-106.25">
+      <DialogContent className="sm:max-w-lg bg-card text-card-foreground border-border shadow-2xl">
         <DialogHeader>
-          <DialogTitle>{t.title}</DialogTitle>
-          <DialogDescription>{t.description}</DialogDescription>
+          <DialogTitle className="text-xl">{t.title}</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            {t.description}
+          </DialogDescription>
         </DialogHeader>
         <form action={saveAction} className="grid gap-4 py-4">
           <input type="hidden" name="sourceId" value={video.sourceId || ""} />
