@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { VideoCard } from "@/components/video-card";
 import type { Messages } from "@/get-dictionary";
@@ -9,6 +10,8 @@ import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
 export function HomeSearch({ dictionary }: { dictionary: Messages }) {
+  const searchParams = useSearchParams();
+
   const {
     query,
     results,
@@ -17,7 +20,20 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
     onQueryChange,
     onCompositionStart,
     onCompositionEnd,
-  } = useVideoSearch(300);
+  } = useVideoSearch(300, searchParams.get("q") || "");
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    const currentQ = params.get("q") || "";
+    if (currentQ === query) return;
+
+    if (query) {
+      params.set("q", query);
+    } else {
+      params.delete("q");
+    }
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [query, searchParams]);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
 

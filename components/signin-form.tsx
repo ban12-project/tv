@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import type { Messages } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
-import { cn, getCallbackURL } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function SignInForm({
   className,
@@ -26,7 +26,7 @@ export function SignInForm({
 }) {
   const [isPending, startTransition] = React.useTransition();
   const router = useRouter();
-  const params = useSearchParams();
+  const searchParams = useSearchParams();
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,7 +35,7 @@ export function SignInForm({
         fetchOptions: {
           onSuccess() {
             toast.success(dictionary.success);
-            router.push(getCallbackURL(params));
+            router.push(searchParams.get("callbackUrl") || "/");
           },
           onError(context) {
             toast.error(

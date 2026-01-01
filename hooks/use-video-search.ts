@@ -18,9 +18,9 @@ export function getRelevanceScore(video: Video, query: string) {
   return 0;
 }
 
-export function useVideoSearch(debounceMs = 300) {
-  const [query, setQuery] = React.useState("");
-  const [searchTerm, setSearchTerm] = React.useState("");
+export function useVideoSearch(debounceMs = 300, initialQuery = "") {
+  const [query, setQuery] = React.useState(initialQuery);
+  const [searchTerm, setSearchTerm] = React.useState(initialQuery);
   const [debouncedSearchTerm] = useDebounceValue(searchTerm, debounceMs);
 
   const [results, setResults] = React.useState<Video[]>([]);

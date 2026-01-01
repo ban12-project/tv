@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import type { Messages } from "@/get-dictionary";
 import { authClient } from "@/lib/auth-client";
-import { cn, getCallbackURL } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const schema = z.object({
   email: z.email(),
@@ -61,7 +61,7 @@ export function SignupForm({
           fetchOptions: {
             onSuccess() {
               toast.success(dictionary.signInSuccess);
-              router.push(getCallbackURL(searchParams));
+              router.push(searchParams.get("callbackUrl") || "/");
             },
             onError(context) {
               toast.error(
@@ -91,7 +91,7 @@ export function SignupForm({
           async onSuccess() {
             await preUpgradeAnonymous(email);
             toast.success(dictionary.success);
-            const callbackUrl = getCallbackURL(searchParams);
+            const callbackUrl = searchParams.get("callbackUrl") || "/";
             router.push(callbackUrl);
           },
           onError(context) {
