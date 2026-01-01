@@ -1,10 +1,18 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import { findMatchesStream } from "@/app/actions/content";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
@@ -41,6 +49,7 @@ export default function WatchClient({
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
     React.useState(initialEpisodeIndex);
+  const [autoSkip, setAutoSkip] = React.useState(true);
 
   const pathname = usePathname();
 
@@ -183,12 +192,13 @@ export default function WatchClient({
       {/* Main Player Area */}
       {currentEpisode ? (
         <VideoPlayer
-          className="w-full max-w-7xl mx-auto lg:px-8 aspect-video"
+          className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
           videoUrl={currentEpisode.url}
           poster={video.backgroundImage || video.image}
           title={`${video.title} - ${currentEpisode.name}`}
           autoPlay={true}
           dictionary={dictionary}
+          disableAutoSkip={!autoSkip}
         />
       ) : (
         <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
@@ -196,7 +206,42 @@ export default function WatchClient({
         </div>
       )}
 
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 flex items-center gap-4 mb-6">
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="auto-skip"
+            checked={autoSkip}
+            onCheckedChange={setAutoSkip}
+          />
+          <Label
+            htmlFor="auto-skip"
+            className="text-sm font-medium cursor-pointer"
+          >
+            {dictionary.watch["ad-skip-label"]}
+          </Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 rounded-full"
+              >
+                <Info className="h-4 w-4 text-muted-foreground" />
+                <span className="sr-only">Info</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="center"
+              className="max-w-50 text-xs"
+            >
+              <p>{dictionary.watch["ad-skip-description"]}</p>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <Tabs
           defaultValue={showEpisodeList ? "episodes" : "sources"}
           className="w-full"

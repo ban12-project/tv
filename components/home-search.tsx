@@ -48,7 +48,7 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
   const hasResults = results.length > 0;
 
   return (
-    <div className="flex flex-col px-4 md:px-8 max-w-7xl mx-auto w-full relative z-10">
+    <div className="flex flex-col px-2 md:px-4 lg:px-6 max-w-7xl mx-auto w-full relative z-10">
       {/* Search Header Container - Centered or Top */}
       <div
         className={cn(

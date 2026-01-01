@@ -12,6 +12,7 @@ interface VideoPlayerProps {
   title?: string;
   dictionary: Messages;
   className?: string;
+  disableAutoSkip?: boolean;
 }
 
 export default function VideoPlayer({
@@ -19,6 +20,7 @@ export default function VideoPlayer({
   poster,
   autoPlay = false,
   className,
+  disableAutoSkip = false,
 }: VideoPlayerProps) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
@@ -69,7 +71,10 @@ export default function VideoPlayer({
     let hls: HlsType | null = null;
     const initHls = async () => {
       const { default: Hls } = await import("hls.js");
-      if (!Hls.isSupported()) {
+
+      const useNative = disableAutoSkip || !Hls.isSupported();
+
+      if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = videoUrl;
           video.load();
@@ -169,7 +174,7 @@ export default function VideoPlayer({
 
     let frameId: number;
     const loop = () => {
-      if (!video.paused && !video.ended) {
+      if (!video.paused && !video.ended && !disableAutoSkip) {
         performSkip();
       }
       frameId = video.requestVideoFrameCallback(loop);
@@ -182,7 +187,7 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay, handleSeeking, performSkip]);
+  }, [videoUrl, autoPlay, handleSeeking, performSkip, disableAutoSkip]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

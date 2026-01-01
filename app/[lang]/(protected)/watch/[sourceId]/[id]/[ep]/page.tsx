@@ -74,7 +74,7 @@ async function Suspended({ params }: Props) {
         currentSourceId={decodedSourceId}
       />
 
-      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <div className="w-full max-w-3xl space-y-6">
           <div className="flex items-end gap-4">
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
@@ -115,7 +115,7 @@ async function Suspended({ params }: Props) {
       </section>
 
       {/* Additional Details */}
-      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
@@ -171,7 +171,7 @@ function Loading() {
       </div>
 
       {/* Episode Selector Skeleton */}
-      <ul className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+      <ul className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
         {Array.from({ length: 24 }).map((_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
           <li key={i}>
@@ -181,7 +181,7 @@ function Loading() {
       </ul>
 
       {/* Info Section Skeleton */}
-      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <div className="w-full max-w-3xl space-y-6">
           {/* Title */}
           <Skeleton className="h-10 md:h-16 w-3/4 bg-muted" />
@@ -205,7 +205,7 @@ function Loading() {
       </section>
 
       {/* Additional Details Skeleton */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           <div className="md:col-span-2 space-y-8">
             {/* Cast */}
