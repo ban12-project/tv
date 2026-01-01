@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 import { findMatchesStream } from "@/app/actions/content";
 import { EpisodeCard } from "@/components/episode-card";
@@ -20,7 +20,6 @@ interface WatchClientProps {
     episodes: Episode[];
   }[];
   dictionary: Messages;
-  lang: string;
   initialEpisodeIndex: number;
   currentSourceId: string;
 }
@@ -35,12 +34,9 @@ export default function WatchClient({
   video,
   sources: initialSources,
   dictionary,
-  lang,
   initialEpisodeIndex,
   currentSourceId: initialSourceId,
 }: WatchClientProps) {
-  const router = useRouter();
-
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
@@ -164,11 +160,12 @@ export default function WatchClient({
     setActiveSourceId(newSourceId);
     setActiveEpisodeIndex(newEpisodeIndex);
 
-    // Sync transition with URL
-    router.push(
-      `/${lang}/watch/${newSourceId}/${targetVideoId}/${newEpisodeIndex + 1}`,
-      { scroll: false },
+    // Update URL shallowly
+    const url = new URL(
+      `../../${encodeURIComponent(newSourceId)}/${targetVideoId}/${newEpisodeIndex + 1}`,
+      window.location.href,
     );
+    window.history.pushState(null, "", url.toString());
   };
 
   // Logic to handle episode change

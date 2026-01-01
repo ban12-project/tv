@@ -70,7 +70,6 @@ async function Suspended({ params }: Props) {
         video={video}
         sources={sourceGroups}
         dictionary={dictionary}
-        lang={lang}
         initialEpisodeIndex={validIndex}
         currentSourceId={decodedSourceId}
       />
