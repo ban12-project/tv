@@ -24,10 +24,12 @@ function AnimateChange({
   children,
   prev,
   className,
+  onAnimationEnd,
 }: {
   children: React.ReactNode;
   prev: React.ReactNode;
   className?: string;
+  onAnimationEnd: () => void;
 }) {
   return (
     <div className={cn("relative grid place-items-center", className)}>
@@ -74,6 +76,7 @@ function AnimateChange({
         key={`${String(prev)}-prev`}
         aria-hidden="true"
         className="animate-emoji-exit absolute"
+        onAnimationEnd={onAnimationEnd}
       >
         {prev}
       </div>
@@ -84,6 +87,7 @@ function AnimateChange({
 export function EmojiLogo() {
   const [currentEmoji, setCurrentEmoji] = React.useState("📺");
   const [prevEmoji, setPrevEmoji] = React.useState("📺");
+  const isHovered = React.useRef(false);
 
   // Initialize with a random emoji on mount (hydration safe)
   React.useEffect(() => {
@@ -91,6 +95,8 @@ export function EmojiLogo() {
   }, []);
 
   const handleMouseEnter = () => {
+    if (isHovered.current) return;
+    isHovered.current = true;
     // Immediate change on hover start
     setPrevEmoji(currentEmoji);
     let nextEmoji = getRandomEmoji();
@@ -109,6 +115,9 @@ export function EmojiLogo() {
       <AnimateChange
         className="w-8 h-8 text-2xl leading-none select-none"
         prev={prevEmoji}
+        onAnimationEnd={() => {
+          isHovered.current = false;
+        }}
       >
         {currentEmoji}
       </AnimateChange>
