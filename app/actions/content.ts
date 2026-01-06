@@ -25,28 +25,6 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
   }
 }
 
-export async function getCategoryVideos(id: string, page = 1) {
-  "use cache";
-  cacheTag(`category-${id}`);
-  cacheLife("hours");
-
-  try {
-    return await sourceProvider.getVideos({
-      t: id,
-      pg: page,
-      ac: "detail",
-    });
-  } catch (error) {
-    console.error(`Error fetching videos for category ${id}:`, error);
-    return {
-      videos: [],
-      total: 0,
-      page: 1,
-      limit: 20,
-    };
-  }
-}
-
 export async function searchVideosStream(query: string) {
   const validatedFields = searchSchema.safeParse({ query });
 
@@ -59,12 +37,4 @@ export async function searchVideosStream(query: string) {
 
 export async function findMatchesStream(video: Video) {
   return sourceProvider.findMatchesStream(video);
-}
-
-export async function getCategoryVideosStream(id: string, page = 1) {
-  return sourceProvider.getVideosStream({
-    t: id,
-    pg: page,
-    ac: "detail",
-  });
 }

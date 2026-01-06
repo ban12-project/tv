@@ -71,8 +71,8 @@ export class MacCMSAdapter implements VideoSourceAdapter {
         throw new Error(`Failed to fetch from MacCMS: ${res.statusText}`);
       }
       return await res.json();
-    } catch {
-      // console.error("MacCMS API Error:", error);
+    } catch (error) {
+      console.error("MacCMS API Error:", error);
       return {
         code: 500,
         msg: "Error",
@@ -122,7 +122,7 @@ export class MacCMSAdapter implements VideoSourceAdapter {
    * Fetches videos with advanced filtering.
    * @param params MacCMSListParams
    */
-  async getVideos(params: MacCMSListParams): Promise<SearchResult> {
+  private async getVideos(params: MacCMSListParams): Promise<SearchResult> {
     const apiParams: Record<string, string> = {
       ac: params.ac || "detail",
     };
@@ -157,6 +157,7 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       limit: Number(response.limit),
     };
   }
+
   /**
    * Fetches details for a specific video ID.
    * @param id The video ID
@@ -198,7 +199,7 @@ export class MacCMSAdapter implements VideoSourceAdapter {
   /**
    * Fetches videos using a streaming response parser to yield items as they arrive.
    */
-  async *getVideosStream(
+  private async *getVideosStream(
     params: MacCMSListParams,
   ): AsyncGenerator<SearchResult> {
     const apiParams: Record<string, string> = {
@@ -226,78 +227,23 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       }
 
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let hasFoundList = false;
+
       let total = 0;
       let page = 1;
       let limit = 20;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // Extract metadata if not already found
-        if (total === 0) {
-          const totalMatch = buffer.match(/"total":\s*(\d+)/);
-          if (totalMatch) total = Number.parseInt(totalMatch[1], 10);
-          const pageMatch = buffer.match(/"page":\s*(\d+)/);
-          if (pageMatch) page = Number.parseInt(pageMatch[1], 10);
-          const limitMatch = buffer.match(/"limit":\s*(\d+)/);
-          if (limitMatch) limit = Number.parseInt(limitMatch[1], 10);
-        }
-
-        if (!hasFoundList) {
-          const listStart = buffer.indexOf('"list":[');
-          if (listStart !== -1) {
-            hasFoundList = true;
-            buffer = buffer.substring(listStart + 8);
-          } else {
-            // Keep small tail in case the tag is split
-            if (buffer.length > 20)
-              buffer = buffer.substring(buffer.length - 10);
-            continue;
-          }
-        }
-
-        // Lightweight object extractor
-        let braceCount = 0;
-        let inString = false;
-        let startPos = -1;
-
-        for (let i = 0; i < buffer.length; i++) {
-          const char = buffer[i];
-          if (char === '"' && buffer[i - 1] !== "\\") inString = !inString;
-
-          if (!inString) {
-            if (char === "{") {
-              if (braceCount === 0) startPos = i;
-              braceCount++;
-            } else if (char === "}") {
-              braceCount--;
-              if (braceCount === 0 && startPos !== -1) {
-                const objStr = buffer.substring(startPos, i + 1);
-                try {
-                  const item = JSON.parse(objStr) as MacCMSVideo;
-                  yield {
-                    videos: [this.mapToVideo(item)],
-                    total,
-                    page,
-                    limit,
-                  };
-                } catch {
-                  /* Skip invalid items */
-                }
-                buffer = buffer.substring(i + 1);
-                i = -1;
-                startPos = -1;
-              }
-            } else if (char === "]" && braceCount === 0) {
-              return;
-            }
-          }
+      for await (const event of parseMacCMSResponse(decodeStream(reader))) {
+        if (event.kind === "metadata") {
+          total = event.total;
+          page = event.page;
+          limit = event.limit;
+        } else if (event.kind === "item") {
+          yield {
+            videos: [this.mapToVideo(event.value)],
+            total,
+            page,
+            limit,
+          };
         }
       }
     } catch (e) {
@@ -306,6 +252,153 @@ export class MacCMSAdapter implements VideoSourceAdapter {
         console.warn(`Streaming fetch timeout for ${this.name}`);
       } else {
         console.error(`Streaming fetch error for ${this.name}:`, e);
+      }
+    }
+  }
+}
+
+type ParseEvent =
+  | { kind: "metadata"; total: number; page: number; limit: number }
+  | { kind: "item"; value: MacCMSVideo };
+
+/**
+ * Decodes a byte stream into a string stream.
+ */
+async function* decodeStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        yield decoder.decode(value, { stream: true });
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/**
+ * Standalone generator to parse MacCMS JSON stream.
+ * Yields metadata events and item events.
+ */
+async function* parseMacCMSResponse(
+  stream: AsyncIterable<string>,
+): AsyncGenerator<ParseEvent> {
+  // State machine variables global to the stream
+  let buffer = "";
+  let inList = false;
+  let metadataParsed = false;
+
+  // Track metadata to yield it once
+  let total = 0;
+  let page = 1;
+  let limit = 20;
+
+  for await (const chunk of stream) {
+    buffer += chunk;
+
+    // Try to find the "list" array start if not yet found
+    if (!inList) {
+      const listMatch = buffer.match(/"list"\s*:\s*\[/);
+      if (listMatch) {
+        inList = true;
+        // Capture metadata before the list using a simpler regex fallback
+        if (!metadataParsed) {
+          const preList = buffer.substring(0, listMatch.index);
+          const totalMatch = preList.match(/"total":\s*(\d+)/);
+          if (totalMatch) total = Number.parseInt(totalMatch[1], 10);
+          const pageMatch = preList.match(/"page":\s*(\d+)/);
+          if (pageMatch) page = Number.parseInt(pageMatch[1], 10);
+          const limitMatch = preList.match(/"limit":\s*(\d+)/);
+          if (limitMatch) limit = Number.parseInt(limitMatch[1], 10);
+
+          metadataParsed = true;
+          yield { kind: "metadata", total, page, limit };
+        }
+
+        // Advance buffer to start of the first item inside the list
+        const startIndex = (listMatch.index || 0) + listMatch[0].length;
+        buffer = buffer.substring(startIndex);
+      } else {
+        // Keep a sliding window for metadata and list tag
+        // But don't discard too much if we haven't found list yet
+        if (buffer.length > 1024) {
+          // Prevent infinite buffer growth if "list" is never found
+          // Keep last 512 chars for potential split match
+          buffer = buffer.slice(-512);
+        }
+      }
+    }
+
+    if (inList) {
+      let processedIndex = 0;
+
+      // State machine variables local to the current buffer scan
+      // Must be reset because we re-scan the buffer from the start
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      let startIndex = -1;
+
+      for (let i = 0; i < buffer.length; i++) {
+        const char = buffer[i];
+
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+
+        if (!inString) {
+          if (char === "{") {
+            if (depth === 0) {
+              startIndex = i;
+            }
+            depth++;
+          } else if (char === "}") {
+            depth--;
+            if (depth === 0 && startIndex !== -1) {
+              // End of an object
+              const jsonStr = buffer.substring(startIndex, i + 1);
+              try {
+                const item = JSON.parse(jsonStr) as MacCMSVideo;
+                yield { kind: "item", value: item };
+              } catch (e) {
+                console.warn(
+                  "Stream JSON parse error",
+                  e,
+                  "JSON snippet:",
+                  jsonStr,
+                );
+              }
+
+              // Advance processedIndex to verify we are done with this segment
+              processedIndex = i + 1;
+              startIndex = -1;
+            }
+          } else if (char === "]" && depth === 0) {
+            // End of "list" array
+            return;
+          }
+        }
+      }
+
+      // Trim buffer to remove processed objects
+      if (processedIndex > 0) {
+        buffer = buffer.substring(processedIndex);
       }
     }
   }

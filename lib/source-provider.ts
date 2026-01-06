@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import { getApiSources } from "@/app/actions/cms";
 import { MacCMSAdapter } from "./adapters/mac-cms-adapter";
-import type {
-  MacCMSListParams,
-  SearchResult,
-  Video,
-  VideoSourceAdapter,
-} from "./adapters/types";
+import type { SearchResult, Video, VideoSourceAdapter } from "./adapters/types";
 import { getVideoUniqueKey } from "./adapters/util";
 
 export class MultiSourceProvider implements VideoSourceAdapter {
@@ -38,23 +33,6 @@ export class MultiSourceProvider implements VideoSourceAdapter {
     return new MacCMSAdapter(source.url, source.id, source.name);
   }
 
-  // Aggregate and dedup videos
-  private aggregateVideos(allVideos: Video[]): Video[] {
-    const videoMap = new Map<string, Video>();
-
-    for (const video of allVideos) {
-      const key = getVideoUniqueKey(video);
-      if (!videoMap.has(key)) {
-        // Tag with composite key for debugging/client usage if needed
-        video.uniqueKey = key;
-        videoMap.set(key, video);
-      } else {
-        // Merge strategy? For now, we prefer the first one found
-      }
-    }
-    return Array.from(videoMap.values());
-  }
-
   async getDetails(id: string, sourceId?: string): Promise<Video | null> {
     const adapters = await this.ensureAdapters();
 
@@ -84,39 +62,6 @@ export class MultiSourceProvider implements VideoSourceAdapter {
       }
     }
     return null;
-  }
-
-  async getVideos(params: MacCMSListParams): Promise<SearchResult> {
-    const adapters = await this.ensureAdapters();
-
-    const results = await Promise.all(
-      adapters.map(async ({ id, name, adapter }) => {
-        try {
-          const res = await adapter.getVideos(params);
-          return {
-            ...res,
-            videos: res.videos.map((v) => ({
-              ...v,
-              sourceId: id,
-              sourceName: name,
-            })),
-          };
-        } catch (_) {
-          return null;
-        }
-      }),
-    );
-
-    const validResults = results.filter((r) => r !== null);
-    const allVideos = validResults.flatMap((r) => r!.videos);
-    const total = validResults.reduce((acc, r) => acc + r!.total, 0);
-
-    return {
-      videos: this.aggregateVideos(allVideos),
-      total,
-      page: Number(params.pg || 1),
-      limit: Number(params.limit || params.pagesize || 20),
-    };
   }
 
   /**
@@ -203,34 +148,6 @@ export class MultiSourceProvider implements VideoSourceAdapter {
           }
         } catch (e) {
           console.error(`Failed to stream search from source ${id}`, e);
-        }
-      })();
-      return g;
-    });
-
-    yield* this.mergeGenerators(generators);
-  }
-
-  async *getVideosStream(
-    params: MacCMSListParams,
-  ): AsyncGenerator<SearchResult> {
-    const adapters = await this.ensureAdapters();
-
-    const generators = adapters.map(({ id, name, adapter }) => {
-      const g = (async function* () {
-        try {
-          for await (const result of adapter.getVideosStream(params)) {
-            yield {
-              ...result,
-              videos: result.videos.map((v) => ({
-                ...v,
-                sourceId: id,
-                sourceName: name,
-              })),
-            };
-          }
-        } catch (e) {
-          console.error(`Failed to stream videos from source ${id}`, e);
         }
       })();
       return g;
