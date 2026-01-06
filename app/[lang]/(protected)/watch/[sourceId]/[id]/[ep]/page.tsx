@@ -58,7 +58,7 @@ async function Suspended({ params }: Props) {
 
   // Add current video as first source
   sourceGroups.push({
-    name: video.sourceName || `Source (${decodedSourceId})`,
+    name: video.sourceName,
     sourceId: decodedSourceId,
     videoId: id,
     episodes: video.episodes || [],

@@ -113,6 +113,7 @@ export async function deleteApiSource(
   try {
     await db.delete(apiSource).where(eq(apiSource.id, id));
     updateTag("api-sources");
+    updateTag("recommendations");
     return { success: true };
   } catch (error) {
     return {
