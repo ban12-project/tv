@@ -18,10 +18,16 @@ import { DialogTitle } from "@/components/ui/dialog";
 import type { Messages } from "@/get-dictionary";
 import { useVideoSearch } from "@/hooks/use-video-search";
 import type { Video } from "@/lib/adapters/types";
-import { cn } from "@/lib/utils";
+import type { SelectRecommendation } from "@/lib/db/schema";
 import { useLocale } from "./i18n";
 
-export function SearchDialog({ dictionary }: { dictionary: Messages }) {
+export function SearchDialog({
+  dictionary,
+  recommendations,
+}: {
+  dictionary: Messages;
+  recommendations: SelectRecommendation[];
+}) {
   const [open, setOpen] = React.useState(false);
   const {
     query,
@@ -49,9 +55,9 @@ export function SearchDialog({ dictionary }: { dictionary: Messages }) {
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  const handleSelect = (video: Video) => {
+  const handleSelect = (item: Video | SelectRecommendation) => {
     setOpen(false);
-    router.push(`/${locale}/watch/${video.sourceId}/${video.id}/1`);
+    router.push(`/${locale}/watch/${item.sourceId}/${item.id}/1`);
   };
 
   return (
@@ -69,13 +75,7 @@ export function SearchDialog({ dictionary }: { dictionary: Messages }) {
         open={open}
         onOpenChange={setOpen}
         shouldFilter={false}
-        className={cn(
-          "bg-popover border-border **:data-[slot=command-input-wrapper]:border-border",
-          !isPending &&
-            !query &&
-            results.length === 0 &&
-            "**:data-[slot=command-input-wrapper]:border-transparent",
-        )}
+        className="bg-popover border-border **:data-[slot=command-input-wrapper]:border-border"
       >
         <DialogTitle className="hidden">Search</DialogTitle>
 
@@ -105,6 +105,36 @@ export function SearchDialog({ dictionary }: { dictionary: Messages }) {
             </CommandEmpty>
           )}
 
+          {!query && recommendations.length > 0 && (
+            <CommandGroup heading={dictionary.header.recommended}>
+              {recommendations.map((item) => (
+                <CommandItem
+                  key={item.id}
+                  value={item.id}
+                  onSelect={() => handleSelect(item)}
+                >
+                  {item.image && (
+                    <div className="w-14 aspect-2/3 relative rounded overflow-hidden shrink-0">
+                      <CMSImage
+                        src={item.image || "/placeholder.jpg"}
+                        alt={item.title}
+                        fill
+                        sizes="56px"
+                        className="object-cover rounded"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-col flex-1 min-w-0 gap-2">
+                    <span className="truncate">{item.title}</span>
+                    <span className="text-xs text-muted-foreground line-clamp-2">
+                      {item.description}
+                    </span>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+
           {results.length > 0 && (
             <CommandGroup
               heading={new IntlMessageFormat(
@@ -119,7 +149,7 @@ export function SearchDialog({ dictionary }: { dictionary: Messages }) {
                   onSelect={() => handleSelect(item)}
                 >
                   {item.image && (
-                    <div className="mr-2 h-8 w-14 relative rounded overflow-hidden shrink-0">
+                    <div className="w-14 aspect-2/3 relative rounded overflow-hidden shrink-0">
                       <CMSImage
                         src={item.image || "/placeholder.jpg"}
                         alt={item.title}
@@ -129,7 +159,7 @@ export function SearchDialog({ dictionary }: { dictionary: Messages }) {
                       />
                     </div>
                   )}
-                  <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex flex-col flex-1 min-w-0 gap-2">
                     <span className="truncate">{item.title}</span>
                     <span className="text-xs text-muted-foreground">
                       {item.year} {item.type ? `• ${item.type}` : ""} •{" "}

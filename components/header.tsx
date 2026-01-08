@@ -48,13 +48,25 @@ export default function Header({ messages }: { messages: Messages }) {
 
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
-              <SearchDialog dictionary={messages} />
+              <ViewTransition>
+                <Suspense>
+                  <SuspendedSearchDialog messages={messages} />
+                </Suspense>
+              </ViewTransition>
               <ColorSchemeToggle />
             </div>
           </div>
         </div>
       </header>
     </ScrollAwareHeader>
+  );
+}
+
+async function SuspendedSearchDialog({ messages }: { messages: Messages }) {
+  const recommendations = await getRecommendations();
+
+  return (
+    <SearchDialog dictionary={messages} recommendations={recommendations} />
   );
 }
 
