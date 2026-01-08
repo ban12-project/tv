@@ -8,7 +8,7 @@ import { getSessionCookie } from "better-auth/cookies";
 const locales = i18n.locales.join("|");
 
 const PROTECTED_PATTERN = new URLPattern({
-  pathname: `/:locale(${locales})?{/:path(category/.*|watch/.*|)}?`,
+  pathname: `/:locale(${locales})?/:path((?!.*(?:sign-in|sign-up)).*)`,
 });
 
 const WITH_TOKEN_CONFLICT_PATTERN = new URLPattern({
