@@ -1,6 +1,7 @@
 "use client";
 
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu";
+import React from "react";
 import { CMSImage } from "@/components/cms-image";
 import Link from "@/components/link";
 import {
@@ -30,12 +31,16 @@ export function DesktopMenu({
     >
       <NavigationMenuList>
         {nodes.map((node) => (
-          <NavigationMenuItem key={node.href}>
+          <NavigationMenuItem key={node.href || node.title}>
             {/* ... Existing node rendering ... */}
             {node.children && node.children.length > 0 ? (
               <>
                 <NavigationMenuTrigger className="bg-transparent">
-                  <Link href={node.href}>{node.title}</Link>
+                  {node.href ? (
+                    <Link href={node.href}>{node.title}</Link>
+                  ) : (
+                    node.title
+                  )}
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <ul className="grid gap-3 p-4 w-87.5 md:w-150 lg:w-200 md:grid-cols-2 lg:grid-cols-3">
@@ -84,12 +89,20 @@ export function DesktopMenu({
                 className={cn(navigationMenuTriggerStyle(), "bg-transparent")}
                 asChild
               >
-                <Link href={node.href}>{node.title}</Link>
+                {node.href ? (
+                  <Link href={node.href}>{node.title}</Link>
+                ) : (
+                  node.title
+                )}
               </NavigationMenuLink>
             )}
           </NavigationMenuItem>
         ))}
-        {children && <NavigationMenuItem>{children}</NavigationMenuItem>}
+        {React.Children.map(children, (child) => (
+          <NavigationMenuItem key={child?.toString()}>
+            {child}
+          </NavigationMenuItem>
+        ))}
       </NavigationMenuList>
       <div className="absolute left-0 top-full isolate z-50 flex justify-center">
         <NavigationMenuPrimitive.Viewport

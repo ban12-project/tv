@@ -7,10 +7,10 @@ import { MobileMenu } from "./mobile-menu";
 
 export interface MenuNode {
   title: string;
-  href: string;
+  href?: string;
   description?: string;
   image?: string;
-  children?: MenuNode[];
+  children?: WithRequired<MenuNode, "href">[];
 }
 
 export function Menu({
@@ -22,7 +22,7 @@ export function Menu({
   dictionary: Messages;
   children?: React.ReactNode;
 }) {
-  const recommendationNodes: MenuNode[] = recommendations.map((rec) => {
+  const recommendationNodes = recommendations.map((rec) => {
     const href =
       rec.sourceId && rec.videoId
         ? `/watch/${rec.sourceId}/${rec.videoId}/${rec.epIndex || 1}`
@@ -34,12 +34,11 @@ export function Menu({
       image: rec.image,
       href,
     };
-  });
+  }) satisfies MenuNode[];
 
   const customNodes: MenuNode[] = [
     {
       title: dictionary.header.recommended,
-      href: "#",
       children: recommendationNodes,
     },
     {

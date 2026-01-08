@@ -13,7 +13,8 @@
     "search-no-results-found": "坏了，\"{query}\" 被麻匪劫走了！",
     "search-try-searching": "换个搜法？站着把片子搜了！",
     "verify-cms": "山头",
-    "recommended": "师爷推荐"
+    "recommended": "师爷推荐",
+    "douban-top250": "风云榜 (豆瓣250)"
   },
   "auth": {
     "signIn": {

@@ -13,7 +13,8 @@
     "search-no-results-found": "Void returned for \"{query}\". System silent.",
     "search-try-searching": "Re-calibrate sensors. Try codenames or genres.",
     "verify-cms": "Outposts",
-    "recommended": "Priority Intel"
+    "recommended": "Priority Intel",
+    "douban-top250": "Global Intel (Douban 250)"
   },
   "auth": {
     "signIn": {

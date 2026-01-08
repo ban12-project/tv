@@ -1,6 +1,7 @@
 "use client";
 
 import * as PopoverPrimitive from "@radix-ui/react-popover";
+import React from "react";
 import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,34 +33,52 @@ export function MobileMenu({
       <PopoverContent className="w-(--radix-popper-available-width) h-(--radix-popper-available-height) bg-background/95 backdrop-blur-2xl border-none p-6 shadow-none overflow-auto">
         <div className="flex flex-col space-y-6 w-full">
           {nodes.map((node) => (
-            <div key={node.href} className="flex flex-col text-center">
+            <div
+              key={node.href || node.title}
+              className="flex flex-col text-center"
+            >
               <PopoverPrimitive.Close asChild>
-                <Link href={node.href}>
-                  <h3 className="px-4 py-3 hover:bg-accent active:scale-[0.98] rounded-2xl text-2xl font-semibold text-foreground transition-transform">
+                {node.href ? (
+                  <Link href={node.href}>
+                    <h3 className="px-4 py-3 hover:bg-accent active:scale-[0.98] rounded-2xl text-2xl font-semibold text-foreground transition-transform">
+                      {node.title}
+                    </h3>
+                  </Link>
+                ) : (
+                  <h3 className="px-4 py-3 text-2xl font-semibold text-foreground">
                     {node.title}
                   </h3>
-                </Link>
+                )}
               </PopoverPrimitive.Close>
 
               {node.children && node.children.length > 0 && (
                 <div className="mt-2 flex flex-wrap justify-center gap-2">
                   {node.children.map((child) => (
-                    <PopoverPrimitive.Close key={child.href} asChild>
-                      <Link
-                        href={child.href}
-                        className="px-4 py-2 hover:bg-accent active:scale-[0.98] rounded-xl text-lg text-muted-foreground hover:text-foreground transition-all bg-secondary"
-                      >
-                        {child.title}
-                      </Link>
+                    <PopoverPrimitive.Close
+                      key={child.href || child.title}
+                      asChild
+                    >
+                      {child.href ? (
+                        <Link
+                          href={child.href}
+                          className="px-4 py-2 hover:bg-accent active:scale-[0.98] rounded-xl text-lg text-muted-foreground hover:text-foreground transition-all bg-secondary"
+                        >
+                          {child.title}
+                        </Link>
+                      ) : (
+                        <span className="px-4 py-2 rounded-xl text-lg text-muted-foreground bg-secondary">
+                          {child.title}
+                        </span>
+                      )}
                     </PopoverPrimitive.Close>
                   ))}
                 </div>
               )}
             </div>
           ))}
-          {children && (
-            <div className="flex flex-col items-center">{children}</div>
-          )}
+          {React.Children.map(children, (child) => (
+            <div className="flex flex-col items-center">{child}</div>
+          ))}
         </div>
       </PopoverContent>
     </Popover>

@@ -1,8 +1,10 @@
 import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
 import { getAllowList } from "@/app/actions";
+import { getDoubanTop250 } from "@/app/actions/douban";
 import { getRecommendations } from "@/app/actions/recommendations";
 import { Menu } from "@/components/menu";
+import { DoubanMenu } from "@/components/menu/douban-menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
 import type { Messages } from "@/get-dictionary";
@@ -18,10 +20,14 @@ async function SuspendedMenu({
   children?: React.ReactNode;
   messages: Messages;
 }) {
-  const recommendations = await getRecommendations();
+  const [recommendations, doubanItems] = await Promise.all([
+    getRecommendations(),
+    getDoubanTop250(0, 50),
+  ]);
 
   return (
     <Menu recommendations={recommendations} dictionary={messages}>
+      <DoubanMenu initialItems={doubanItems} dictionary={messages} />
       {children}
     </Menu>
   );
