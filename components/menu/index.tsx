@@ -1,8 +1,10 @@
 "use client";
 
+import type { DoubanItem } from "@/app/actions/douban";
 import type { Messages } from "@/get-dictionary";
 import type { SelectRecommendation } from "@/lib/db/schema";
 import { DesktopMenu } from "./desktop-menu";
+import { DoubanMenu } from "./douban-menu";
 import { MobileMenu } from "./mobile-menu";
 
 export interface MenuNode {
@@ -15,10 +17,12 @@ export interface MenuNode {
 
 export function Menu({
   recommendations,
+  doubanItems,
   dictionary,
   children,
 }: {
   recommendations: SelectRecommendation[];
+  doubanItems: DoubanItem[];
   dictionary: Messages;
   children?: React.ReactNode;
 }) {
@@ -49,8 +53,22 @@ export function Menu({
 
   return (
     <>
-      <DesktopMenu nodes={customNodes}>{children}</DesktopMenu>
-      <MobileMenu nodes={customNodes}>{children}</MobileMenu>
+      <DesktopMenu nodes={customNodes}>
+        <DoubanMenu
+          initialItems={doubanItems}
+          dictionary={dictionary}
+          variant="desktop"
+        />
+        {children}
+      </DesktopMenu>
+      <MobileMenu nodes={customNodes}>
+        <DoubanMenu
+          initialItems={doubanItems}
+          dictionary={dictionary}
+          variant="mobile"
+        />
+        {children}
+      </MobileMenu>
     </>
   );
 }

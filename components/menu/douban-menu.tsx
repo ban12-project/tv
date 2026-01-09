@@ -14,7 +14,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Messages } from "@/get-dictionary";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const RANGES = [
@@ -28,11 +27,12 @@ const RANGES = [
 export function DoubanMenu({
   initialItems,
   dictionary,
+  variant = "desktop",
 }: {
   initialItems: DoubanItem[];
   dictionary: Messages;
+  variant?: "desktop" | "mobile";
 }) {
-  const isMobile = useIsMobile();
   const [isPending, startTransition] = React.useTransition();
   const [activeTab, setActiveTab] = React.useState("1-50");
   const [data, setData] = React.useState<Record<string, DoubanItem[]>>({
@@ -98,56 +98,68 @@ export function DoubanMenu({
                     </div>
                   </li>
                 ))
-              : data[range.label]?.map((item) => (
-                  <li key={item.id} className="row-span-1">
-                    <NavigationMenuLink
-                      asChild
-                      className={cn(
-                        navigationMenuTriggerStyle(),
-                        "bg-transparent hover:bg-muted/50 focus:bg-muted/50 active:scale-[0.98] rounded-xl transition-all h-full w-full justify-start p-3 border border-transparent hover:border-border",
-                      )}
+              : data[range.label]?.map((item) => {
+                  const content = (
+                    <Link
+                      href={`?q=${encodeURIComponent(item.title)}`}
+                      className="flex flex-row gap-3 h-full items-start"
                     >
-                      <Link
-                        href={`?q=${encodeURIComponent(item.title)}`}
-                        className="flex flex-row gap-3 h-full items-start"
-                      >
-                        <div className="shrink-0 rounded-md overflow-hidden w-16 aspect-2/3 relative bg-muted shadow-sm">
-                          <CMSImage
-                            src={item.cover_url}
-                            alt={item.title}
-                            fill
-                            className="object-cover"
-                          />
+                      <div className="shrink-0 rounded-md overflow-hidden w-16 aspect-2/3 relative bg-muted shadow-sm">
+                        <CMSImage
+                          src={item.cover_url}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 min-w-0 text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold leading-none truncate block">
+                            {item.title}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
+                            {item.rating.value}
+                          </span>
                         </div>
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold leading-none truncate block">
-                              {item.title}
-                            </span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-mono">
-                              {item.rating.value}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-3">
-                            {item.card_subtitle}
+                        <p className="text-xs text-muted-foreground line-clamp-3">
+                          {item.card_subtitle}
+                        </p>
+                        {item.description && (
+                          <p className="text-[10px] text-muted-foreground/60 italic truncate">
+                            "{item.description}"
                           </p>
-                          {item.description && (
-                            <p className="text-[10px] text-muted-foreground/60 italic truncate">
-                              "{item.description}"
-                            </p>
+                        )}
+                      </div>
+                    </Link>
+                  );
+
+                  return (
+                    <li key={item.id} className="row-span-1">
+                      {variant === "desktop" ? (
+                        <NavigationMenuLink
+                          asChild
+                          className={cn(
+                            navigationMenuTriggerStyle(),
+                            "bg-transparent hover:bg-muted/50 focus:bg-muted/50 active:scale-[0.98] rounded-xl transition-all h-full w-full justify-start p-3 border border-transparent hover:border-border",
                           )}
+                        >
+                          {content}
+                        </NavigationMenuLink>
+                      ) : (
+                        <div className="bg-transparent hover:bg-muted/50 focus:bg-muted/50 active:scale-[0.98] rounded-xl transition-all h-full w-full justify-start p-3 border border-transparent hover:border-border">
+                          {content}
                         </div>
-                      </Link>
-                    </NavigationMenuLink>
-                  </li>
-                ))}
+                      )}
+                    </li>
+                  );
+                })}
           </ul>
         </TabsContent>
       ))}
     </Tabs>
   );
 
-  if (isMobile) {
+  if (variant === "mobile") {
     return (
       <div className="flex flex-col text-center w-full">
         <h3 className="px-4 py-3 text-2xl font-semibold text-foreground border-b border-border/50 mb-2">
