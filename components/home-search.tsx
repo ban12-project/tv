@@ -60,7 +60,10 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
           {!hasResults && !isPending && !query && (
             <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
               <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground">
-                Ban12 <span className="text-primary italic">TV</span>
+                {dictionary["brand-name"].split(" ")[0] || "ECheng"}{" "}
+                <span className="text-primary italic">
+                  {dictionary["brand-name"].split(" ")[1] || "TV"}
+                </span>
               </h1>
               <p className="text-neutral-400 text-lg md:text-xl max-w-md mx-auto">
                 {dictionary.header["search-try-searching"]}

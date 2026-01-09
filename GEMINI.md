@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-"Ban12 TV" is a premium Next.js streaming web application.
+"ECheng TV" is a premium Next.js streaming web application.
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4

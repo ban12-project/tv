@@ -2,7 +2,7 @@
   "common": {
     "loading": "Hold on, let the bullets fly for a bit..."
   },
-  "brand-name": "Ban12 TV",
+  "brand-name": "Bullet TV",
   "root-description": "Access the mainframe. movies, and TV shows decrypted and ready for infiltration. Execute stream sequence on any authorized device.",
   "header": {
     "home": "Command Center",
@@ -45,7 +45,7 @@
   },
   "protected": {
     "bailiff": {
-      "title": "Goose City Bailiff",
+      "title": "ECheng Bailiff",
       "challenge": "Halt! Identity required. Show your clearance.",
       "checking": "Scanning biological signatures...",
       "unlocking": "Clearance verified. Welcome to the sector."

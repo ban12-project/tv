@@ -42,24 +42,24 @@ export async function generateMetadata({
         template: `%s | ${messages["brand-name"]}`,
       },
       description: messages["root-description"],
-      images: `https://ban12.com/api/og?title=${messages["brand-name"]}`,
+      images: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?title=${messages["brand-name"]}`,
     },
     icons: {
       icon: {
-        url: "https://ban12.com/api/og?w=48&h=48&bg=transparent&txt=black&txt=white",
+        url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=48&h=48&bg=transparent&txt=black&txt=white`,
         type: "image/png",
       },
       shortcut: {
-        url: "https://ban12.com/api/og?w=192&h=192&bg=transparent&txt=black&txt=white",
+        url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=192&h=192&bg=transparent&txt=black&txt=white`,
         type: "image/png",
       },
       apple: [
         {
-          url: "https://ban12.com/api/og?w=64&h=64&bg=transparent&txt=black&txt=white",
+          url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=64&h=64&bg=transparent&txt=black&txt=white`,
           type: "image/png",
         },
         {
-          url: "https://ban12.com/api/og?w=180&h=180&bg=transparent&txt=black&txt=white",
+          url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=180&h=180&bg=transparent&txt=black&txt=white`,
           sizes: "180x180",
           type: "image/png",
         },
