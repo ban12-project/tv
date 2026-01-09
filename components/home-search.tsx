@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { VideoCard } from "@/components/video-card";
@@ -74,7 +74,6 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
           <div className="group relative">
             <div className="absolute inset-0 bg-primary/20 blur-3xl group-hover:bg-primary/30 transition-all duration-500 rounded-full opacity-50" />
             <div className="relative flex items-center">
-              <Search className="absolute left-6 h-6 w-6 text-neutral-500 group-focus-within:text-primary transition-colors duration-300" />
               <input
                 ref={inputRef}
                 name="query"

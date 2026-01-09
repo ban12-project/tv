@@ -1,12 +1,15 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
 import { cacheTag, revalidatePath, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db/queries";
-import { recommendations } from "@/lib/db/schema";
+import {
+  createRecommendationQuery,
+  deleteRecommendationQuery,
+  findRecommendation,
+  getRecommendationsQuery,
+} from "@/lib/db/queries";
 
 export type ActionState = {
   success: boolean;
@@ -58,21 +61,11 @@ export async function saveRecommendation(
 
   try {
     // Check for existing recommendation
-    const existing = await db
-      .select()
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.userId, session.user.id),
-          sourceId
-            ? and(
-                eq(recommendations.sourceId, sourceId),
-                eq(recommendations.videoId, videoId || ""),
-              )
-            : undefined,
-        ),
-      )
-      .limit(1);
+    const existing = await findRecommendation(
+      session.user.id,
+      sourceId,
+      videoId,
+    );
 
     if (existing.length > 0) {
       return {
@@ -81,7 +74,7 @@ export async function saveRecommendation(
       };
     }
 
-    await db.insert(recommendations).values({
+    await createRecommendationQuery({
       title,
       description,
       image,
@@ -123,15 +116,7 @@ export async function deleteRecommendation(
   const videoId = formData.get("videoId") as string;
 
   try {
-    await db
-      .delete(recommendations)
-      .where(
-        and(
-          eq(recommendations.userId, session.user.id),
-          eq(recommendations.sourceId, sourceId),
-          eq(recommendations.videoId, videoId),
-        ),
-      );
+    await deleteRecommendationQuery(session.user.id, sourceId, videoId);
 
     updateTag("recommendations");
     revalidatePath("/", "layout");
@@ -159,17 +144,7 @@ export async function checkIsRecommended(
     return false;
   }
 
-  const existing = await db
-    .select()
-    .from(recommendations)
-    .where(
-      and(
-        eq(recommendations.userId, session.user.id),
-        eq(recommendations.sourceId, sourceId),
-        eq(recommendations.videoId, videoId),
-      ),
-    )
-    .limit(1);
+  const existing = await findRecommendation(session.user.id, sourceId, videoId);
 
   return existing.length > 0;
 }
@@ -178,9 +153,5 @@ export async function getRecommendations(limit = 6) {
   "use cache";
   cacheTag("recommendations");
 
-  return await db
-    .select()
-    .from(recommendations)
-    .orderBy(desc(recommendations.createdAt))
-    .limit(limit);
+  return await getRecommendationsQuery(limit);
 }

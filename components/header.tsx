@@ -12,30 +12,12 @@ import { AllowlistDialog } from "./allowlist-dialog";
 import ColorSchemeToggle from "./color-scheme-toggle-client";
 import { EmojiLogo } from "./emoji-logo";
 
-async function SuspendedMenu({
-  children,
-  messages,
-}: {
-  children?: React.ReactNode;
-  messages: Messages;
-}) {
+export default async function Header({ messages }: { messages: Messages }) {
   const [recommendations, doubanItems] = await Promise.all([
     getRecommendations(),
     getDoubanTop250(0, 50),
   ]);
 
-  return (
-    <Menu
-      recommendations={recommendations}
-      doubanItems={doubanItems}
-      dictionary={messages}
-    >
-      {children}
-    </Menu>
-  );
-}
-
-export default function Header({ messages }: { messages: Messages }) {
   return (
     <ScrollAwareHeader>
       <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-background/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-border">
@@ -45,36 +27,31 @@ export default function Header({ messages }: { messages: Messages }) {
             <div className="flex items-center gap-4">
               <EmojiLogo />
 
-              <ViewTransition>
-                <Suspense>
-                  <SuspendedMenu messages={messages}>
+              <Menu
+                recommendations={recommendations}
+                doubanItems={doubanItems}
+                dictionary={messages}
+              >
+                <ViewTransition>
+                  <Suspense>
                     <SuspendedAllowlistDialog messages={messages} />
-                  </SuspendedMenu>
-                </Suspense>
-              </ViewTransition>
+                  </Suspense>
+                </ViewTransition>
+              </Menu>
             </div>
 
             {/* Search and Sign In */}
             <div className="flex items-center gap-4">
-              <ViewTransition>
-                <Suspense>
-                  <SuspendedSearchDialog messages={messages} />
-                </Suspense>
-              </ViewTransition>
+              <SearchDialog
+                dictionary={messages}
+                recommendations={recommendations}
+              />
               <ColorSchemeToggle />
             </div>
           </div>
         </div>
       </header>
     </ScrollAwareHeader>
-  );
-}
-
-async function SuspendedSearchDialog({ messages }: { messages: Messages }) {
-  const recommendations = await getRecommendations();
-
-  return (
-    <SearchDialog dictionary={messages} recommendations={recommendations} />
   );
 }
 

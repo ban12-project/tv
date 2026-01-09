@@ -1,11 +1,14 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import * as z from "zod";
 import { auth } from "@/lib/auth";
-import { allowList, passkey, user } from "@/lib/db/auth-schema";
-import { db } from "@/lib/db/queries";
+import {
+  findAllowlistByEmail,
+  findPasskeyByName,
+  findUserByEmail,
+  updateUserToRegistered,
+} from "@/lib/db/queries";
 
 const schema = z.object({
   email: z.email(),
@@ -19,11 +22,7 @@ export async function preUpgradeAnonymous(email: string) {
   const normalizedEmail = validatedFields.data.email.toLowerCase();
 
   // 1. Check if email is in allowlist
-  const allowed = await db
-    .select()
-    .from(allowList)
-    .where(eq(allowList.email, normalizedEmail))
-    .limit(1);
+  const allowed = await findAllowlistByEmail(normalizedEmail);
 
   if (allowed.length === 0) {
     throw new Error("This email is not in the allowlist.");
@@ -44,13 +43,7 @@ export async function preUpgradeAnonymous(email: string) {
 
   // 3. Update the user record
   // We set email and isAnonymous = false
-  await db
-    .update(user)
-    .set({
-      email: normalizedEmail,
-      isAnonymous: false,
-    })
-    .where(eq(user.id, session.user.id));
+  await updateUserToRegistered(session.user.id, normalizedEmail);
 
   return { success: true };
 }
@@ -63,33 +56,21 @@ export async function checkRegistrationStatus(email: string) {
   const normalizedEmail = validatedFields.data.email.toLowerCase();
 
   // 1. Check Allowlist
-  const allowed = await db
-    .select()
-    .from(allowList)
-    .where(eq(allowList.email, normalizedEmail))
-    .limit(1);
+  const allowed = await findAllowlistByEmail(normalizedEmail);
 
   if (allowed.length === 0) {
     return { allowed: false, registered: false };
   }
 
   // 2. Check Passkey
-  const existingPasskey = await db
-    .select()
-    .from(passkey)
-    .where(eq(passkey.name, normalizedEmail))
-    .limit(1);
+  const existingPasskey = await findPasskeyByName(normalizedEmail);
 
   if (existingPasskey.length > 0) {
     return { allowed: true, registered: true };
   }
 
   // 3. Check User
-  const existingUser = await db
-    .select()
-    .from(user)
-    .where(eq(user.email, normalizedEmail))
-    .limit(1);
+  const existingUser = await findUserByEmail(normalizedEmail);
 
   const isRegistered = existingUser.length > 0 && !existingUser[0].isAnonymous;
 

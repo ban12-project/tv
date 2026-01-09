@@ -18,17 +18,7 @@ type Props = Readonly<{
   }>;
 }>;
 
-export default function WatchPage({ params }: Props) {
-  return (
-    <ViewTransition>
-      <Suspense fallback={<Loading />}>
-        <Suspended params={params} />
-      </Suspense>
-    </ViewTransition>
-  );
-}
-
-async function Suspended({ params }: Props) {
+export default async function WatchPage({ params }: Props) {
   const { lang, sourceId, id, ep } = await params;
   const dictionary = await getDictionary(lang);
 
@@ -80,20 +70,22 @@ async function Suspended({ params }: Props) {
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
               {video.title}
             </h1>
-            <Suspense fallback={<Skeleton className="h-4 w-4" />}>
-              <RecommendationDialog
-                video={{
-                  title: video.title,
-                  description: video.description,
-                  image: video.image,
-                  sourceId: decodedSourceId,
-                  id: id,
-                  ep: ep,
-                }}
-                dictionary={dictionary}
-                isRecommended={isRecommendedPromise}
-              />
-            </Suspense>
+            <ViewTransition>
+              <Suspense fallback={<Skeleton className="h-4 w-4" />}>
+                <RecommendationDialog
+                  video={{
+                    title: video.title,
+                    description: video.description,
+                    image: video.image,
+                    sourceId: decodedSourceId,
+                    id: id,
+                    ep: ep,
+                  }}
+                  dictionary={dictionary}
+                  isRecommended={isRecommendedPromise}
+                />
+              </Suspense>
+            </ViewTransition>
           </div>
 
           <div className="flex items-center space-x-4 text-sm md:text-base text-muted-foreground font-medium">
@@ -155,77 +147,6 @@ async function Suspended({ params }: Props) {
                 <span className="text-foreground">{video.releaseDate}</span>
               </div>
             )}
-          </div>
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function Loading() {
-  return (
-    <main className="space-y-8">
-      {/* Main Player Area Skeleton */}
-      <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video">
-        <div className="w-full h-full bg-secondary animate-pulse"></div>
-      </div>
-
-      {/* Episode Selector Skeleton */}
-      <ul className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
-        {Array.from({ length: 24 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-          <li key={i}>
-            <Skeleton className="w-12 h-12 rounded-lg bg-muted" />
-          </li>
-        ))}
-      </ul>
-
-      {/* Info Section Skeleton */}
-      <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-        <div className="w-full max-w-3xl space-y-6">
-          {/* Title */}
-          <Skeleton className="h-10 md:h-16 w-3/4 bg-muted" />
-
-          {/* Metadata */}
-          <div className="flex items-center space-x-4">
-            <Skeleton className="h-5 w-12 bg-muted" />
-            <span className="text-gray-600">•</span>
-            <Skeleton className="h-5 w-32 bg-white/10" />
-            <span className="text-gray-600">•</span>
-            <Skeleton className="h-5 w-16 bg-muted" />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-full bg-muted" />
-            <Skeleton className="h-5 w-full bg-muted" />
-            <Skeleton className="h-5 w-2/3 bg-white/10" />
-          </div>
-        </div>
-      </section>
-
-      {/* Additional Details Skeleton */}
-      <section className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-          <div className="md:col-span-2 space-y-8">
-            {/* Cast */}
-            <Skeleton className="h-7 w-16 mb-4 bg-muted" />
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton
-                  // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-                  key={i}
-                  className="h-8 w-24 rounded-full bg-secondary border border-border"
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            {/* Director */}
-            <div>
-              <Skeleton className="h-5 w-24 bg-muted" />
-            </div>
           </div>
         </div>
       </section>

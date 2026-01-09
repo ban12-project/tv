@@ -1,11 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { allowList } from "@/lib/db/auth-schema";
-import { db } from "@/lib/db/queries";
+import {
+  addToAllowListQuery,
+  getAllAllowList,
+  removeFromAllowListQuery,
+} from "@/lib/db/queries";
 
 async function checkPermission() {
   const session = await auth.api.getSession({
@@ -21,7 +23,7 @@ async function checkPermission() {
 
 export async function getAllowList() {
   await checkPermission();
-  return await db.select().from(allowList);
+  return await getAllAllowList();
 }
 
 export type ActionState = {
@@ -46,9 +48,7 @@ export async function addToAllowList(
   }
 
   try {
-    await db.insert(allowList).values({
-      email: email.toLowerCase(),
-    });
+    await addToAllowListQuery(email.toLowerCase());
 
     refresh();
     return { success: true, timestamp: Date.now() };
@@ -78,7 +78,7 @@ export async function removeFromAllowList(
   }
 
   try {
-    await db.delete(allowList).where(eq(allowList.id, id));
+    await removeFromAllowListQuery(id);
 
     refresh();
     return { success: true, timestamp: Date.now() };

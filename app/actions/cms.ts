@@ -1,10 +1,13 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { cacheTag, updateTag } from "next/cache";
 import * as z from "zod";
-import { db } from "@/lib/db/queries";
-import { apiSource } from "@/lib/db/schema";
+import {
+  createApiSourceQuery,
+  deleteApiSourceQuery,
+  getApiSourcesQuery,
+  updateApiSourceQuery,
+} from "@/lib/db/queries";
 
 type ActionState = {
   success: boolean;
@@ -14,7 +17,7 @@ type ActionState = {
 export async function getApiSources() {
   "use cache";
   cacheTag("api-sources");
-  return await db.select().from(apiSource).orderBy(apiSource.createdAt);
+  return await getApiSourcesQuery();
 }
 
 const schema = z.object({
@@ -44,7 +47,7 @@ export async function createApiSource(
   const { name, url, type } = validatedFields.data;
 
   try {
-    await db.insert(apiSource).values({
+    await createApiSourceQuery({
       name,
       url,
       type,
@@ -79,13 +82,11 @@ export async function updateApiSource(
 
   const { name, url, type, id } = validatedFields.data;
 
-  db.update(apiSource)
-    .set({
-      name,
-      url,
-      type,
-    })
-    .where(eq(apiSource.id, id));
+  await updateApiSourceQuery(id, {
+    name,
+    url,
+    type,
+  });
   updateTag("api-sources");
   return { success: true };
 }
@@ -111,7 +112,7 @@ export async function deleteApiSource(
   }
 
   try {
-    await db.delete(apiSource).where(eq(apiSource.id, id));
+    await deleteApiSourceQuery(id);
     updateTag("api-sources");
     updateTag("recommendations");
     return { success: true };

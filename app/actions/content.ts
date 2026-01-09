@@ -26,6 +26,10 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
 }
 
 export async function searchVideosStream(query: string) {
+  "use cache";
+  cacheTag(`search-${query}`);
+  cacheLife("hours");
+
   const validatedFields = searchSchema.safeParse({ query });
 
   if (!validatedFields.success) {
@@ -36,5 +40,9 @@ export async function searchVideosStream(query: string) {
 }
 
 export async function findMatchesStream(video: Video) {
+  "use cache";
+  cacheTag(`matches-${video.title}`);
+  cacheLife("days");
+
   return sourceProvider.findMatchesStream(video);
 }
