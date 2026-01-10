@@ -5,7 +5,6 @@ import { Loader2, Plus } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { createApiSource } from "@/app/actions/cms";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { createApiSource } from "@/lib/actions/cms";
 
 const initialState = {
   success: false,

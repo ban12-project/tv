@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import * as z from "zod";
-import { checkRegistrationStatus, preUpgradeAnonymous } from "@/app/actions";
 import Link from "@/components/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { Messages } from "@/get-dictionary";
+import { checkRegistrationStatus, preUpgradeAnonymous } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 

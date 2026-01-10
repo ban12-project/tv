@@ -1,4 +1,3 @@
-import { getApiSources } from "@/app/actions/cms";
 import {
   Table,
   TableBody,
@@ -7,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getApiSources } from "@/lib/actions/cms";
 import SourceForm from "./components/source-form";
 import SourceRow from "./components/source-row";
 

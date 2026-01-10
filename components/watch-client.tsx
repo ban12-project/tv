@@ -3,7 +3,6 @@
 import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import * as React from "react";
-import { findMatchesStream } from "@/app/actions/content";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
+import { findMatchesStream } from "@/lib/actions/content";
 import type { Episode, Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 

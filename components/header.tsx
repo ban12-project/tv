@@ -1,12 +1,12 @@
 import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
-import { getAllowList } from "@/app/actions";
-import { getDoubanTop250 } from "@/app/actions/douban";
-import { getRecommendations } from "@/app/actions/recommendations";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
 import type { Messages } from "@/get-dictionary";
+import { getAllowList } from "@/lib/actions";
+import { getDoubanTop250 } from "@/lib/actions/douban";
+import { getRecommendations } from "@/lib/actions/recommendations";
 import { auth } from "@/lib/auth";
 import { AllowlistDialog } from "./allowlist-dialog";
 import ColorSchemeToggle from "./color-scheme-toggle-client";

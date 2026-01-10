@@ -3,11 +3,6 @@
 import { Loader2, ThumbsUp, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  type ActionState,
-  deleteRecommendation,
-  saveRecommendation,
-} from "@/app/actions/recommendations";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Messages } from "@/get-dictionary";
+import {
+  type ActionState,
+  deleteRecommendation,
+  saveRecommendation,
+} from "@/lib/actions/recommendations";
 
 // Minimal type to avoid importing heavy types
 export interface VideoPreview {
