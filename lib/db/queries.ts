@@ -13,9 +13,8 @@ import * as schema from "./schema";
 export const db = drizzle({ client: sql, schema });
 
 import { and, desc, eq } from "drizzle-orm";
-import { allowList, passkey, user } from "./auth-schema";
+import { allowList, apiSource, passkey, recommendations, user } from "./schema";
 // -- CMS Queries --
-import { apiSource, recommendations } from "./schema";
 
 export async function getApiSourcesQuery() {
   return await db.select().from(apiSource).orderBy(apiSource.createdAt);
