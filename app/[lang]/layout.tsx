@@ -31,7 +31,7 @@ export async function generateMetadata({
     alternates: {
       canonical: "/",
       languages: Object.fromEntries(
-        Object.keys(i18n.locales).map((lang) => [lang, `/${lang}`]),
+        i18n.locales.map((lang) => [lang, `/${lang}`]),
       ),
     },
     openGraph: {
