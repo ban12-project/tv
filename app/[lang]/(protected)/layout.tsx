@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import Bailiff from "@/components/bailiff";
+import { ChatWidget } from "@/components/chat-bot/chat-widget";
 import Header from "@/components/header";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
@@ -15,6 +16,7 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   return (
     <>
       <Header messages={dict} />
+      <ChatWidget />
 
       <Suspense
         fallback={

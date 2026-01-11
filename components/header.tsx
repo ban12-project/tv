@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
+import { ChatToggle } from "@/components/chat-bot/chat-toggle";
 import { Menu } from "@/components/menu";
 import { ScrollAwareHeader } from "@/components/scroll-aware-header";
 import { SearchDialog } from "@/components/search-dialog";
@@ -46,6 +47,7 @@ export default async function Header({ messages }: { messages: Messages }) {
                 dictionary={messages}
                 recommendations={recommendations}
               />
+              <ChatToggle />
               <ColorSchemeToggle />
             </div>
           </div>
