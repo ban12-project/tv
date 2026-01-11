@@ -4,11 +4,11 @@ import { embeddingModel } from "@/lib/ai/providers";
 import { db } from "../db/queries";
 import { embeddings } from "../db/schema/embeddings";
 
-const generateChunks = (input: string): string[] => {
-  return input
-    .trim()
-    .split(".")
-    .filter((i) => i !== "");
+export const generateChunks = (input: string): string[] => {
+  const segmenter = new Intl.Segmenter("zh-CN", { granularity: "sentence" });
+  return Array.from(segmenter.segment(input))
+    .map((s) => s.segment.trim())
+    .filter((s) => s.length > 1); // Filter out empty strings and single punctuation marks
 };
 
 export const generateEmbeddings = async (
@@ -19,8 +19,8 @@ export const generateEmbeddings = async (
     model: embeddingModel,
     values: chunks,
     providerOptions: {
-      google: {
-        outputDimensionality: 1536,
+      zAI: {
+        dimensions: 1536,
       },
     },
   });
@@ -33,8 +33,8 @@ export const generateEmbedding = async (value: string): Promise<number[]> => {
     model: embeddingModel,
     value: input,
     providerOptions: {
-      google: {
-        outputDimensionality: 1536,
+      zAI: {
+        dimensions: 1536,
       },
     },
   });
