@@ -1,7 +1,14 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { CopyIcon, GlobeIcon, RefreshCcwIcon } from "lucide-react";
+import {
+  ChevronsRightIcon,
+  CopyIcon,
+  GlobeIcon,
+  RefreshCcwIcon,
+  TrashIcon,
+  XIcon,
+} from "lucide-react";
 import * as React from "react";
 import {
   Conversation,
@@ -44,11 +51,19 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useChatStore } from "@/lib/store/chat-store";
 
-export function ChatInterface() {
+export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
   const [input, setInput] = React.useState("");
   const [webSearch, setWebSearch] = React.useState(false);
-  const { messages, sendMessage, status, regenerate } = useChat();
+  const { messages, sendMessage, status, regenerate, setMessages } = useChat();
+  const { toggle } = useChatStore();
   const handleSubmit = (message: PromptInputMessage) => {
     const hasText = Boolean(message.text);
     const hasAttachments = Boolean(message.files?.length);
@@ -68,8 +83,25 @@ export function ChatInterface() {
     );
     setInput("");
   };
+
   return (
     <div className="flex flex-col h-full w-full">
+      <div className="flex items-center justify-between pl-3.5 pr-2 py-2 sticky top-0 bg-background-100 h-16 z-10">
+        <h2 className="font-semibold text-sm">Ask AI</h2>
+        <div className="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" onClick={() => setMessages([])}>
+                <TrashIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="z-100">Clear chat</TooltipContent>
+          </Tooltip>
+          <Button variant="ghost" onClick={toggle}>
+            {isDesktop ? <ChevronsRightIcon /> : <XIcon />}
+          </Button>
+        </div>
+      </div>
       <Conversation className="h-full overflow-hidden">
         <ConversationContent>
           {messages.map((message) => (

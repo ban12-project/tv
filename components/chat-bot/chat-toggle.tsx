@@ -5,14 +5,10 @@ import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/lib/store/chat-store";
 
 export function ChatToggle() {
-  const { toggle, isOpen } = useChatStore();
+  const { toggle } = useChatStore();
 
   return (
-    <Button
-      variant={isOpen ? "secondary" : "ghost"}
-      onClick={toggle}
-      className="gap-2"
-    >
+    <Button variant="ghost" onClick={toggle} className="gap-2">
       <SparklesIcon className="size-4" />
       <span className="hidden sm:inline">Ask AI</span>
     </Button>
