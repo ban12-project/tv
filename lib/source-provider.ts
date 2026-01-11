@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getApiSources } from "@/app/actions/cms";
+import { getApiSources } from "@/lib/actions/cms";
 import { MacCMSAdapter } from "./adapters/mac-cms-adapter";
 import type { SearchResult, Video, VideoSourceAdapter } from "./adapters/types";
 import { getVideoUniqueKey } from "./adapters/util";

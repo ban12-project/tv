@@ -3,7 +3,6 @@
 import { Loader2, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { addToAllowList, removeFromAllowList } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Messages } from "@/get-dictionary";
+import { addToAllowList, removeFromAllowList } from "@/lib/actions";
 
 const initialState = {
   error: "",

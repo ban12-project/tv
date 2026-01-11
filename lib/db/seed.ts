@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
-import { passkey } from "./auth-schema";
+import { passkey } from "./schema";
 
 if (!process.env.DIRECT_DATABASE_URL) {
   throw new Error("DIRECT_DATABASE_URL is not defined");

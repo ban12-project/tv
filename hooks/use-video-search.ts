@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useDebounceValue } from "usehooks-ts";
-import { searchVideosStream } from "@/app/actions/content";
+import { searchVideosStream } from "@/lib/actions/content";
 import type { Video } from "@/lib/adapters/types";
 import { getVideoUniqueKey } from "@/lib/adapters/util";
 

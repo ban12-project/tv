@@ -1,8 +1,6 @@
 "use client";
 
 import * as React from "react";
-import type { DoubanItem } from "@/app/actions/douban";
-import { getDoubanTop250 } from "@/app/actions/douban";
 import { CMSImage } from "@/components/cms-image";
 import Link from "@/components/link";
 import {
@@ -14,6 +12,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Messages } from "@/get-dictionary";
+import type { DoubanItem } from "@/lib/actions/douban";
+import { getDoubanTop250 } from "@/lib/actions/douban";
 import { cn } from "@/lib/utils";
 
 const RANGES = [

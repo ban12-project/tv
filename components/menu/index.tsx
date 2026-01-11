@@ -1,7 +1,7 @@
 "use client";
 
-import type { DoubanItem } from "@/app/actions/douban";
 import type { Messages } from "@/get-dictionary";
+import type { DoubanItem } from "@/lib/actions/douban";
 import type { SelectRecommendation } from "@/lib/db/schema";
 import { DesktopMenu } from "./desktop-menu";
 import { DoubanMenu } from "./douban-menu";

@@ -3,10 +3,10 @@
 import { Loader2, Trash2 } from "lucide-react";
 import { useActionState, useEffect } from "react";
 import { toast } from "sonner";
-import { deleteApiSource } from "@/app/actions/cms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { deleteApiSource } from "@/lib/actions/cms";
 import type { SelectApiSource } from "@/lib/db/schema";
 
 const initialState = {

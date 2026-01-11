@@ -35,6 +35,7 @@
       "hooks/**/*",
       "lib/**/*",
       "!components/ui/*",
+      "!components/ai-elements/*",
       "!lib/db/migrations/*"
     ]
   }

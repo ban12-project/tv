@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
-import { fetchVideoDetails } from "@/app/actions/content";
-import { checkIsRecommended } from "@/app/actions/recommendations";
 import { RecommendationDialog } from "@/components/recommendation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import WatchClient from "@/components/watch-client";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
+import { fetchVideoDetails } from "@/lib/actions/content";
+import { checkIsRecommended } from "@/lib/actions/recommendations";
 import type { Episode } from "@/lib/adapters/types";
 
 type Props = Readonly<{

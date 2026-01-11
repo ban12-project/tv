@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import Bailiff from "@/components/bailiff";
+import { ChatWidget } from "@/components/chat-bot/chat-widget";
 import Header from "@/components/header";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
@@ -13,23 +14,26 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   const dict = await getDictionary(lang as Locale);
 
   return (
-    <>
-      <Header messages={dict} />
+    <section className="flex min-w-0">
+      <div className="flex-1 min-w-0">
+        <Header messages={dict} />
 
-      <Suspense
-        fallback={
+        <Suspense
+          fallback={
+            <ViewTransition>
+              <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+                <Bailiff messages={dict.protected.bailiff} />
+              </div>
+            </ViewTransition>
+          }
+        >
           <ViewTransition>
-            <div className="flex items-center justify-center h-[calc(100vh-56px)]">
-              <Bailiff messages={dict.protected.bailiff} />
-            </div>
+            <Suspended {...props} />
           </ViewTransition>
-        }
-      >
-        <ViewTransition>
-          <Suspended {...props} />
-        </ViewTransition>
-      </Suspense>
-    </>
+        </Suspense>
+      </div>
+      <ChatWidget />
+    </section>
   );
 }
 
