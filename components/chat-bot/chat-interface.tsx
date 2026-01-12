@@ -58,6 +58,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useChatStore } from "@/lib/store/chat-store";
+import HoverPrefetchLink from "../hover-prefetch-link";
 
 export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
   const [input, setInput] = React.useState("");
@@ -136,7 +137,23 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                     return (
                       <Message key={`${message.id}-${i}`} from={message.role}>
                         <MessageContent>
-                          <MessageResponse>{part.text}</MessageResponse>
+                          <MessageResponse
+                            components={{
+                              a: ({ href, children, ...props }) =>
+                                !href || href.startsWith("http") ? (
+                                  <a {...props}>{children}</a>
+                                ) : (
+                                  <HoverPrefetchLink
+                                    href={href}
+                                    className="underline"
+                                  >
+                                    {children}
+                                  </HoverPrefetchLink>
+                                ),
+                            }}
+                          >
+                            {part.text}
+                          </MessageResponse>
                         </MessageContent>
                         {message.role === "assistant" &&
                           i === messages.length - 1 && (
