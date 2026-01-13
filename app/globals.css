@@ -95,6 +95,23 @@
   }
 }
 
+@utility animated-underline {
+  background-image: linear-gradient(
+    transparent calc(100% - var(--underline-offset, 1px)),
+    currentColor 1px
+  );
+  background-repeat: no-repeat;
+  background-position: 100% 100%;
+  background-size: 0% 100%;
+  transition: background-size 0.3s ease;
+  text-decoration: none;
+
+  &:hover {
+    background-position: 0% 100%;
+    background-size: calc(100% - var(--underline-offset, 1px)) 100%;
+  }
+}
+
 /*
   The default border color has changed to `currentColor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still

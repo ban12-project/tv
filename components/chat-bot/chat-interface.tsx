@@ -145,7 +145,7 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                                 ) : (
                                   <HoverPrefetchLink
                                     href={href}
-                                    className="underline"
+                                    className="animated-underline"
                                   >
                                     {children}
                                   </HoverPrefetchLink>
