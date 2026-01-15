@@ -1,14 +1,35 @@
 import { embed, embedMany } from "ai";
-import { cosineDistance, desc, gt, sql } from "drizzle-orm";
+import { cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 import { embeddingModel } from "@/lib/ai/providers";
 import { db } from "../db/queries";
 import { embeddings } from "../db/schema/embeddings";
+import { resources } from "../db/schema/resources";
 
 export const generateChunks = (input: string): string[] => {
-  const segmenter = new Intl.Segmenter("zh-CN", { granularity: "sentence" });
-  return Array.from(segmenter.segment(input))
-    .map((s) => s.segment.trim())
-    .filter((s) => s.length > 1); // Filter out empty strings and single punctuation marks
+  const trimmed = input.trim();
+  if (!trimmed) return [];
+
+  // 1. Priority: Keep Integrity
+  if (trimmed.length < 4000) {
+    return [trimmed];
+  }
+
+  // 2. Fallback: Split by lines/paragraphs
+  const chunks: string[] = [];
+  const lines = trimmed.split(/\n+/);
+  let currentChunk = "";
+
+  for (const line of lines) {
+    if (`${currentChunk}\n${line}`.length > 2000) {
+      if (currentChunk) chunks.push(currentChunk);
+      currentChunk = line;
+    } else {
+      currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
+    }
+  }
+
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
 };
 
 export const generateEmbeddings = async (
@@ -48,8 +69,9 @@ export const findRelevantContent = async (userQuery: string) => {
     userQueryEmbedded,
   )})`;
   const similarGuides = await db
-    .select({ name: embeddings.content, similarity })
+    .select({ name: resources.content, similarity })
     .from(embeddings)
+    .leftJoin(resources, eq(embeddings.resourceId, resources.id))
     .where(gt(similarity, 0.5))
     .orderBy((t) => desc(t.similarity))
     .limit(4);
