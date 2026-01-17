@@ -1,9 +1,9 @@
+import "server-only";
 import { embed, embedMany } from "ai";
-import { cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
+import { cosineDistance, sql } from "drizzle-orm";
 import { embeddingModel } from "@/lib/ai/providers";
-import { db } from "../db/queries";
+import { findRelevantContentQuery } from "../db/queries";
 import { embeddings } from "../db/schema/embeddings";
-import { resources } from "../db/schema/resources";
 
 export const generateChunks = (input: string): string[] => {
   const trimmed = input.trim();
@@ -68,12 +68,5 @@ export const findRelevantContent = async (userQuery: string) => {
     embeddings.embedding,
     userQueryEmbedded,
   )})`;
-  const similarGuides = await db
-    .select({ name: resources.content, similarity })
-    .from(embeddings)
-    .leftJoin(resources, eq(embeddings.resourceId, resources.id))
-    .where(gt(similarity, 0.5))
-    .orderBy((t) => desc(t.similarity))
-    .limit(4);
-  return similarGuides;
+  return await findRelevantContentQuery(similarity);
 };

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "next-themes";
 import { LocaleProvider } from "@/components/i18n";
@@ -84,6 +85,11 @@ export function generateStaticParams() {
   return i18n.locales.map((locale) => ({ lang: locale }));
 }
 
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+});
+
 export default async function RootLayout({
   params,
   children,
@@ -92,7 +98,9 @@ export default async function RootLayout({
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body className="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
+      <body
+        className={`${geist.variable} font-sans bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground`}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
