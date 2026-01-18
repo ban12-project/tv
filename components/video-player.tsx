@@ -169,20 +169,20 @@ export default function VideoPlayer({
       hls.attachMedia(video);
     };
 
-    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("seeking", handleSeeking, { passive: true });
     initHls();
 
-    let frameId: number;
-    const loop = () => {
-      if (!video.paused && !video.ended && !disableAutoSkip) {
+    // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
+    // for significantly reduced CPU usage while maintaining skip accuracy
+    const handleTimeUpdate = () => {
+      if (!disableAutoSkip) {
         performSkip();
       }
-      frameId = video.requestVideoFrameCallback(loop);
     };
-    frameId = video.requestVideoFrameCallback(loop);
+    video.addEventListener("timeupdate", handleTimeUpdate, { passive: true });
 
     return () => {
-      video.cancelVideoFrameCallback(frameId);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("seeking", handleSeeking);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();

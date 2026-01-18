@@ -62,14 +62,14 @@ export default function WatchClient({
 
     const epIndex = Number.parseInt(epStr, 10) - 1;
 
-    if (!Number.isNaN(epIndex) && epIndex !== activeEpisodeIndex) {
+    if (!Number.isNaN(epIndex)) {
       setActiveEpisodeIndex(epIndex);
     }
 
-    if (sourceId && decodeURIComponent(sourceId) !== activeSourceId) {
+    if (sourceId) {
       setActiveSourceId(decodeURIComponent(sourceId));
     }
-  }, [pathname, activeEpisodeIndex, activeSourceId]);
+  }, [pathname]); // Only react to pathname changes to avoid circular updates
 
   // Sources state initialized with cached matches if any
   const [sources, setSources] = React.useState(() => {
@@ -94,7 +94,7 @@ export default function WatchClient({
     setActiveEpisodeIndex(initialEpisodeIndex);
   }, [initialSourceId, initialEpisodeIndex]);
 
-  // Fetch and cache matches
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally narrow deps - findMatchesStream only uses video.id/title internally
   React.useEffect(() => {
     let isMounted = true;
     const fetchMatches = async () => {
@@ -134,7 +134,7 @@ export default function WatchClient({
     return () => {
       isMounted = false;
     };
-  }, [video]); // Complete video object for reliability
+  }, [video.id, video.title]); // Use primitives to avoid re-runs on unrelated property changes
 
   const currentSource =
     sources.find((s) => s.sourceId === activeSourceId) || sources[0];
@@ -177,15 +177,18 @@ export default function WatchClient({
     window.history.pushState(null, "", url.toString());
   };
 
-  // Logic to handle episode change
-  const handleEpisodeClick = (index: number) => {
-    if (index === activeEpisodeIndex) return;
+  // Logic to handle episode change - memoized to avoid recreating inline handlers
+  const handleEpisodeClick = React.useCallback(
+    (index: number) => {
+      if (index === activeEpisodeIndex) return;
 
-    setActiveEpisodeIndex(index);
-    // Update URL shallowly - browser back/forward will be handled by the pathname sync effect
-    const url = new URL(`./${index + 1}`, window.location.href);
-    window.history.pushState(null, "", url.toString());
-  };
+      setActiveEpisodeIndex(index);
+      // Update URL shallowly - browser back/forward will be handled by the pathname sync effect
+      const url = new URL(`./${index + 1}`, window.location.href);
+      window.history.pushState(null, "", url.toString());
+    },
+    [activeEpisodeIndex],
+  );
 
   return (
     <>
@@ -275,10 +278,7 @@ export default function WatchClient({
                       index={index}
                       isActive={activeEpisodeIndex === index}
                       href={`/watch/${currentSource.sourceId}/${video.id}/${index + 1}`}
-                      onNavigate={(e) => {
-                        e.preventDefault();
-                        handleEpisodeClick(index);
-                      }}
+                      onClick={handleEpisodeClick}
                     />
                   </li>
                 ))}
