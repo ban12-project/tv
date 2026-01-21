@@ -9,7 +9,13 @@ import { useVideoSearch } from "@/hooks/use-video-search";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
-export function HomeSearch({ dictionary }: { dictionary: Messages }) {
+export function HomeSearch({
+  dictionary,
+  initialResults = [],
+}: {
+  dictionary: Messages;
+  initialResults?: Video[];
+}) {
   const searchParams = useSearchParams();
 
   const {
@@ -20,7 +26,7 @@ export function HomeSearch({ dictionary }: { dictionary: Messages }) {
     onQueryChange,
     onCompositionStart,
     onCompositionEnd,
-  } = useVideoSearch(300, searchParams.get("q") || "");
+  } = useVideoSearch(300, searchParams.get("q") || "", initialResults);
 
   React.useEffect(() => {
     const params = new URLSearchParams(searchParams);

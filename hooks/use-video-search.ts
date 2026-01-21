@@ -7,7 +7,7 @@ import { getVideoUniqueKey } from "@/lib/adapters/util";
 /**
  * Helper to calculate relevance score
  */
-export function getRelevanceScore(video: Video, query: string) {
+function getRelevanceScore(video: Video, query: string) {
   const title = video.title?.toLowerCase() || "";
   const q = query.toLowerCase().trim();
 
@@ -18,7 +18,25 @@ export function getRelevanceScore(video: Video, query: string) {
   return 0;
 }
 
-export function useVideoSearch(debounceMs = 300, initialQuery = "") {
+/**
+ * Re-sort based on relevance
+ */
+function sortVideos(videos: Video[], query: string) {
+  return [...videos].sort((a, b) => {
+    const scoreA = getRelevanceScore(a, query);
+    const scoreB = getRelevanceScore(b, query);
+    if (scoreA !== scoreB) return scoreB - scoreA;
+    return (
+      Number.parseInt(b.year || "0", 10) - Number.parseInt(a.year || "0", 10)
+    );
+  });
+}
+
+export function useVideoSearch(
+  debounceMs = 300,
+  initialQuery = "",
+  initialResults: Video[] = [],
+) {
   const [query, setQuery] = React.useState(initialQuery);
   const [searchTerm, setSearchTerm] = React.useState(initialQuery);
   const [prevInitialQuery, setPrevInitialQuery] = React.useState(initialQuery);
@@ -31,14 +49,22 @@ export function useVideoSearch(debounceMs = 300, initialQuery = "") {
 
   const [debouncedSearchTerm] = useDebounceValue(searchTerm, debounceMs);
 
-  const [results, setResults] = React.useState<Video[]>([]);
+  const [results, setResults] = React.useState<Video[]>(() =>
+    sortVideos(initialResults, initialQuery),
+  );
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const currentSearchRef = React.useRef(0);
   const isComposingRef = React.useRef(false);
+  const skipInitialRef = React.useRef(true);
 
   React.useEffect(() => {
+    if (skipInitialRef.current) {
+      skipInitialRef.current = false;
+      if (debouncedSearchTerm === initialQuery) return;
+    }
+
     const fetchVideos = async () => {
       if (!debouncedSearchTerm.trim()) {
         setResults([]);
@@ -77,16 +103,7 @@ export function useVideoSearch(debounceMs = 300, initialQuery = "") {
 
                 const merged = [...base, ...newUniqueVideos];
 
-                // Re-sort based on relevance
-                return merged.sort((a, b) => {
-                  const scoreA = getRelevanceScore(a, debouncedSearchTerm);
-                  const scoreB = getRelevanceScore(b, debouncedSearchTerm);
-                  if (scoreA !== scoreB) return scoreB - scoreA;
-                  return (
-                    Number.parseInt(b.year || "0", 10) -
-                    Number.parseInt(a.year || "0", 10)
-                  );
-                });
+                return sortVideos(merged, debouncedSearchTerm);
               });
             });
           }
@@ -115,7 +132,7 @@ export function useVideoSearch(debounceMs = 300, initialQuery = "") {
     };
 
     fetchVideos();
-  }, [debouncedSearchTerm]);
+  }, [debouncedSearchTerm, initialQuery]);
 
   const onQueryChange = React.useCallback((value: string) => {
     setQuery(value);
