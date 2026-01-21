@@ -1,6 +1,5 @@
 "use client";
 
-import type HlsType from "hls.js"; // Type-only import
 import * as React from "react";
 import type { Messages } from "@/get-dictionary";
 import { cn } from "@/lib/utils";
@@ -13,6 +12,7 @@ interface VideoPlayerProps {
   dictionary: Messages;
   className?: string;
   disableAutoSkip?: boolean;
+  hlsResourcePromise: Promise<typeof import("hls.js").default>;
 }
 
 export default function VideoPlayer({
@@ -21,7 +21,11 @@ export default function VideoPlayer({
   autoPlay = false,
   className,
   disableAutoSkip = false,
+  hlsResourcePromise,
 }: VideoPlayerProps) {
+  // Suspend until hls.js is loaded
+  const Hls = React.use(hlsResourcePromise);
+
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
@@ -68,10 +72,8 @@ export default function VideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    let hls: HlsType | null = null;
-    const initHls = async () => {
-      const { default: Hls } = await import("hls.js");
-
+    let hls: InstanceType<typeof Hls> | null = null;
+    const initHls = () => {
       const useNative = disableAutoSkip || !Hls.isSupported();
 
       if (useNative) {
@@ -187,7 +189,7 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay, handleSeeking, performSkip, disableAutoSkip]);
+  }, [videoUrl, autoPlay, handleSeeking, performSkip, disableAutoSkip, Hls]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

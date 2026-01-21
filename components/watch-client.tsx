@@ -2,6 +2,7 @@
 
 import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
+import Script from "next/script";
 import * as React from "react";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,10 @@ import type { Messages } from "@/get-dictionary";
 import { findMatchesStream } from "@/lib/actions/content";
 import type { Episode, Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
+
+// import { dependencies } from "@/package.json";
+
+// const HLS_VERSION = dependencies["hls.js"].replace("^", "").replace("~", "");
 
 interface WatchClientProps {
   video: Video;
@@ -50,6 +55,26 @@ export default function WatchClient({
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
     React.useState(initialEpisodeIndex);
   const [autoSkip, setAutoSkip] = React.useState(true);
+  const [hlsLoader] = React.useState(() => {
+    let resolve!: (value: typeof import("hls.js").default) => void;
+    // Check if resolved on init (client-side only optimization)
+    const getHls = () =>
+      // biome-ignore lint/suspicious/noExplicitAny: explicit bypass for window.Hls
+      typeof window !== "undefined" ? (window as any).Hls : undefined;
+    const initialHls = getHls();
+
+    const promise = new Promise<typeof import("hls.js").default>((r) => {
+      resolve = r;
+      if (initialHls) r(initialHls);
+    });
+
+    const handleLoaded = () => {
+      const hls = getHls();
+      if (hls) resolve(hls);
+    };
+
+    return { promise, handleLoaded };
+  });
 
   const pathname = usePathname();
 
@@ -194,15 +219,31 @@ export default function WatchClient({
     <>
       {/* Main Player Area */}
       {currentEpisode ? (
-        <VideoPlayer
-          className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
-          videoUrl={currentEpisode.url}
-          poster={video.backgroundImage || video.image}
-          title={`${video.title} - ${currentEpisode.name}`}
-          autoPlay={true}
-          dictionary={dictionary}
-          disableAutoSkip={!autoSkip}
-        />
+        <>
+          {/* TODO: https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/${HLS_VERSION}/hls.min.js
+            related issue: https://github.com/cdnjs/cdnjs/issues/14263
+          */}
+          <Script
+            src={`https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/1.6.13/hls.min.js`}
+            onReady={hlsLoader.handleLoaded}
+          />
+          <React.Suspense
+            fallback={
+              <div className="w-full max-w-7xl mx-auto lg:px-6 aspect-video bg-muted animate-pulse rounded-lg" />
+            }
+          >
+            <VideoPlayer
+              className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
+              videoUrl={currentEpisode.url}
+              poster={video.backgroundImage || video.image}
+              title={`${video.title} - ${currentEpisode.name}`}
+              autoPlay={true}
+              dictionary={dictionary}
+              disableAutoSkip={!autoSkip}
+              hlsResourcePromise={hlsLoader.promise}
+            />
+          </React.Suspense>
+        </>
       ) : (
         <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
           {dictionary.watch["no-source"] ?? "No playable source found."}
