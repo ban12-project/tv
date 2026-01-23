@@ -22,7 +22,7 @@ function getRelevanceScore(video: Video, query: string) {
  * Re-sort based on relevance
  */
 function sortVideos(videos: Video[], query: string) {
-  return [...videos].sort((a, b) => {
+  return videos.toSorted((a, b) => {
     const scoreA = getRelevanceScore(a, query);
     const scoreB = getRelevanceScore(b, query);
     if (scoreA !== scoreB) return scoreB - scoreA;

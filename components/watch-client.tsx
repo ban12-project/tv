@@ -312,7 +312,7 @@ export default function WatchClient({
               value="episodes"
               className="mt-0 outline-none focus-visible:ring-0"
             >
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:0_3rem]">
                 {currentSource.episodes.map((ep, index) => (
                   <li key={`${ep.name}-${index}`}>
                     <EpisodeCard
