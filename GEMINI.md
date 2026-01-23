@@ -3,21 +3,12 @@
 ## Project Overview
 
 "ECheng TV" is a premium Next.js streaming web application.
+
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4
 - **Linting/Formatting**: Biome
 - **Internationalization**: Custom i18n implementation with `[lang]` routing.
-
-## Architecture
-
-- **Refine Your Architecture**: Resolve promises deeper in the tree and fetch data locally. Use React cache() to deduplicate work and React use() to read promises in Client Components.
-- **Compose Server and Client**: Apply the "donut-pattern" to reduce redundant client-side JS, keep a clear separation of concerns, and make components reusable and cachable.
-- **Cache and Prerender**: Eliminate redundant processing ana boost performance with 'use cache', and suspend dynamic content with appropriate fallbacks.
-- **Strict Caching**: **MANDATORY**: All asynchronous IO operations (DB queries, API calls) that do not depend on runtime parameters (cookies, headers, searchParams) MUST use the `'use cache'` directive.
-- **No Suspense for Cached Content**: When utilizing `'use cache'`, do NOT wrap components in `<Suspense>`. PPR will generate these as part of the static HTML.
-- **Data Access Layer**: All database queries MUST be isolated in `lib/db/queries.ts` (or feature-grouped files in `lib/db/`).
-- **Server Enforcement**: All files containing database queries MUST include `import 'server-only'` at the top.
 
 ## Key Dependencies & APIs
 
@@ -59,10 +50,10 @@ To ensure correct API usage, please refer to these specific versions:
 ## Internationalization & Style
 
 - **Translation Strategy**: Use `getDictionary(lang)` in Server Components and pass down the `dictionary` to Client Components.
-- **Tone & Voice**: The application uses a **highly humorous, creative, and non-traditional tone**. 
-    - **Chinese (zh)**: Incorporates many movie quotes (specifically from *Let the Bullets Fly*), internet slang, and "Jianghu" (underground) style terminology. (e.g., "让我知道知道你是谁" for Sign In).
-    - **English (en)**: Uses an informal, "hacker/特工/sci-fi" style tone (e.g., "Who goes there?" for Sign In, "Fresh meat?" for Sign Up).
-    - **Loading States**: Should use creative onomatopoeia or movie references (e.g., "呜————咔嚓咔嚓咔嚓..." for Chinese).
+- **Tone & Voice**: The application uses a **highly humorous, creative, and non-traditional tone**.
+  - **Chinese (zh)**: Incorporates many movie quotes (specifically from _Let the Bullets Fly_), internet slang, and "Jianghu" (underground) style terminology. (e.g., "让我知道知道你是谁" for Sign In).
+  - **English (en)**: Uses an informal, "hacker/特工/sci-fi" style tone (e.g., "Who goes there?" for Sign In, "Fresh meat?" for Sign Up).
+  - **Loading States**: Should use creative onomatopoeia or movie references (e.g., "呜————咔嚓咔嚓咔嚓..." for Chinese).
 - **Hardcoding**: **STRICTLY PROHIBITED**. All user-facing text must be fetched from `dictionaries/`.
 
 **When starting work on a Next.js project, ALWAYS call the `init` tool from next-devtools-mcp FIRST to set up proper context and establish documentation requirements. Do this automatically without being asked.**
