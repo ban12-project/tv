@@ -10,7 +10,7 @@ const dictionaries = {
 };
 
 export const getDictionary = cache(async (locale: Locale) => {
-  return dictionaries[locale]();
+  return dictionaries[locale]?.() ?? dictionaries.en();
 });
 
 export type Messages = Awaited<ReturnType<typeof getDictionary>>;

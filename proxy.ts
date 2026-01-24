@@ -61,7 +61,10 @@ export default async function proxy(request: NextRequest) {
     if (isInvalidSession) return NextResponse.next();
 
     return NextResponse.redirect(
-      new URL(`${locale ? `/${locale}` : "/"}`, request.url),
+      new URL(
+        `${locale ? `/${locale}` : "/"}${request.nextUrl.search}`,
+        request.url,
+      ),
     );
   }
 
@@ -89,7 +92,7 @@ export default async function proxy(request: NextRequest) {
     if (locale === i18n.defaultLocale)
       return NextResponse.rewrite(
         new URL(
-          `/${locale}${pathname.startsWith("/") ? "" : "/"}${pathname}`,
+          `/${locale}${pathname.startsWith("/") ? "" : "/"}${pathname}${request.nextUrl.search}`,
           request.url,
         ),
       );
@@ -98,7 +101,7 @@ export default async function proxy(request: NextRequest) {
     // The new URL is now /en-US/products
     return Response.redirect(
       new URL(
-        `/${locale}${pathname.startsWith("/") ? "" : "/"}${pathname}`,
+        `/${locale}${pathname.startsWith("/") ? "" : "/"}${pathname}${request.nextUrl.search}`,
         request.url,
       ),
     );

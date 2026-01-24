@@ -25,10 +25,39 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
   }
 }
 
-export async function searchVideosStream(query: string) {
+export async function getInitialSearchResults(query: string) {
   "use cache";
   cacheTag(`search-${query}`);
   cacheLife("hours");
+
+  const validatedFields = searchSchema.safeParse({ query });
+
+  if (!validatedFields.success) {
+    return [];
+  }
+
+  // Fetch just the first page (non-streaming or simulated)
+  // We'll use the searchStream but only take the first chunk(s) or use a non-streaming alternative if available.
+  // Since sourceProvider.searchStream returns a generator, we can consume it partially.
+  const results: Video[] = [];
+  try {
+    const stream = sourceProvider.searchStream(validatedFields.data.query);
+    for await (const chunk of stream) {
+      if (chunk.videos) {
+        results.push(...chunk.videos);
+        if (results.length >= 20) break;
+      }
+    }
+  } catch (e) {
+    console.error("Initial search failed", e);
+  }
+
+  return results;
+}
+
+export async function searchVideosStream(query: string) {
+  // Streaming functions cannot use "use cache" directly as related to generators
+  // caching is handled by the initial search results function for the first paint
 
   const validatedFields = searchSchema.safeParse({ query });
 
@@ -40,9 +69,5 @@ export async function searchVideosStream(query: string) {
 }
 
 export async function findMatchesStream(video: Video) {
-  "use cache";
-  cacheTag(`matches-${video.title}`);
-  cacheLife("days");
-
   return sourceProvider.findMatchesStream(video);
 }

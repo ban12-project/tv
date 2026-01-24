@@ -123,6 +123,9 @@ export async function findAllowlistByEmail(email: string) {
 }
 
 export async function getAllAllowList() {
+  "use cache";
+  cacheTag("allow-list");
+  cacheLife("days");
   return await db.select().from(allowList);
 }
 
