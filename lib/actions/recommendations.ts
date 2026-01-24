@@ -8,6 +8,7 @@ import {
   createRecommendationQuery,
   deleteRecommendationQuery,
   findRecommendation,
+  findRecommendationByVideoId,
   getRecommendationsQuery,
 } from "@/lib/db/queries";
 
@@ -154,4 +155,12 @@ export async function getRecommendations(limit = 6) {
   cacheTag("recommendations");
 
   return await getRecommendationsQuery(limit);
+}
+
+export async function getRecommendedVideoTitle(
+  sourceId: string,
+  videoId: string,
+) {
+  const recommendations = await findRecommendationByVideoId(sourceId, videoId);
+  return recommendations.length > 0 ? recommendations[0].title : null;
 }

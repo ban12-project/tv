@@ -113,6 +113,22 @@ export async function deleteRecommendationQuery(
     );
 }
 
+export async function findRecommendationByVideoId(
+  sourceId: string,
+  videoId: string,
+) {
+  return await db
+    .select({ title: recommendations.title })
+    .from(recommendations)
+    .where(
+      and(
+        eq(recommendations.sourceId, sourceId),
+        eq(recommendations.videoId, videoId),
+      ),
+    )
+    .limit(1);
+}
+
 // -- Auth/Allowlist Queries --
 export async function findAllowlistByEmail(email: string) {
   return await db

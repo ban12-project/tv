@@ -50,6 +50,13 @@
       "when": 1768041611168,
       "tag": "0006_hesitant_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769232831411,
+      "tag": "0007_kind_deathbird",
+      "breakpoints": true
     }
   ]
 }
