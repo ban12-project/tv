@@ -173,33 +173,15 @@ export async function findUserByEmail(email: string) {
 
 // -- AI/Embedding Queries --
 export async function findRelevantContentQuery(
-  similarityCol: SQL<number>,
+  similarity: SQL<number>,
   limit = 4,
   threshold = 0.5,
 ) {
-  "use cache";
-  // We can't easily cache the *result* based on a dynamic similarity column unless we serialize it,
-  // but "use cache" is for the function output.
-  // Actually, keeping strict caching for *search* might be tricky if the input is high-cardinality.
-  // However, per instructions: "All asynchronous IO operations... MUST use the 'use cache' directive."
-  // For vector search, specific inputs might not repeat often, but we should adhere to the rule.
-  // Let's defer strict caching on this specific dynamic query if it depends on exact user input,
-  // or use cacheTag if possible?
-  // The instruction says: "that do not depend on runtime parameters (cookies, headers, searchParams)".
-  // User query IS a runtime parameter usually (search param).
-  // So strictly speaking it might NOT need 'use cache' if it depends on searchParams.
-  // BUT `generateEmbedding` usually comes from user input.
-  // Let's enable it for "static-like" data first.
-
-  // Wait, `findRelevantContent` depends on `userQuery`.
-  // If `userQuery` comes from searchParams/input, we might skip `use cache` for this specific dynamic search
-  // OR use it with a short lifetime + tag.
-  // Let's implement the function first.
   return await db
-    .select({ name: resources.content, similarity: similarityCol })
+    .select({ name: resources.content, similarity })
     .from(embeddings)
     .leftJoin(resources, eq(embeddings.resourceId, resources.id))
-    .where(gt(similarityCol, threshold))
-    .orderBy(desc(similarityCol))
+    .where(gt(similarity, threshold))
+    .orderBy(desc(similarity))
     .limit(limit);
 }
