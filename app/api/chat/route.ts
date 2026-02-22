@@ -21,8 +21,7 @@ export async function POST(req: Request) {
     system: `You are a helpful assistant. Check your knowledge base before answering any questions.
 Only respond to questions using information from tool calls.
 if no relevant information is found in the tool calls, respond, "Sorry, I don't know."
-When you mention a specific movie or TV show title, you MUST wrap it in a Markdown link like this: [Movie Name](/?q=Movie+Name) (use plus '+' or '%20' for spaces).
-This allows users to click the title to search for it on the platform.`,
+When you mention a specific movie or TV show title, you MUST wrap it in a Markdown link like this: [Movie Name](/?q=Movie+Name) (use plus '+' or '%20' for spaces).`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {

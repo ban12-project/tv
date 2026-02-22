@@ -11,7 +11,7 @@ interface VideoPlayerProps {
   title?: string;
   dictionary: Messages;
   className?: string;
-  disableAutoSkip?: boolean;
+  autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
 }
 
@@ -20,7 +20,7 @@ export default function VideoPlayer({
   poster,
   autoPlay = false,
   className,
-  disableAutoSkip = false,
+  autoSkip = true,
   hlsResourcePromise,
 }: VideoPlayerProps) {
   // Suspend until hls.js is loaded
@@ -74,7 +74,7 @@ export default function VideoPlayer({
 
     let hls: InstanceType<typeof Hls> | null = null;
     const initHls = () => {
-      const useNative = disableAutoSkip || !Hls.isSupported();
+      const useNative = !autoSkip || !Hls.isSupported();
 
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -174,10 +174,18 @@ export default function VideoPlayer({
     video.addEventListener("seeking", handleSeeking, { passive: true });
     initHls();
 
+    // Add AirPlay-compatible HLS source
+    const videoSource = document.createElement("source");
+    videoSource.type = "application/x-mpegURL";
+    videoSource.src = videoUrl;
+    video.appendChild(videoSource);
+    video.disableRemotePlayback = false;
+    video.autoplay = true;
+
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
     // for significantly reduced CPU usage while maintaining skip accuracy
     const handleTimeUpdate = () => {
-      if (!disableAutoSkip) {
+      if (autoSkip) {
         performSkip();
       }
     };
@@ -189,7 +197,7 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay, handleSeeking, performSkip, disableAutoSkip, Hls]);
+  }, [videoUrl, autoPlay, handleSeeking, performSkip, autoSkip, Hls]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

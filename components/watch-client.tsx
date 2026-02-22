@@ -4,6 +4,7 @@ import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import * as React from "react";
+import { useLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,7 +55,9 @@ export default function WatchClient({
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
     React.useState(initialEpisodeIndex);
-  const [autoSkip, setAutoSkip] = React.useState(true);
+  const [autoSkip, setAutoSkip] = useLocalStorage("auto-skip", true, {
+    initializeWithValue: false,
+  });
   const [hlsLoader] = React.useState(() => {
     let resolve!: (value: typeof import("hls.js").default) => void;
     // Check if resolved on init (client-side only optimization)
@@ -239,7 +242,7 @@ export default function WatchClient({
               title={`${video.title} - ${currentEpisode.name}`}
               autoPlay={true}
               dictionary={dictionary}
-              disableAutoSkip={!autoSkip}
+              autoSkip={autoSkip}
               hlsResourcePromise={hlsLoader.promise}
             />
           </React.Suspense>
