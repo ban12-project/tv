@@ -241,7 +241,6 @@ export default function WatchClient({
               poster={video.backgroundImage || video.image}
               title={`${video.title} - ${currentEpisode.name}`}
               autoPlay={true}
-              dictionary={dictionary}
               autoSkip={autoSkip}
               hlsResourcePromise={hlsLoader.promise}
             />

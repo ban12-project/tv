@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import type { Messages } from "@/get-dictionary";
 import { cn } from "@/lib/utils";
 
 interface VideoPlayerProps {
@@ -9,7 +8,6 @@ interface VideoPlayerProps {
   poster?: string;
   autoPlay?: boolean;
   title?: string;
-  dictionary: Messages;
   className?: string;
   autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
@@ -32,8 +30,15 @@ export default function VideoPlayer({
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
+  const autoSkipRef = React.useRef(autoSkip);
 
-  const performSkip = React.useCallback(() => {
+  // Keep autoSkipRef in sync so toggling autoSkip doesn't tear down HLS
+  autoSkipRef.current = autoSkip;
+
+  // Stable event-handler refs via useEffectEvent (React 19).
+  // These always call the latest closure without appearing in
+  // dependency arrays, so effects never re-subscribe on change.
+  const performSkip = React.useEffectEvent(() => {
     const video = videoRef.current;
     if (!video || isSeekingRef.current) return false;
 
@@ -49,9 +54,9 @@ export default function VideoPlayer({
       }
     }
     return false;
-  }, []);
+  });
 
-  const handleSeeking = React.useCallback(() => {
+  const handleSeeking = React.useEffectEvent(() => {
     // If this seek was triggered by our auto-skip, don't block
     if (isAutoSkippingRef.current) {
       isAutoSkippingRef.current = false;
@@ -66,15 +71,106 @@ export default function VideoPlayer({
       // Check if we seeked into an ad and skip it immediately
       performSkip();
     }, 200);
-  }, [performSkip]);
+  });
 
+  // ── HLS setup ──────────────────────────────────────────────────────
+  // Deps: videoUrl and autoPlay only. Hls is a stable module
+  // constructor, autoSkip is read from a ref, and performSkip /
+  // handleSeeking are useEffectEvent (excluded from deps by design).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Hls is a stable module constructor; autoSkip read via ref; performSkip/handleSeeking are useEffectEvent
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     let hls: InstanceType<typeof Hls> | null = null;
+
+    // Attach HLS.js to the video element and add a fallback <source>
+    // for AirPlay/remote playback compatibility
+    const attachHlsAndAddM3u8FallbackSource = () => {
+      if (!hls) return;
+      // attachMedia will create the first ManagedMediaSource <source> child
+      hls.attachMedia(video);
+
+      // Add the fallback <source> child to allow remote playback of the m3u8 source
+      const airPlaySrc = document.createElement("source");
+      airPlaySrc.type = "application/x-mpegURL";
+      airPlaySrc.src = videoUrl;
+      video.appendChild(airPlaySrc);
+      video.disableRemotePlayback = false;
+    };
+
+    // Set up wireless playback (AirPlay) session management
+    const setupWirelessListeners = () => {
+      if (!hls) return;
+
+      let resumptionInterval: ReturnType<typeof setInterval> | undefined;
+      let currentPlaybackTargetIsWireless =
+        (
+          video as HTMLVideoElement & {
+            webkitCurrentPlaybackTargetIsWireless?: boolean;
+          }
+        ).webkitCurrentPlaybackTargetIsWireless ?? false;
+
+      // Wireless (AirPlay) session: stop HLS.js streaming locally
+      // and periodically sync the playback position for later resumption
+      const stopHlsJsAndMonitorWirelessPlayback = () => {
+        clearInterval(resumptionInterval);
+        resumptionInterval = setInterval(() => {
+          if (hls) {
+            hls.config.startPosition = video.currentTime || -1;
+          }
+        }, 1000);
+        // Stop streaming in web app when controlling remote playback
+        hls?.stopLoad();
+      };
+
+      // Local session: detach then re-attach HLS.js to resume local playback
+      const resumeLocalHlsJsPlayback = () => {
+        clearInterval(resumptionInterval);
+        if (!hls) return;
+        hls.detachMedia();
+        attachHlsAndAddM3u8FallbackSource();
+        hls.startLoad(hls.config.startPosition);
+      };
+
+      // On initial load, check if already in a wireless session
+      // (e.g. page reload during AirPlay)
+      if (currentPlaybackTargetIsWireless) {
+        stopHlsJsAndMonitorWirelessPlayback();
+      } else {
+        attachHlsAndAddM3u8FallbackSource();
+      }
+
+      // Handle remote playback session transitions
+      const targetChanged = () => {
+        const previousState = currentPlaybackTargetIsWireless;
+        currentPlaybackTargetIsWireless =
+          (
+            video as HTMLVideoElement & {
+              webkitCurrentPlaybackTargetIsWireless?: boolean;
+            }
+          ).webkitCurrentPlaybackTargetIsWireless ?? false;
+
+        if (currentPlaybackTargetIsWireless) {
+          stopHlsJsAndMonitorWirelessPlayback();
+        } else if (previousState) {
+          resumeLocalHlsJsPlayback();
+        }
+      };
+
+      const wirelessEventName = "webkitcurrentplaybacktargetiswirelesschanged";
+      video.addEventListener(wirelessEventName, targetChanged);
+
+      return () => {
+        clearInterval(resumptionInterval);
+        video.removeEventListener(wirelessEventName, targetChanged);
+      };
+    };
+
+    let cleanupWirelessListeners: (() => void) | undefined;
+
     const initHls = () => {
-      const useNative = !autoSkip || !Hls.isSupported();
+      const useNative = !autoSkipRef.current || !Hls.isSupported();
 
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -168,24 +264,18 @@ export default function VideoPlayer({
       });
 
       hls.loadSource(videoUrl);
-      hls.attachMedia(video);
+
+      // Set up AirPlay wireless listeners (handles attachMedia + fallback source)
+      cleanupWirelessListeners = setupWirelessListeners();
     };
 
     video.addEventListener("seeking", handleSeeking, { passive: true });
     initHls();
 
-    // Add AirPlay-compatible HLS source
-    const videoSource = document.createElement("source");
-    videoSource.type = "application/x-mpegURL";
-    videoSource.src = videoUrl;
-    video.appendChild(videoSource);
-    video.disableRemotePlayback = false;
-    video.autoplay = true;
-
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
     // for significantly reduced CPU usage while maintaining skip accuracy
     const handleTimeUpdate = () => {
-      if (autoSkip) {
+      if (autoSkipRef.current) {
         performSkip();
       }
     };
@@ -194,11 +284,15 @@ export default function VideoPlayer({
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("seeking", handleSeeking);
+      cleanupWirelessListeners?.();
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay, handleSeeking, performSkip, autoSkip, Hls]);
+  }, [videoUrl, autoPlay]);
 
+  // ── Keyboard shortcuts ─────────────────────────────────────────────
+  // Mount-once: the handler reads videoRef at call time,
+  // so no deps are needed.
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const video = videoRef.current;
@@ -225,22 +319,18 @@ export default function VideoPlayer({
           break;
         case "arrowleft": // Seek backward 5s
           e.preventDefault();
-          handleSeeking();
           video.currentTime = Math.max(0, video.currentTime - 5);
           break;
         case "arrowright": // Seek forward 5s
           e.preventDefault();
-          handleSeeking();
           video.currentTime = Math.min(video.duration, video.currentTime + 5);
           break;
         case "j": // Seek backward 10s
           e.preventDefault();
-          handleSeeking();
           video.currentTime = Math.max(0, video.currentTime - 10);
           break;
         case "l": // Seek forward 10s
           e.preventDefault();
-          handleSeeking();
           video.currentTime = Math.min(video.duration, video.currentTime + 10);
           break;
         case "arrowup": // Volume up
@@ -270,8 +360,9 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleSeeking]);
+  }, []);
 
+  // ── Wake Lock ──────────────────────────────────────────────────────
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
