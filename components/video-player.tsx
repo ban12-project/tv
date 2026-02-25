@@ -7,7 +7,6 @@ interface VideoPlayerProps {
   videoUrl: string;
   poster?: string;
   autoPlay?: boolean;
-  title?: string;
   className?: string;
   autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
@@ -30,10 +29,6 @@ export default function VideoPlayer({
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
-  const autoSkipRef = React.useRef(autoSkip);
-
-  // Keep autoSkipRef in sync so toggling autoSkip doesn't tear down HLS
-  autoSkipRef.current = autoSkip;
 
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
@@ -74,10 +69,10 @@ export default function VideoPlayer({
   });
 
   // ── HLS setup ──────────────────────────────────────────────────────
-  // Deps: videoUrl and autoPlay only. Hls is a stable module
-  // constructor, autoSkip is read from a ref, and performSkip /
-  // handleSeeking are useEffectEvent (excluded from deps by design).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Hls is a stable module constructor; autoSkip read via ref; performSkip/handleSeeking are useEffectEvent
+  // Deps: videoUrl, autoPlay, and autoSkip. Hls is a stable module
+  // constructor, performSkip / handleSeeking are useEffectEvent
+  // (excluded from deps by design).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Hls is a stable module constructor; performSkip/handleSeeking are useEffectEvent
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -170,7 +165,7 @@ export default function VideoPlayer({
     let cleanupWirelessListeners: (() => void) | undefined;
 
     const initHls = () => {
-      const useNative = !autoSkipRef.current || !Hls.isSupported();
+      const useNative = !autoSkip || !Hls.isSupported();
 
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -275,7 +270,7 @@ export default function VideoPlayer({
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
     // for significantly reduced CPU usage while maintaining skip accuracy
     const handleTimeUpdate = () => {
-      if (autoSkipRef.current) {
+      if (autoSkip) {
         performSkip();
       }
     };
@@ -288,7 +283,7 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay]);
+  }, [videoUrl, autoPlay, autoSkip]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
   // Mount-once: the handler reads videoRef at call time,

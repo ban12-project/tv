@@ -239,7 +239,6 @@ export default function WatchClient({
               className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
               videoUrl={currentEpisode.url}
               poster={video.backgroundImage || video.image}
-              title={`${video.title} - ${currentEpisode.name}`}
               autoPlay={true}
               autoSkip={autoSkip}
               hlsResourcePromise={hlsLoader.promise}
