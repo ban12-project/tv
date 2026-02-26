@@ -10,6 +10,7 @@ import { getDoubanTop250 } from "@/lib/actions/douban";
 import { getRecommendations } from "@/lib/actions/recommendations";
 import { auth } from "@/lib/auth";
 import { AllowlistDialog } from "./allowlist-dialog";
+import { AuthButtons } from "./auth-buttons";
 import ColorSchemeToggle from "./color-scheme-toggle-client";
 import { EmojiLogo } from "./emoji-logo";
 
@@ -49,6 +50,7 @@ export default async function Header({ messages }: { messages: Messages }) {
               />
               <ChatToggle />
               <ColorSchemeToggle />
+              <AuthButtons dictionary={messages.auth} />
             </div>
           </div>
         </div>

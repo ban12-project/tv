@@ -41,6 +41,11 @@
       "failed": "System malfunction: {error}",
       "signInFailed": "Gate locked: {error}",
       "passkeyFailed": "Key smith failed: {error}"
+    },
+    "signOut": {
+      "title": "Abort Mission (Sign Out)",
+      "success": "Connection severed. Ghost out.",
+      "failed": "Extraction failed: {error}"
     }
   },
   "protected": {

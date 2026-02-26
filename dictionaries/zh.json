@@ -41,6 +41,11 @@
       "failed": "出乱子了：{error}",
       "signInFailed": "门没敲开：{error}",
       "passkeyFailed": "这锁没挂上：{error}"
+    },
+    "signOut": {
+      "title": "金盆洗手 (登出)",
+      "success": "撤！山高水长，后会有期",
+      "failed": "走不了了：{error}"
     }
   },
   "protected": {
