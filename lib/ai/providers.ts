@@ -7,6 +7,4 @@ const zAI = createOpenAICompatible({
   includeUsage: true,
 });
 
-const embeddingModel = zAI.embeddingModel("embedding-3-pro");
-
-export { zAI, embeddingModel };
+export { zAI };

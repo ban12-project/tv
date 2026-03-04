@@ -1,9 +1,11 @@
 import "server-only";
 import { embed, embedMany } from "ai";
 import { cosineDistance, sql } from "drizzle-orm";
-import { embeddingModel } from "@/lib/ai/providers";
+import { zAI } from "@/lib/ai/providers";
 import { findRelevantContentQuery } from "../db/queries";
 import { embeddings } from "../db/schema/embeddings";
+
+const embeddingModel = zAI.embeddingModel("embedding-3-pro");
 
 export const generateChunks = (input: string): string[] => {
   const trimmed = input.trim();
