@@ -17,6 +17,7 @@ export function HomeSearch({
   initialResults?: Video[];
 }) {
   const searchParams = useSearchParams();
+  const [initialQuery] = React.useState(() => searchParams.get("q") || "");
 
   const {
     query,
@@ -26,10 +27,10 @@ export function HomeSearch({
     onQueryChange,
     onCompositionStart,
     onCompositionEnd,
-  } = useVideoSearch(300, searchParams.get("q") || "", initialResults);
+  } = useVideoSearch(300, initialQuery, initialResults);
 
   React.useEffect(() => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(window.location.search);
     const currentQ = params.get("q") || "";
     if (currentQ === query) return;
 
@@ -39,7 +40,7 @@ export function HomeSearch({
       params.delete("q");
     }
     window.history.replaceState(null, "", `?${params.toString()}`);
-  }, [query, searchParams]);
+  }, [query]);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
 
