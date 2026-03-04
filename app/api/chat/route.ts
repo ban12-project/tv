@@ -24,6 +24,12 @@ if no relevant information is found in the tool calls, respond, "Sorry, I don't 
 When you mention a specific movie or TV show title, you MUST wrap it in a Markdown link like this: [Movie Name](/?q=Movie+Name) (use plus '+' or '%20' for spaces).`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
+    prepareStep: ({ stepNumber }) => {
+      if (stepNumber >= 5) {
+        return { toolChoice: "none" };
+      }
+      return {};
+    },
     tools: {
       addResource: tool({
         description: `add a resource to your knowledge base.
@@ -36,7 +42,9 @@ When you mention a specific movie or TV show title, you MUST wrap it in a Markdo
         execute: async ({ content }) => createResource({ content }),
       }),
       getInformation: tool({
-        description: `get information from your knowledge base to answer questions.`,
+        description: `get information from your knowledge base to answer questions.
+          Rephrase the user's question into a concise search query optimized for semantic search.
+          Focus on key entities and concepts rather than full sentences.`,
         inputSchema: z.object({
           question: z.string().describe("the users question"),
         }),
