@@ -4,7 +4,7 @@ import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import * as React from "react";
-import { useLocalStorage } from "usehooks-ts";
+import { useLocalStorage, useReadLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
 import { findMatchesStream } from "@/lib/actions/content";
+import { saveWatchProgress } from "@/lib/actions/history";
 import type { Episode, Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ interface WatchClientProps {
   dictionary: Messages;
   initialEpisodeIndex: number;
   currentSourceId: string;
+  initialProgress?: number;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -50,6 +52,7 @@ export default function WatchClient({
   dictionary,
   initialEpisodeIndex,
   currentSourceId: initialSourceId,
+  initialProgress = 0,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -78,6 +81,8 @@ export default function WatchClient({
 
     return { promise, handleLoaded };
   });
+
+  const lastSyncTimeRef = React.useRef<number>(0);
 
   const pathname = usePathname();
 
@@ -218,6 +223,63 @@ export default function WatchClient({
     [activeEpisodeIndex],
   );
 
+  // Progress syncing logic lifted from VideoPlayer
+  const handleProgressSync = React.useEffectEvent(
+    (time: number, duration: number, isBeacon = false) => {
+      // 1. LocalStorage Sync
+      const storageKey = `watch-progress-${video.id}-${currentSource.sourceId}-${activeEpisodeIndex}`;
+      if (time > 5 && duration > 0 && duration - time > 5) {
+        window.localStorage.setItem(storageKey, JSON.stringify(time));
+      } else if (duration > 0 && duration - time <= 5) {
+        window.localStorage.removeItem(storageKey);
+      }
+
+      // 2. Network Sync (Beacon vs Fetch)
+      if (isBeacon) {
+        const payload = JSON.stringify({
+          videoId: video.id,
+          sourceId: currentSource.sourceId,
+          epIndex: activeEpisodeIndex,
+          progress: time,
+          duration,
+        });
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/history", payload);
+        } else {
+          fetch("/api/history", {
+            method: "POST",
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } else {
+        // Throttled server action sync
+        const now = Date.now();
+        if (now - lastSyncTimeRef.current > 15000 && time > 5) {
+          lastSyncTimeRef.current = now;
+          saveWatchProgress({
+            videoId: video.id,
+            sourceId: currentSource.sourceId,
+            epIndex: activeEpisodeIndex,
+            progress: time,
+            duration,
+          }).catch(() => {});
+        }
+      }
+    },
+  );
+
+  // Read the immediate local storage progress to reconcile with server progress
+  const currentMediaId = `${video.id}-${currentSource.sourceId}-${activeEpisodeIndex}`;
+  const localProgress = useReadLocalStorage<number>(
+    `watch-progress-${currentMediaId}`,
+  );
+
+  const effectiveInitialProgress = Math.max(
+    initialProgress,
+    typeof localProgress === "number" ? localProgress : 0,
+  );
+
   return (
     <>
       {/* Main Player Area */}
@@ -242,6 +304,8 @@ export default function WatchClient({
               autoPlay={true}
               autoSkip={autoSkip}
               hlsResourcePromise={hlsLoader.promise}
+              initialProgress={effectiveInitialProgress}
+              onProgressSync={handleProgressSync}
             />
           </React.Suspense>
         </>

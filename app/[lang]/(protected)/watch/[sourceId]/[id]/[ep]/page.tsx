@@ -6,6 +6,7 @@ import WatchClient from "@/components/watch-client";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { fetchVideoDetails } from "@/lib/actions/content";
+import { getWatchProgress } from "@/lib/actions/history";
 import {
   checkIsRecommended,
   getRecommendedVideoTitle,
@@ -61,6 +62,11 @@ export default async function WatchPage({ params }: Props) {
     episodes: video.episodes || [],
   });
 
+  // Fetch initial progress from the database
+  const history = await getWatchProgress(id, decodedSourceId);
+  const initialProgress =
+    history?.epIndex === validIndex ? history.progress : 0;
+
   return (
     <main className="space-y-8">
       <WatchClient
@@ -69,6 +75,7 @@ export default async function WatchPage({ params }: Props) {
         dictionary={dictionary}
         initialEpisodeIndex={validIndex}
         currentSourceId={decodedSourceId}
+        initialProgress={initialProgress}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">

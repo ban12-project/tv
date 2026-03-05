@@ -10,6 +10,8 @@ interface VideoPlayerProps {
   className?: string;
   autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
+  initialProgress?: number;
+  onProgressSync?: (time: number, duration: number, isBeacon?: boolean) => void;
 }
 
 export default function VideoPlayer({
@@ -19,6 +21,8 @@ export default function VideoPlayer({
   className,
   autoSkip = true,
   hlsResourcePromise,
+  initialProgress = 0,
+  onProgressSync,
 }: VideoPlayerProps) {
   // Suspend until hls.js is loaded
   const Hls = React.use(hlsResourcePromise);
@@ -29,10 +33,26 @@ export default function VideoPlayer({
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
+  const lastSaveTimeRef = React.useRef<number>(0);
 
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
   // dependency arrays, so effects never re-subscribe on change.
+  const saveProgress = React.useEffectEvent(() => {
+    const video = videoRef.current;
+    if (!video || !onProgressSync) return;
+
+    try {
+      const time = video.currentTime;
+      const duration = video.duration;
+      if (!Number.isNaN(time) && !Number.isNaN(duration)) {
+        onProgressSync(time, duration, false);
+      }
+    } catch (err) {
+      console.warn("[VideoPlayer] Failed to save progress:", err);
+    }
+  });
+
   const performSkip = React.useEffectEvent(() => {
     const video = videoRef.current;
     if (!video || isSeekingRef.current) return false;
@@ -167,16 +187,30 @@ export default function VideoPlayer({
     const initHls = () => {
       const useNative = !autoSkip || !Hls.isSupported();
 
+      const initialTime = initialProgress;
+
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = videoUrl;
+
+          const onLoadedMetadata = () => {
+            if (initialTime > 0) {
+              video.currentTime = initialTime;
+            }
+            if (autoPlay) video.play().catch(() => {});
+          };
+
+          video.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
           video.load();
-          if (autoPlay) video.play().catch(() => {});
         }
         return;
       }
 
-      hls = new Hls();
+      hls = new Hls({
+        startPosition: initialTime,
+      });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
         const fragments = data.details.fragments;
@@ -273,6 +307,12 @@ export default function VideoPlayer({
       if (autoSkip) {
         performSkip();
       }
+
+      const now = Date.now();
+      if (now - lastSaveTimeRef.current > 5000) {
+        lastSaveTimeRef.current = now;
+        saveProgress();
+      }
     };
     video.addEventListener("timeupdate", handleTimeUpdate, { passive: true });
 
@@ -357,7 +397,7 @@ export default function VideoPlayer({
     };
   }, []);
 
-  // ── Wake Lock ──────────────────────────────────────────────────────
+  // ── Wake Lock & Visibility Changes ──────────────────────────────────────────────
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -386,8 +426,25 @@ export default function VideoPlayer({
     };
 
     const handlePlay = () => requestWakeLock();
-    const handlePause = () => releaseWakeLock();
-    const handleEnded = () => releaseWakeLock();
+    const handlePause = () => {
+      releaseWakeLock();
+      saveProgress();
+    };
+    const handleEnded = () => {
+      releaseWakeLock();
+      saveProgress();
+    };
+
+    // sendBeacon for pagehide / visibilitychange
+    const beaconProgress = () => {
+      const video = videoRef.current;
+      if (!video || !onProgressSync) return;
+      const time = video.currentTime;
+      const duration = video.duration;
+      if (!Number.isNaN(time) && !Number.isNaN(duration)) {
+        onProgressSync(time, duration, true);
+      }
+    };
 
     const handleVisibilityChange = async () => {
       if (
@@ -396,22 +453,31 @@ export default function VideoPlayer({
         !video.ended
       ) {
         await requestWakeLock();
+      } else if (document.visibilityState === "hidden") {
+        saveProgress();
+        beaconProgress();
       }
+    };
+
+    const handlePageHide = () => {
+      beaconProgress();
     };
 
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
 
     return () => {
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
       releaseWakeLock();
     };
-  }, []);
+  }, [onProgressSync]);
 
   return (
     <div className={cn("relative rounded-lg overflow-hidden", className)}>

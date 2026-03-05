@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 export const apiSource = pgTable("api_source", {
@@ -42,3 +42,30 @@ export const recommendations = pgTable(
 );
 
 export type SelectRecommendation = typeof recommendations.$inferSelect;
+
+export const watchHistory = pgTable(
+  "watch_history",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    videoId: text("video_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    epIndex: integer("ep_index").notNull(),
+    progress: integer("progress").notNull().default(0), // Progress in seconds
+    duration: integer("duration").notNull().default(0), // Total duration in seconds
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("watch_history_lookup_idx").on(t.userId, t.videoId, t.sourceId),
+  ],
+);
+
+export type SelectWatchHistory = typeof watchHistory.$inferSelect;
