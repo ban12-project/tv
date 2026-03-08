@@ -62,10 +62,8 @@ export default async function WatchPage({ params }: Props) {
     episodes: video.episodes || [],
   });
 
-  // Fetch initial progress from the database
-  const history = await getWatchProgress(id, decodedSourceId);
-  const initialProgress =
-    history?.epIndex === validIndex ? history.progress : 0;
+  // Fetch initial progress from the database (non-blocking)
+  const progressPromise = getWatchProgress(id, decodedSourceId);
 
   return (
     <main className="space-y-8">
@@ -75,7 +73,8 @@ export default async function WatchPage({ params }: Props) {
         dictionary={dictionary}
         initialEpisodeIndex={validIndex}
         currentSourceId={decodedSourceId}
-        initialProgress={initialProgress}
+        progressPromise={progressPromise}
+        initialEpisodeValidIndex={validIndex}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">

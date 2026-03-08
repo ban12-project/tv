@@ -67,6 +67,7 @@
     "director": "幕后主使 (导演)",
     "released": "开张大吉 (上映)",
     "episodes": "回",
+    "progress-restored": "上次刀口舔血到 {time}，接着来！",
     "recommendation": {
       "button": "举荐",
       "title": "举荐片子",

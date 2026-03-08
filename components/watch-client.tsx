@@ -1,9 +1,11 @@
 "use client";
 
+import IntlMessageFormat from "intl-messageformat";
 import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import * as React from "react";
+import { toast } from "sonner";
 import { useLocalStorage, useReadLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,12 @@ import { cn } from "@/lib/utils";
 
 // const HLS_VERSION = dependencies["hls.js"].replace("^", "").replace("~", "");
 
+interface WatchProgress {
+  epIndex: number;
+  progress: number;
+  duration: number;
+}
+
 interface WatchClientProps {
   video: Video;
   sources: {
@@ -37,7 +45,8 @@ interface WatchClientProps {
   dictionary: Messages;
   initialEpisodeIndex: number;
   currentSourceId: string;
-  initialProgress?: number;
+  progressPromise?: Promise<WatchProgress | null>;
+  initialEpisodeValidIndex?: number;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -52,8 +61,29 @@ export default function WatchClient({
   dictionary,
   initialEpisodeIndex,
   currentSourceId: initialSourceId,
-  initialProgress = 0,
+  progressPromise,
+  initialEpisodeValidIndex,
 }: WatchClientProps) {
+  // Resolve the progress promise without blocking render
+  const [initialProgress, setInitialProgress] = React.useState(0);
+  React.useEffect(() => {
+    if (!progressPromise) return;
+    progressPromise.then((history) => {
+      const progress = history?.progress ?? 0;
+      if (history?.epIndex === initialEpisodeValidIndex && progress > 0) {
+        setInitialProgress(progress);
+        const h = Math.floor(progress / 3600);
+        const m = Math.floor((progress % 3600) / 60);
+        const s = Math.floor(progress % 60);
+        const time =
+          h > 0
+            ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+            : `${m}:${String(s).padStart(2, "0")}`;
+        const msg = dictionary.watch["progress-restored"];
+        if (msg) toast.info(new IntlMessageFormat(msg).format({ time }));
+      }
+    });
+  }, [progressPromise, initialEpisodeValidIndex, dictionary.watch]);
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =

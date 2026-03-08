@@ -67,6 +67,7 @@
     "director": "The Architect",
     "released": "Activation Date",
     "episodes": "Logs",
+    "progress-restored": "Last signal intercepted at {time}. Resuming transmission.",
     "recommendation": {
       "button": "Recommend",
       "title": "Recommend this video",
