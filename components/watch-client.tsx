@@ -208,6 +208,9 @@ export default function WatchClient({
   const handleSourceChange = (newSourceId: string) => {
     if (newSourceId === activeSourceId) return;
 
+    // Reset progress when switching sources
+    setInitialProgress(0);
+
     const oldEpisode = currentSource.episodes[activeEpisodeIndex];
     let newEpisodeIndex = 0;
 
@@ -245,6 +248,8 @@ export default function WatchClient({
     (index: number) => {
       if (index === activeEpisodeIndex) return;
 
+      // Reset progress when switching episodes
+      setInitialProgress(0);
       setActiveEpisodeIndex(index);
       // Update URL shallowly - browser back/forward will be handled by the pathname sync effect
       const url = new URL(`./${index + 1}`, window.location.href);
