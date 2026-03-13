@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import Script from "next/script";
 import * as React from "react";
 import { toast } from "sonner";
-import { useLocalStorage, useReadLocalStorage } from "usehooks-ts";
+import { useLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -304,16 +304,16 @@ export default function WatchClient({
     },
   );
 
-  // Read the immediate local storage progress to reconcile with server progress
-  const currentMediaId = `${video.id}-${currentSource.sourceId}-${activeEpisodeIndex}`;
-  const localProgress = useReadLocalStorage<number>(
-    `watch-progress-${currentMediaId}`,
-  );
-
-  const effectiveInitialProgress = Math.max(
-    initialProgress,
-    typeof localProgress === "number" ? localProgress : 0,
-  );
+  // remove all watch-progress-* from local storage
+  // TODO: remove on next release
+  React.useEffect(() => {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.startsWith("watch-progress-")) {
+        localStorage.removeItem(key);
+      }
+    }
+  }, []);
 
   return (
     <>
@@ -339,7 +339,7 @@ export default function WatchClient({
               autoPlay={true}
               autoSkip={autoSkip}
               hlsResourcePromise={hlsLoader.promise}
-              initialProgress={effectiveInitialProgress}
+              initialProgress={initialProgress}
               onProgressSync={handleProgressSync}
             />
           </React.Suspense>
