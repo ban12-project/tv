@@ -177,6 +177,7 @@ export const ReasoningContent = memo(
       )}
       {...props}
     >
+      {/* @ts-expect-error upstream issues */}
       <Streamdown {...props}>{children}</Streamdown>
     </CollapsibleContent>
   ),

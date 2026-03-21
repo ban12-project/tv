@@ -11,7 +11,6 @@ export default function Loading() {
       {/* Episode Selector Skeleton */}
       <ul className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
         {Array.from({ length: 24 }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
           <li key={i}>
             <Skeleton className="w-12 h-12 rounded-lg bg-muted" />
           </li>
@@ -51,7 +50,6 @@ export default function Loading() {
             <div className="flex flex-wrap gap-2">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton
-                  // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
                   key={i}
                   className="h-8 w-24 rounded-full bg-secondary border border-border"
                 />

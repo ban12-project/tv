@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   experimental: {
     viewTransition: true,
   },
+  logging: {
+    browserToTerminal: true,
+  },
 };
 
 export default nextConfig;
