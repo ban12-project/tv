@@ -261,15 +261,7 @@ export default function WatchClient({
   // Progress syncing logic lifted from VideoPlayer
   const handleProgressSync = React.useEffectEvent(
     (time: number, duration: number, isBeacon = false) => {
-      // 1. LocalStorage Sync
-      const storageKey = `watch-progress-${video.id}-${currentSource.sourceId}-${activeEpisodeIndex}`;
-      if (time > 5 && duration > 0 && duration - time > 5) {
-        window.localStorage.setItem(storageKey, JSON.stringify(time));
-      } else if (duration > 0 && duration - time <= 5) {
-        window.localStorage.removeItem(storageKey);
-      }
-
-      // 2. Network Sync (Beacon vs Fetch)
+      // Network Sync (Beacon vs Fetch)
       if (isBeacon) {
         const payload = JSON.stringify({
           videoId: video.id,
