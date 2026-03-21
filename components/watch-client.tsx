@@ -296,17 +296,6 @@ export default function WatchClient({
     },
   );
 
-  // remove all watch-progress-* from local storage
-  // TODO: remove on next release
-  React.useEffect(() => {
-    const keys = Object.keys(localStorage);
-    for (const key of keys) {
-      if (key.startsWith("watch-progress-")) {
-        localStorage.removeItem(key);
-      }
-    }
-  }, []);
-
   return (
     <>
       {/* Main Player Area */}
