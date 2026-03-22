@@ -1,7 +1,10 @@
 "use client";
 
+import IntlMessageFormat from "intl-messageformat";
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import type { Messages } from "@/get-dictionary";
+import { cn, formatTime } from "@/lib/utils";
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -12,6 +15,7 @@ interface VideoPlayerProps {
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
   initialProgress?: number;
   onProgressSync?: (time: number, duration: number, isBeacon?: boolean) => void;
+  dictionary: Messages;
 }
 
 export default function VideoPlayer({
@@ -23,6 +27,7 @@ export default function VideoPlayer({
   hlsResourcePromise,
   initialProgress = 0,
   onProgressSync,
+  dictionary,
 }: VideoPlayerProps) {
   // Suspend until hls.js is loaded
   const Hls = React.use(hlsResourcePromise);
@@ -34,6 +39,7 @@ export default function VideoPlayer({
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
   const lastSaveTimeRef = React.useRef<number>(0);
+  const restoredProgressKeyRef = React.useRef<string | null>(null);
 
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
@@ -324,6 +330,41 @@ export default function VideoPlayer({
       hls?.destroy();
     };
   }, [videoUrl, autoPlay, autoSkip]);
+
+  React.useEffect(() => {
+    const video = videoRef.current;
+    if (initialProgress <= 0) {
+      restoredProgressKeyRef.current = null;
+      return;
+    }
+    if (!video) return;
+    const restoreKey = `${videoUrl}:${initialProgress}`;
+    if (restoredProgressKeyRef.current === restoreKey) return;
+
+    const restorePlaybackPosition = () => {
+      video.currentTime = initialProgress;
+    };
+
+    restoredProgressKeyRef.current = restoreKey;
+    toast.info(
+      new IntlMessageFormat(dictionary.watch["progress-restored"]).format({
+        time: formatTime(initialProgress),
+      }),
+    );
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      restorePlaybackPosition();
+      return;
+    }
+
+    video.addEventListener("loadedmetadata", restorePlaybackPosition, {
+      once: true,
+    });
+
+    return () => {
+      video.removeEventListener("loadedmetadata", restorePlaybackPosition);
+    };
+  }, [videoUrl, initialProgress, dictionary]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
   // Mount-once: the handler reads videoRef at call time,

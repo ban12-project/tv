@@ -59,7 +59,7 @@
   "watch": {
     "source-label": "选择码头",
     "episode-list": "戏骨切磋 (选集)",
-    "sources-list": "换个码头 (切换源码)",
+    "sources-list": "换个码头 (切换源)",
     "no-source": "这地界儿没搜到能放的，再等等？",
     "ad-skip-label": "自动解毒 (自动跳过广告)",
     "ad-skip-description": "如果出现播放器卡顿请尝试关闭广告自动跳过可能会缓解",

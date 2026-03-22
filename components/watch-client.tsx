@@ -1,11 +1,9 @@
 "use client";
 
-import IntlMessageFormat from "intl-messageformat";
 import { Info } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import * as React from "react";
-import { toast } from "sonner";
 import { useLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
@@ -64,30 +62,13 @@ export default function WatchClient({
   progressPromise,
   initialEpisodeValidIndex,
 }: WatchClientProps) {
-  // Resolve the progress promise without blocking render
-  const [initialProgress, setInitialProgress] = React.useState(0);
-  React.useEffect(() => {
-    if (!progressPromise) return;
-    progressPromise.then((history) => {
-      const progress = history?.progress ?? 0;
-      if (history?.epIndex === initialEpisodeValidIndex && progress > 0) {
-        setInitialProgress(progress);
-        const h = Math.floor(progress / 3600);
-        const m = Math.floor((progress % 3600) / 60);
-        const s = Math.floor(progress % 60);
-        const time =
-          h > 0
-            ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-            : `${m}:${String(s).padStart(2, "0")}`;
-        const msg = dictionary.watch["progress-restored"];
-        if (msg) toast.info(new IntlMessageFormat(msg).format({ time }));
-      }
-    });
-  }, [progressPromise, initialEpisodeValidIndex, dictionary.watch]);
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
   const [activeEpisodeIndex, setActiveEpisodeIndex] =
     React.useState(initialEpisodeIndex);
+  const activeSourceIdRef = React.useRef(activeSourceId);
+  const activeEpisodeIndexRef = React.useRef(activeEpisodeIndex);
+  const [initialProgress, setInitialProgress] = React.useState(0);
   const [autoSkip, setAutoSkip] = useLocalStorage("auto-skip", true, {
     initializeWithValue: false,
   });
@@ -116,6 +97,47 @@ export default function WatchClient({
 
   const pathname = usePathname();
 
+  const setActivePlayback = React.useCallback(
+    (sourceId: string, episodeIndex: number) => {
+      activeSourceIdRef.current = sourceId;
+      activeEpisodeIndexRef.current = episodeIndex;
+      setActiveSourceId(sourceId);
+      setActiveEpisodeIndex(episodeIndex);
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!progressPromise) return;
+
+    progressPromise.then((history) => {
+      if (cancelled) return;
+
+      const progress = history?.progress ?? 0;
+      const stillOnInitialPlayback =
+        activeSourceIdRef.current === initialSourceId &&
+        activeEpisodeIndexRef.current === initialEpisodeIndex;
+
+      if (
+        stillOnInitialPlayback &&
+        history?.epIndex === initialEpisodeValidIndex &&
+        progress > 0
+      ) {
+        setInitialProgress(progress);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    progressPromise,
+    initialSourceId,
+    initialEpisodeIndex,
+    initialEpisodeValidIndex,
+  ]);
+
   // Sync state with URL changes (supports pushState and browser back/forward)
   React.useEffect(() => {
     const parts = pathname.split("/");
@@ -124,15 +146,15 @@ export default function WatchClient({
     const sourceId = parts[parts.length - 3];
 
     const epIndex = Number.parseInt(epStr, 10) - 1;
+    const nextEpisodeIndex = Number.isNaN(epIndex)
+      ? activeEpisodeIndexRef.current
+      : epIndex;
+    const nextSourceId = sourceId
+      ? decodeURIComponent(sourceId)
+      : activeSourceIdRef.current;
 
-    if (!Number.isNaN(epIndex)) {
-      setActiveEpisodeIndex(epIndex);
-    }
-
-    if (sourceId) {
-      setActiveSourceId(decodeURIComponent(sourceId));
-    }
-  }, [pathname]); // Only react to pathname changes to avoid circular updates
+    setActivePlayback(nextSourceId, nextEpisodeIndex);
+  }, [pathname, setActivePlayback]); // Only react to pathname changes to avoid circular updates
 
   // Sources state initialized with cached matches if any
   const [sources, setSources] = React.useState(() => {
@@ -153,9 +175,8 @@ export default function WatchClient({
 
   // Sync state with props if the URL changes directly (e.g. browser back button)
   React.useEffect(() => {
-    setActiveSourceId(initialSourceId);
-    setActiveEpisodeIndex(initialEpisodeIndex);
-  }, [initialSourceId, initialEpisodeIndex]);
+    setActivePlayback(initialSourceId, initialEpisodeIndex);
+  }, [initialSourceId, initialEpisodeIndex, setActivePlayback]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally narrow deps - findMatchesStream only uses video.id/title internally
   React.useEffect(() => {
@@ -232,8 +253,7 @@ export default function WatchClient({
     const targetVideoId = newSource?.videoId || video.id;
 
     // Update local state instantly for better UX
-    setActiveSourceId(newSourceId);
-    setActiveEpisodeIndex(newEpisodeIndex);
+    setActivePlayback(newSourceId, newEpisodeIndex);
 
     // Update URL shallowly
     const url = new URL(
@@ -250,12 +270,12 @@ export default function WatchClient({
 
       // Reset progress when switching episodes
       setInitialProgress(0);
-      setActiveEpisodeIndex(index);
+      setActivePlayback(activeSourceIdRef.current, index);
       // Update URL shallowly - browser back/forward will be handled by the pathname sync effect
       const url = new URL(`./${index + 1}`, window.location.href);
       window.history.pushState(null, "", url.toString());
     },
-    [activeEpisodeIndex],
+    [activeEpisodeIndex, setActivePlayback],
   );
 
   // Progress syncing logic lifted from VideoPlayer
@@ -322,6 +342,7 @@ export default function WatchClient({
               hlsResourcePromise={hlsLoader.promise}
               initialProgress={initialProgress}
               onProgressSync={handleProgressSync}
+              dictionary={dictionary}
             />
           </React.Suspense>
         </>
