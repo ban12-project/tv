@@ -18,6 +18,7 @@ import {
   allowList,
   apiSource,
   embeddings,
+  episodeMetadataCache,
   passkey,
   recommendations,
   resources,
@@ -184,4 +185,68 @@ export async function findRelevantContentQuery(
     .where(gt(similarity, threshold))
     .orderBy(desc(similarity))
     .limit(limit);
+}
+
+export async function getEpisodeMetadataCacheQuery(
+  sourceId: string,
+  videoId: string,
+  epIndex: number,
+  metadataKey: string,
+) {
+  return await db
+    .select({
+      metadata: episodeMetadataCache.metadata,
+      resourceUrl: episodeMetadataCache.resourceUrl,
+    })
+    .from(episodeMetadataCache)
+    .where(
+      and(
+        eq(episodeMetadataCache.sourceId, sourceId),
+        eq(episodeMetadataCache.videoId, videoId),
+        eq(episodeMetadataCache.epIndex, epIndex),
+        eq(episodeMetadataCache.metadataKey, metadataKey),
+      ),
+    )
+    .limit(1);
+}
+
+export async function upsertEpisodeMetadataCacheQuery(data: {
+  sourceId: string;
+  videoId: string;
+  epIndex: number;
+  metadataKey: string;
+  resourceUrl?: string | null;
+  metadata: Record<string, unknown>;
+}) {
+  const existing = await db
+    .select({ id: episodeMetadataCache.id })
+    .from(episodeMetadataCache)
+    .where(
+      and(
+        eq(episodeMetadataCache.sourceId, data.sourceId),
+        eq(episodeMetadataCache.videoId, data.videoId),
+        eq(episodeMetadataCache.epIndex, data.epIndex),
+        eq(episodeMetadataCache.metadataKey, data.metadataKey),
+      ),
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return await db
+      .update(episodeMetadataCache)
+      .set({
+        resourceUrl: data.resourceUrl ?? null,
+        metadata: data.metadata,
+      })
+      .where(eq(episodeMetadataCache.id, existing[0].id));
+  }
+
+  return await db.insert(episodeMetadataCache).values({
+    sourceId: data.sourceId,
+    videoId: data.videoId,
+    epIndex: data.epIndex,
+    metadataKey: data.metadataKey,
+    resourceUrl: data.resourceUrl ?? null,
+    metadata: data.metadata,
+  });
 }

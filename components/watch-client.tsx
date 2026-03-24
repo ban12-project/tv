@@ -44,6 +44,7 @@ interface WatchClientProps {
   initialEpisodeIndex: number;
   initialSourceId: string;
   progressPromise?: Promise<WatchProgress | null>;
+  initialAspectRatio?: string | null;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -59,6 +60,7 @@ export default function WatchClient({
   initialEpisodeIndex,
   initialSourceId,
   progressPromise,
+  initialAspectRatio,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -323,11 +325,21 @@ export default function WatchClient({
           />
           <React.Suspense
             fallback={
-              <div className="w-full max-w-7xl mx-auto lg:px-6 aspect-video bg-muted animate-pulse rounded-lg" />
+              <div
+                className={cn(
+                  "w-full max-w-7xl mx-auto lg:px-6 aspect-video bg-muted animate-pulse rounded-lg",
+                )}
+                style={{
+                  aspectRatio: initialAspectRatio ?? undefined,
+                }}
+              />
             }
           >
             <VideoPlayer
               className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
+              style={{
+                aspectRatio: initialAspectRatio ?? undefined,
+              }}
               videoUrl={currentEpisode.url}
               poster={video.backgroundImage || video.image}
               autoPlay={true}

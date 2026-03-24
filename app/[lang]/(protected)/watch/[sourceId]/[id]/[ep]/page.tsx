@@ -5,7 +5,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import WatchClient from "@/components/watch-client";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
-import { fetchVideoDetails } from "@/lib/actions/content";
+import {
+  fetchVideoDetails,
+  getEpisodeAspectRatio,
+} from "@/lib/actions/content";
 import { getWatchProgress } from "@/lib/actions/history";
 import {
   checkIsRecommended,
@@ -64,6 +67,11 @@ export default async function WatchPage({ params }: Props) {
 
   // Fetch initial progress from the database (non-blocking)
   const progressPromise = getWatchProgress(id, decodedSourceId);
+  const initialAspectRatio = await getEpisodeAspectRatio({
+    sources: sourceGroups,
+    sourceId: decodedSourceId,
+    episodeIndex: validIndex,
+  });
 
   return (
     <main className="space-y-8">
@@ -74,6 +82,7 @@ export default async function WatchPage({ params }: Props) {
         initialEpisodeIndex={validIndex}
         initialSourceId={decodedSourceId}
         progressPromise={progressPromise}
+        initialAspectRatio={initialAspectRatio}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">

@@ -1,4 +1,11 @@
-import { index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 export const apiSource = pgTable("api_source", {
@@ -69,3 +76,34 @@ export const watchHistory = pgTable(
 );
 
 export type SelectWatchHistory = typeof watchHistory.$inferSelect;
+
+export const episodeMetadataCache = pgTable(
+  "episode_metadata_cache",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    sourceId: text("source_id").notNull(),
+    videoId: text("video_id").notNull(),
+    epIndex: integer("ep_index").notNull(),
+    metadataKey: text("metadata_key").notNull(),
+    resourceUrl: text("resource_url"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (t) => [
+    index("episode_metadata_lookup_idx").on(
+      t.sourceId,
+      t.videoId,
+      t.epIndex,
+      t.metadataKey,
+    ),
+  ],
+);
+
+export type SelectEpisodeMetadataCache =
+  typeof episodeMetadataCache.$inferSelect;

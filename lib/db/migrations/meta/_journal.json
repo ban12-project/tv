@@ -64,6 +64,13 @@
       "when": 1772679212061,
       "tag": "0008_calm_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774320026677,
+      "tag": "0009_bitter_bloodaxe",
+      "breakpoints": true
     }
   ]
 }

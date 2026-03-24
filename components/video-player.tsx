@@ -6,11 +6,10 @@ import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
 import { cn, formatTime } from "@/lib/utils";
 
-interface VideoPlayerProps {
+interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
   poster?: string;
   autoPlay?: boolean;
-  className?: string;
   autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
   initialProgress?: number;
@@ -22,12 +21,12 @@ export default function VideoPlayer({
   videoUrl,
   poster,
   autoPlay = false,
-  className,
   autoSkip = true,
   hlsResourcePromise,
   initialProgress = 0,
   onProgressSync,
   dictionary,
+  ...props
 }: VideoPlayerProps) {
   // Suspend until hls.js is loaded
   const Hls = React.use(hlsResourcePromise);
@@ -521,10 +520,13 @@ export default function VideoPlayer({
   }, [onProgressSync]);
 
   return (
-    <div className={cn("relative rounded-lg overflow-hidden", className)}>
+    <div
+      {...props}
+      className={cn("relative rounded-lg overflow-hidden", props.className)}
+    >
       <video
         ref={videoRef}
-        className="w-full aspect-video transition-opacity duration-500"
+        className="size-full transition-opacity duration-500"
         poster={poster}
         playsInline
         preload="metadata"
