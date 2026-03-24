@@ -69,7 +69,7 @@ export default function WatchClient({
   const activeSourceIdRef = React.useRef(activeSourceId);
   const activeEpisodeIndexRef = React.useRef(activeEpisodeIndex);
   const [initialProgress, setInitialProgress] = React.useState(0);
-  const [autoSkip, setAutoSkip] = useLocalStorage("auto-skip", true, {
+  const [autoSkip, setAutoSkip] = useLocalStorage("auto-skip", false, {
     initializeWithValue: false,
   });
   const [hlsLoader] = React.useState(() => {
