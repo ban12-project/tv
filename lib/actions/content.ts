@@ -1,6 +1,6 @@
 "use server";
 
-import { cacheLife, cacheTag } from "next/cache";
+import { cacheLife, cacheTag, updateTag } from "next/cache";
 import * as z from "zod";
 import type { Video } from "@/lib/adapters/types";
 import {
@@ -29,11 +29,10 @@ const saveAspectRatioSchema = z.object({
   resourceUrl: z.string().min(1).nullable().optional(),
 });
 
-const aspectRatioCache = new Map<string, string | null>();
 const PLAYER_LAYOUT_METADATA_KEY = "player-layout";
 
-function getAspectRatioCacheKey(sourceId: string, videoId: string) {
-  return `${sourceId}:${videoId}`;
+function getEpisodeAspectRatioTag(sourceId: string, videoId: string) {
+  return `episode-aspect-ratio:${sourceId}:${videoId}`;
 }
 
 export async function fetchVideoDetails(id: string, sourceId: string) {
@@ -100,6 +99,9 @@ export async function getEpisodeAspectRatio(payload: {
   sourceId: string;
   videoId: string;
 }) {
+  "use cache";
+  cacheLife("days");
+
   const validatedFields = aspectRatioSchema.safeParse(payload);
 
   if (!validatedFields.success) {
@@ -107,11 +109,7 @@ export async function getEpisodeAspectRatio(payload: {
   }
 
   const { sourceId, videoId } = validatedFields.data;
-  const cacheKey = getAspectRatioCacheKey(sourceId, videoId);
-
-  if (aspectRatioCache.has(cacheKey)) {
-    return aspectRatioCache.get(cacheKey) ?? null;
-  }
+  cacheTag(getEpisodeAspectRatioTag(sourceId, videoId));
 
   try {
     const cachedMetadata = await getEpisodeMetadataCacheQuery(
@@ -124,7 +122,6 @@ export async function getEpisodeAspectRatio(payload: {
       | undefined;
 
     if (cachedAspectRatio) {
-      aspectRatioCache.set(cacheKey, cachedAspectRatio);
       return cachedAspectRatio;
     }
   } catch (error) {
@@ -151,8 +148,6 @@ export async function saveVideoAspectRatio(payload: {
   const { sourceId, videoId, width, height, resourceUrl } =
     validatedFields.data;
   const aspectRatio = `${width} / ${height}`;
-  const cacheKey = getAspectRatioCacheKey(sourceId, videoId);
-  aspectRatioCache.set(cacheKey, aspectRatio);
 
   try {
     await upsertEpisodeMetadataCacheQuery({
@@ -166,6 +161,7 @@ export async function saveVideoAspectRatio(payload: {
         height,
       },
     });
+    updateTag(getEpisodeAspectRatioTag(sourceId, videoId));
 
     return { success: true, aspectRatio };
   } catch (error) {
