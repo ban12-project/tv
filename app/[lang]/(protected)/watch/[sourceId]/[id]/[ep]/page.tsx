@@ -72,9 +72,8 @@ export default async function WatchPage({ params }: Props) {
         sources={sourceGroups}
         dictionary={dictionary}
         initialEpisodeIndex={validIndex}
-        currentSourceId={decodedSourceId}
+        initialSourceId={decodedSourceId}
         progressPromise={progressPromise}
-        initialEpisodeValidIndex={validIndex}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">

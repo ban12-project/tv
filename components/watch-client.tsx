@@ -42,9 +42,8 @@ interface WatchClientProps {
   }[];
   dictionary: Messages;
   initialEpisodeIndex: number;
-  currentSourceId: string;
+  initialSourceId: string;
   progressPromise?: Promise<WatchProgress | null>;
-  initialEpisodeValidIndex?: number;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -58,9 +57,8 @@ export default function WatchClient({
   sources: initialSources,
   dictionary,
   initialEpisodeIndex,
-  currentSourceId: initialSourceId,
+  initialSourceId,
   progressPromise,
-  initialEpisodeValidIndex,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -121,7 +119,7 @@ export default function WatchClient({
 
       if (
         stillOnInitialPlayback &&
-        history?.epIndex === initialEpisodeValidIndex &&
+        history?.epIndex === initialEpisodeIndex &&
         progress > 0
       ) {
         setInitialProgress(progress);
@@ -131,12 +129,7 @@ export default function WatchClient({
     return () => {
       cancelled = true;
     };
-  }, [
-    progressPromise,
-    initialSourceId,
-    initialEpisodeIndex,
-    initialEpisodeValidIndex,
-  ]);
+  }, [progressPromise, initialSourceId, initialEpisodeIndex]);
 
   // Sync state with URL changes (supports pushState and browser back/forward)
   React.useEffect(() => {
