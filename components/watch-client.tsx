@@ -372,14 +372,14 @@ export default function WatchClient({
           />
           <React.Suspense
             fallback={
-              <div
-                className={cn(
-                  "w-full max-w-7xl mx-auto lg:px-6 aspect-video bg-muted animate-pulse rounded-lg",
-                )}
-                style={{
-                  aspectRatio: aspectRatio ?? undefined,
-                }}
-              />
+              <div className={cn("w-full max-w-7xl mx-auto lg:px-6")}>
+                <div
+                  className="aspect-video bg-muted animate-pulse rounded-lg"
+                  style={{
+                    aspectRatio: aspectRatio ?? undefined,
+                  }}
+                />
+              </div>
             }
           >
             <div className="w-full max-w-7xl mx-auto lg:px-6">

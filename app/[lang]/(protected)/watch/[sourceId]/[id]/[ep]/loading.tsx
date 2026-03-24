@@ -4,8 +4,8 @@ export default function Loading() {
   return (
     <main className="space-y-8">
       {/* Main Player Area Skeleton */}
-      <div className="w-full max-w-7xl mx-auto lg:px-8 aspect-video">
-        <div className="w-full h-full bg-secondary animate-pulse"></div>
+      <div className="w-full max-w-7xl mx-auto lg:px-6">
+        <div className="aspect-video bg-secondary animate-pulse rounded-lg"></div>
       </div>
 
       {/* Episode Selector Skeleton */}
