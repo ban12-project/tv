@@ -32,7 +32,13 @@ export default async function WatchPage({ params }: Props) {
   // Clean sourceId if needed (decoder?) - usually Next.js handles decoding
   const decodedSourceId = decodeURIComponent(sourceId);
 
-  const video = await fetchVideoDetails(id, decodedSourceId);
+  const [video, initialAspectRatio] = await Promise.all([
+    fetchVideoDetails(id, decodedSourceId),
+    getEpisodeAspectRatio({
+      sourceId: decodedSourceId,
+      videoId: id,
+    }),
+  ]);
 
   if (!video) {
     const title = await getRecommendedVideoTitle(decodedSourceId, id);
@@ -67,11 +73,6 @@ export default async function WatchPage({ params }: Props) {
 
   // Fetch initial progress from the database (non-blocking)
   const progressPromise = getWatchProgress(id, decodedSourceId);
-  const initialAspectRatio = await getEpisodeAspectRatio({
-    sources: sourceGroups,
-    sourceId: decodedSourceId,
-    episodeIndex: validIndex,
-  });
 
   return (
     <main className="space-y-8">

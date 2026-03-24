@@ -2,7 +2,7 @@
 
 import { cacheLife, cacheTag } from "next/cache";
 import * as z from "zod";
-import type { Episode, Video } from "@/lib/adapters/types";
+import type { Video } from "@/lib/adapters/types";
 import {
   getEpisodeMetadataCacheQuery,
   upsertEpisodeMetadataCacheQuery,
@@ -16,75 +16,24 @@ const searchSchema = z.object({
     .max(100, "Search query is too long"),
 });
 
-const episodeSchema = z.object({
-  name: z.string(),
-  url: z.string().min(1),
-});
-
-const sourceGroupSchema = z.object({
-  name: z.string(),
+const aspectRatioSchema = z.object({
   sourceId: z.string().min(1),
   videoId: z.string().min(1),
-  episodes: z.array(episodeSchema),
 });
 
-const aspectRatioSchema = z.object({
-  sources: z.array(sourceGroupSchema),
+const saveAspectRatioSchema = z.object({
   sourceId: z.string().min(1),
-  episodeIndex: z.number().int().min(0),
+  videoId: z.string().min(1),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  resourceUrl: z.string().min(1).nullable().optional(),
 });
 
 const aspectRatioCache = new Map<string, string | null>();
 const PLAYER_LAYOUT_METADATA_KEY = "player-layout";
 
-function getEpisodeUrl(
-  sources: {
-    name: string;
-    sourceId: string;
-    videoId: string;
-    episodes: Episode[];
-  }[],
-  sourceId: string,
-  episodeIndex: number,
-) {
-  const source = sources.find((item) => item.sourceId === sourceId);
-  return source?.episodes[episodeIndex]?.url ?? null;
-}
-
-function getEpisodeSource(
-  sources: {
-    name: string;
-    sourceId: string;
-    videoId: string;
-    episodes: Episode[];
-  }[],
-  sourceId: string,
-) {
-  return sources.find((item) => item.sourceId === sourceId) ?? null;
-}
-
-function extractAspectRatioFromManifest(manifest: string) {
-  const match = manifest.match(
-    /#EXT-X-STREAM-INF:[^\n]*\bRESOLUTION=(\d+)x(\d+)/i,
-  );
-
-  if (!match) {
-    return null;
-  }
-
-  const width = Number.parseInt(match[1], 10);
-  const height = Number.parseInt(match[2], 10);
-
-  if (
-    Number.isNaN(width) ||
-    Number.isNaN(height) ||
-    width <= 0 ||
-    height <= 0
-  ) {
-    return null;
-  }
-
-  return `${width} / ${height}`;
+function getAspectRatioCacheKey(sourceId: string, videoId: string) {
+  return `${sourceId}:${videoId}`;
 }
 
 export async function fetchVideoDetails(id: string, sourceId: string) {
@@ -148,14 +97,8 @@ export async function findMatchesStream(video: Video) {
 }
 
 export async function getEpisodeAspectRatio(payload: {
-  sources: {
-    name: string;
-    sourceId: string;
-    videoId: string;
-    episodes: Episode[];
-  }[];
   sourceId: string;
-  episodeIndex: number;
+  videoId: string;
 }) {
   const validatedFields = aspectRatioSchema.safeParse(payload);
 
@@ -163,23 +106,17 @@ export async function getEpisodeAspectRatio(payload: {
     return null;
   }
 
-  const { sources, sourceId, episodeIndex } = validatedFields.data;
-  const source = getEpisodeSource(sources, sourceId);
-  const episodeUrl = getEpisodeUrl(sources, sourceId, episodeIndex);
+  const { sourceId, videoId } = validatedFields.data;
+  const cacheKey = getAspectRatioCacheKey(sourceId, videoId);
 
-  if (!source || !episodeUrl) {
-    return null;
-  }
-
-  if (aspectRatioCache.has(episodeUrl)) {
-    return aspectRatioCache.get(episodeUrl) ?? null;
+  if (aspectRatioCache.has(cacheKey)) {
+    return aspectRatioCache.get(cacheKey) ?? null;
   }
 
   try {
     const cachedMetadata = await getEpisodeMetadataCacheQuery(
       sourceId,
-      source.videoId,
-      episodeIndex,
+      videoId,
       PLAYER_LAYOUT_METADATA_KEY,
     );
     const cachedAspectRatio = cachedMetadata[0]?.metadata?.aspectRatio as
@@ -187,51 +124,52 @@ export async function getEpisodeAspectRatio(payload: {
       | undefined;
 
     if (cachedAspectRatio) {
-      aspectRatioCache.set(episodeUrl, cachedAspectRatio);
+      aspectRatioCache.set(cacheKey, cachedAspectRatio);
       return cachedAspectRatio;
     }
   } catch (error) {
     console.error("[getEpisodeAspectRatio] DB read error:", error);
+    return null;
   }
 
+  return null;
+}
+
+export async function saveVideoAspectRatio(payload: {
+  sourceId: string;
+  videoId: string;
+  width: number;
+  height: number;
+  resourceUrl?: string | null;
+}) {
+  const validatedFields = saveAspectRatioSchema.safeParse(payload);
+
+  if (!validatedFields.success) {
+    return { success: false, error: "Invalid payload" };
+  }
+
+  const { sourceId, videoId, width, height, resourceUrl } =
+    validatedFields.data;
+  const aspectRatio = `${width} / ${height}`;
+  const cacheKey = getAspectRatioCacheKey(sourceId, videoId);
+  aspectRatioCache.set(cacheKey, aspectRatio);
+
   try {
-    const response = await fetch(episodeUrl, {
-      method: "GET",
-      headers: {
-        Accept:
-          "application/vnd.apple.mpegurl, application/x-mpegURL, text/plain;q=0.9, */*;q=0.1",
+    await upsertEpisodeMetadataCacheQuery({
+      sourceId,
+      videoId,
+      metadataKey: PLAYER_LAYOUT_METADATA_KEY,
+      resourceUrl: resourceUrl ?? null,
+      metadata: {
+        aspectRatio,
+        width,
+        height,
       },
-      cache: "force-cache",
     });
 
-    if (!response.ok) {
-      aspectRatioCache.set(episodeUrl, null);
-      return null;
-    }
-
-    const manifest = await response.text();
-    const aspectRatio = extractAspectRatioFromManifest(manifest);
-    aspectRatioCache.set(episodeUrl, aspectRatio);
-
-    if (aspectRatio) {
-      void upsertEpisodeMetadataCacheQuery({
-        sourceId,
-        videoId: source.videoId,
-        epIndex: episodeIndex,
-        metadataKey: PLAYER_LAYOUT_METADATA_KEY,
-        resourceUrl: episodeUrl,
-        metadata: {
-          aspectRatio,
-        },
-      }).catch((error) => {
-        console.error("[getEpisodeAspectRatio] DB write error:", error);
-      });
-    }
-
-    return aspectRatio;
+    return { success: true, aspectRatio };
   } catch (error) {
-    console.error("[getEpisodeAspectRatio] Error:", error);
-    aspectRatioCache.set(episodeUrl, null);
-    return null;
+    console.error("[saveVideoAspectRatio] Error:", error);
+    return { success: false, error: "Failed to save aspect ratio" };
   }
 }

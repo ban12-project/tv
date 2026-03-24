@@ -14,6 +14,7 @@ interface VideoPlayerProps extends React.ComponentProps<"div"> {
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
   initialProgress?: number;
   onProgressSync?: (time: number, duration: number, isBeacon?: boolean) => void;
+  onVideoMetadata?: (metadata: { width: number; height: number }) => void;
   dictionary: Messages;
 }
 
@@ -25,6 +26,7 @@ export default function VideoPlayer({
   hlsResourcePromise,
   initialProgress = 0,
   onProgressSync,
+  onVideoMetadata,
   dictionary,
   ...props
 }: VideoPlayerProps) {
@@ -91,6 +93,17 @@ export default function VideoPlayer({
       // Check if we seeked into an ad and skip it immediately
       performSkip();
     }, 200);
+  });
+
+  const reportVideoMetadata = React.useEffectEvent(() => {
+    const video = videoRef.current;
+    if (!video || !onVideoMetadata) return;
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (width > 0 && height > 0) {
+      onVideoMetadata({ width, height });
+    }
   });
 
   // ── HLS setup ──────────────────────────────────────────────────────
@@ -304,6 +317,7 @@ export default function VideoPlayer({
     };
 
     video.addEventListener("seeking", handleSeeking, { passive: true });
+    video.addEventListener("loadedmetadata", reportVideoMetadata);
     initHls();
 
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
@@ -324,6 +338,7 @@ export default function VideoPlayer({
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("loadedmetadata", reportVideoMetadata);
       cleanupWirelessListeners?.();
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       hls?.destroy();

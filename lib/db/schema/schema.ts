@@ -85,7 +85,6 @@ export const episodeMetadataCache = pgTable(
       .$defaultFn(() => crypto.randomUUID()),
     sourceId: text("source_id").notNull(),
     videoId: text("video_id").notNull(),
-    epIndex: integer("ep_index").notNull(),
     metadataKey: text("metadata_key").notNull(),
     resourceUrl: text("resource_url"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
@@ -99,7 +98,6 @@ export const episodeMetadataCache = pgTable(
     index("episode_metadata_lookup_idx").on(
       t.sourceId,
       t.videoId,
-      t.epIndex,
       t.metadataKey,
     ),
   ],

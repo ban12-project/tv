@@ -190,7 +190,6 @@ export async function findRelevantContentQuery(
 export async function getEpisodeMetadataCacheQuery(
   sourceId: string,
   videoId: string,
-  epIndex: number,
   metadataKey: string,
 ) {
   return await db
@@ -203,7 +202,6 @@ export async function getEpisodeMetadataCacheQuery(
       and(
         eq(episodeMetadataCache.sourceId, sourceId),
         eq(episodeMetadataCache.videoId, videoId),
-        eq(episodeMetadataCache.epIndex, epIndex),
         eq(episodeMetadataCache.metadataKey, metadataKey),
       ),
     )
@@ -213,7 +211,6 @@ export async function getEpisodeMetadataCacheQuery(
 export async function upsertEpisodeMetadataCacheQuery(data: {
   sourceId: string;
   videoId: string;
-  epIndex: number;
   metadataKey: string;
   resourceUrl?: string | null;
   metadata: Record<string, unknown>;
@@ -225,7 +222,6 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
       and(
         eq(episodeMetadataCache.sourceId, data.sourceId),
         eq(episodeMetadataCache.videoId, data.videoId),
-        eq(episodeMetadataCache.epIndex, data.epIndex),
         eq(episodeMetadataCache.metadataKey, data.metadataKey),
       ),
     )
@@ -244,7 +240,6 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
   return await db.insert(episodeMetadataCache).values({
     sourceId: data.sourceId,
     videoId: data.videoId,
-    epIndex: data.epIndex,
     metadataKey: data.metadataKey,
     resourceUrl: data.resourceUrl ?? null,
     metadata: data.metadata,

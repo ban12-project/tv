@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
-import { findMatchesStream } from "@/lib/actions/content";
+import { findMatchesStream, saveVideoAspectRatio } from "@/lib/actions/content";
 import { saveWatchProgress } from "@/lib/actions/history";
 import type { Episode, Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
@@ -94,6 +94,8 @@ export default function WatchClient({
   });
 
   const lastSyncTimeRef = React.useRef<number>(0);
+  const knownAspectRatioKeysRef = React.useRef(new Set<string>());
+  const aspectRatioCacheRef = React.useRef(new Map<string, string>());
 
   const pathname = usePathname();
 
@@ -132,6 +134,15 @@ export default function WatchClient({
       cancelled = true;
     };
   }, [progressPromise, initialSourceId, initialEpisodeIndex]);
+
+  React.useEffect(() => {
+    const initialKey = `${initialSourceId}:${video.id}`;
+
+    if (initialAspectRatio) {
+      knownAspectRatioKeysRef.current.add(initialKey);
+      aspectRatioCacheRef.current.set(initialKey, initialAspectRatio);
+    }
+  }, [initialAspectRatio, initialSourceId, video.id]);
 
   // Sync state with URL changes (supports pushState and browser back/forward)
   React.useEffect(() => {
@@ -219,6 +230,12 @@ export default function WatchClient({
     sources.find((s) => s.sourceId === activeSourceId) || sources[0];
   const currentEpisode = currentSource.episodes[activeEpisodeIndex];
   const showEpisodeList = currentSource.episodes.length > 1;
+  const currentAspectRatioKey = `${currentSource.sourceId}:${currentSource.videoId}`;
+  const aspectRatio =
+    aspectRatioCacheRef.current.get(currentAspectRatioKey) ??
+    (currentAspectRatioKey === `${initialSourceId}:${video.id}`
+      ? (initialAspectRatio ?? null)
+      : null);
 
   // Logic to handle source change (tabs click)
   const handleSourceChange = (newSourceId: string) => {
@@ -271,6 +288,36 @@ export default function WatchClient({
       window.history.pushState(null, "", url.toString());
     },
     [activeEpisodeIndex, setActivePlayback],
+  );
+
+  const handleVideoMetadata = React.useEffectEvent(
+    ({ width, height }: { width: number; height: number }) => {
+      if (width <= 0 || height <= 0) return;
+
+      const nextAspectRatio = `${width} / ${height}`;
+      aspectRatioCacheRef.current.set(currentAspectRatioKey, nextAspectRatio);
+
+      if (knownAspectRatioKeysRef.current.has(currentAspectRatioKey)) {
+        return;
+      }
+
+      knownAspectRatioKeysRef.current.add(currentAspectRatioKey);
+      void saveVideoAspectRatio({
+        sourceId: currentSource.sourceId,
+        videoId: currentSource.videoId,
+        width,
+        height,
+        resourceUrl: currentEpisode?.url ?? null,
+      })
+        .then((result) => {
+          if (!result.success) {
+            knownAspectRatioKeysRef.current.delete(currentAspectRatioKey);
+          }
+        })
+        .catch(() => {
+          knownAspectRatioKeysRef.current.delete(currentAspectRatioKey);
+        });
+    },
   );
 
   // Progress syncing logic lifted from VideoPlayer
@@ -330,25 +377,28 @@ export default function WatchClient({
                   "w-full max-w-7xl mx-auto lg:px-6 aspect-video bg-muted animate-pulse rounded-lg",
                 )}
                 style={{
-                  aspectRatio: initialAspectRatio ?? undefined,
+                  aspectRatio: aspectRatio ?? undefined,
                 }}
               />
             }
           >
-            <VideoPlayer
-              className="w-full max-w-7xl mx-auto lg:px-6 aspect-video"
-              style={{
-                aspectRatio: initialAspectRatio ?? undefined,
-              }}
-              videoUrl={currentEpisode.url}
-              poster={video.backgroundImage || video.image}
-              autoPlay={true}
-              autoSkip={autoSkip}
-              hlsResourcePromise={hlsLoader.promise}
-              initialProgress={initialProgress}
-              onProgressSync={handleProgressSync}
-              dictionary={dictionary}
-            />
+            <div className="w-full max-w-7xl mx-auto lg:px-6">
+              <VideoPlayer
+                className="aspect-video"
+                style={{
+                  aspectRatio: aspectRatio ?? undefined,
+                }}
+                videoUrl={currentEpisode.url}
+                poster={video.backgroundImage || video.image}
+                autoPlay={true}
+                autoSkip={autoSkip}
+                hlsResourcePromise={hlsLoader.promise}
+                initialProgress={initialProgress}
+                onProgressSync={handleProgressSync}
+                onVideoMetadata={handleVideoMetadata}
+                dictionary={dictionary}
+              />
+            </div>
           </React.Suspense>
         </>
       ) : (
