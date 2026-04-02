@@ -14,7 +14,12 @@
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
-      "computedHash": "3462ec83f862abb2d532953df33a4dbf87f4616849da5d4b5cc7c13601aaf997"
+      "computedHash": "b1142c5e1bc7b77e8479db09dbabf671f44e1f2d4d9d3eed8cc20cc2c90aeb20"
+    },
+    "vercel-react-view-transitions": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "06f04d417f7d19469cac2c18eb35a162f4bb1abbcbe7110f6466e0858c369d66"
     },
     "web-design-guidelines": {
       "source": "vercel-labs/agent-skills",
