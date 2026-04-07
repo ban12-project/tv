@@ -7,4 +7,11 @@ const zAI = createOpenAICompatible({
   includeUsage: true,
 });
 
-export { zAI };
+const openai = createOpenAICompatible({
+  name: "openai",
+  baseURL: "https://router.ban12.com/v1",
+  apiKey: process.env.BAN12_API_KEY,
+  includeUsage: true,
+});
+
+export { openai, zAI };

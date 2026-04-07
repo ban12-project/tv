@@ -8,7 +8,7 @@ import {
 import * as z from "zod";
 import { createResource } from "@/lib/actions/resources";
 import { findRelevantContent } from "@/lib/ai/embedding";
-import { zAI } from "@/lib/ai/providers";
+import { openai } from "@/lib/ai/providers";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -17,7 +17,12 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
-    model: zAI("glm-4.7"),
+    model: openai("gpt-5.4-mini"),
+    providerOptions: {
+      openai: {
+        stream: true,
+      },
+    },
     system: `You are a helpful assistant. Check your knowledge base before answering any questions.
 Only respond to questions using information from tool calls.
 if no relevant information is found in the tool calls, respond, "Sorry, I don't know."
