@@ -1,4 +1,5 @@
 import { index, pgTable, text, varchar, vector } from "drizzle-orm/pg-core";
+import { EMBEDDING_DIMENSIONS } from "@/lib/ai/embedding-config";
 import { nanoid } from "@/lib/utils";
 import { resources } from "./resources";
 
@@ -13,7 +14,9 @@ export const embeddings = pgTable(
       { onDelete: "cascade" },
     ),
     content: text("content").notNull(),
-    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    embedding: vector("embedding", {
+      dimensions: EMBEDDING_DIMENSIONS,
+    }).notNull(),
   },
   (table) => [
     index("embeddingIndex").using(

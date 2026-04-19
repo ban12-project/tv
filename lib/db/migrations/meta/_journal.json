@@ -78,6 +78,13 @@
       "when": 1774325603259,
       "tag": "0010_quiet_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776579636000,
+      "tag": "0011_qwen_embedding_dimensions",
+      "breakpoints": true
     }
   ]
 }
