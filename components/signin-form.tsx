@@ -48,10 +48,7 @@ export function SignInForm({
   };
 
   React.useEffect(() => {
-    if (
-      !PublicKeyCredential.isConditionalMediationAvailable ||
-      !PublicKeyCredential.isConditionalMediationAvailable()
-    ) {
+    if (!PublicKeyCredential.isConditionalMediationAvailable?.()) {
       return;
     }
     void authClient.signIn.passkey({ autoFill: true });
