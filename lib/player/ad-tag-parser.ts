@@ -70,7 +70,7 @@ function parseTagAttributes(value: string): Record<string, string> {
 
     const key = attribute.slice(0, separatorIndex).trim();
     const rawValue = attribute.slice(separatorIndex + 1).trim();
-    if (!key || !rawValue) continue;
+    if (!key || rawValue === undefined) continue;
 
     const quoteChar = rawValue[0];
     const isQuoted =
