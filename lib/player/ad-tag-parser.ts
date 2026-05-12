@@ -121,7 +121,7 @@ function mergeSkipRanges(ranges: SkipRange[]): SkipRange[] {
 
   const merged: SkipRange[] = [];
   for (const range of normalized) {
-    const last = merged.at(-1);
+    const last = merged[merged.length - 1];
     if (!last) {
       merged.push(range);
       continue;
@@ -210,7 +210,8 @@ function parsePlaylistText(
 
   let currentTime = options.timelineStart ?? 0;
   let pendingSegmentDuration: number | null = null;
-  let currentProgramDateTimeMs: number | null = null;
+  let programDateTimeAnchorMs: number | null = null;
+  let programDateTimeAnchorTimeline: number | null = null;
   let activeCueOutStart: number | null = null;
   let activeCueOutDuration = Number.NaN;
   const ranges: SkipRange[] = [];
@@ -235,12 +236,20 @@ function parsePlaylistText(
   };
 
   const mapProgramDateTimeToTimeline = (rawDate: string | undefined) => {
-    if (!rawDate || currentProgramDateTimeMs === null) return null;
+    if (
+      !rawDate ||
+      programDateTimeAnchorMs === null ||
+      programDateTimeAnchorTimeline === null
+    ) {
+      return null;
+    }
 
     const dateMs = Date.parse(rawDate);
     if (!Number.isFinite(dateMs)) return null;
 
-    return currentTime + (dateMs - currentProgramDateTimeMs) / 1000;
+    return (
+      programDateTimeAnchorTimeline + (dateMs - programDateTimeAnchorMs) / 1000
+    );
   };
 
   for (const line of lines) {
@@ -260,7 +269,19 @@ function parsePlaylistText(
       if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME")) {
         const raw = line.replace(/^#EXT-X-PROGRAM-DATE-TIME:/, "");
         const dateMs = Date.parse(raw);
-        currentProgramDateTimeMs = Number.isFinite(dateMs) ? dateMs : null;
+        if (Number.isFinite(dateMs)) {
+          programDateTimeAnchorMs = dateMs;
+          programDateTimeAnchorTimeline = currentTime;
+        } else {
+          programDateTimeAnchorMs = null;
+          programDateTimeAnchorTimeline = null;
+        }
+        continue;
+      }
+
+      if (line.startsWith("#EXT-X-DISCONTINUITY")) {
+        programDateTimeAnchorMs = null;
+        programDateTimeAnchorTimeline = null;
         continue;
       }
 
@@ -345,9 +366,6 @@ function parsePlaylistText(
 
     if (pendingSegmentDuration !== null) {
       currentTime += pendingSegmentDuration;
-      if (currentProgramDateTimeMs !== null) {
-        currentProgramDateTimeMs += pendingSegmentDuration * 1000;
-      }
       pendingSegmentDuration = null;
     }
   }
@@ -422,12 +440,13 @@ export async function parseAdSkipRangesFromManifest(
     if (variantUrls.length > 0 && depth > 0) {
       let lastError: unknown;
       let parsedVariant = false;
+      const variantRanges: SkipRange[] = [];
 
       for (const variantUrl of variantUrls) {
         try {
           const ranges = await parseWithDepth(variantUrl, depth - 1);
           parsedVariant = true;
-          if (ranges.length > 0) return ranges;
+          variantRanges.push(...ranges);
         } catch (err) {
           lastError = err;
         }
@@ -437,7 +456,7 @@ export async function parseAdSkipRangesFromManifest(
         throw lastError;
       }
 
-      return [];
+      return mergeSkipRanges(variantRanges);
     }
 
     return parsePlaylistText(text, {
