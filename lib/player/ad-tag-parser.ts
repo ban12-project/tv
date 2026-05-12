@@ -441,14 +441,16 @@ export async function parseAdSkipRangesFromManifest(
       let lastError: unknown;
       let parsedVariant = false;
       const variantRanges: SkipRange[] = [];
+      const variantResults = await Promise.allSettled(
+        variantUrls.map((variantUrl) => parseWithDepth(variantUrl, depth - 1)),
+      );
 
-      for (const variantUrl of variantUrls) {
-        try {
-          const ranges = await parseWithDepth(variantUrl, depth - 1);
+      for (const result of variantResults) {
+        if (result.status === "fulfilled") {
           parsedVariant = true;
-          variantRanges.push(...ranges);
-        } catch (err) {
-          lastError = err;
+          variantRanges.push(...result.value);
+        } else {
+          lastError = result.reason;
         }
       }
 
