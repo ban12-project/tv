@@ -9,6 +9,11 @@ const MANIFEST_TAG_PREFIX = "#";
 
 interface ParseManifestOptions {
   signal?: AbortSignal;
+  timelineStart?: number;
+}
+
+interface ParsePlaylistTextOptions {
+  timelineStart?: number;
 }
 
 function toFiniteNumber(raw: string | undefined): number | null {
@@ -104,11 +109,14 @@ function parseCueDurationFromLine(line: string, prefix: string): number | null {
   return null;
 }
 
-function parsePlaylistText(text: string): SkipRange[] {
+function parsePlaylistText(
+  text: string,
+  options: ParsePlaylistTextOptions = {},
+): SkipRange[] {
   const lines = text.split(MANIFEST_LINE_BREAK).map((line) => line.trim());
   if (lines.length === 0) return [];
 
-  let currentTime = 0;
+  let currentTime = options.timelineStart ?? 0;
   let pendingSegmentDuration: number | null = null;
   let activeCueOutStart: number | null = null;
   let activeCueOutDuration = Number.NaN;
@@ -289,10 +297,19 @@ export async function parseAdSkipRangesFromManifest(
       }
     }
 
-    return parsePlaylistText(text);
+    return parsePlaylistText(text, {
+      timelineStart: options.timelineStart,
+    });
   };
 
   return parseWithDepth(manifestUrl, MAX_PLAYLIST_PARSE_DEPTH);
+}
+
+export function parseAdSkipRangesFromPlaylistText(
+  text: string,
+  options: ParsePlaylistTextOptions = {},
+): SkipRange[] {
+  return parsePlaylistText(text, options);
 }
 
 export type { SkipRange };

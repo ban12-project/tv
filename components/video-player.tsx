@@ -4,7 +4,10 @@ import IntlMessageFormat from "intl-messageformat";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
-import { parseAdSkipRangesFromManifest } from "@/lib/player/ad-tag-parser";
+import {
+  parseAdSkipRangesFromManifest,
+  parseAdSkipRangesFromPlaylistText,
+} from "@/lib/player/ad-tag-parser";
 import { cn, formatTime } from "@/lib/utils";
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
@@ -202,15 +205,40 @@ export default function VideoPlayer({
     };
 
     let cleanupWirelessListeners: (() => void) | undefined;
+    let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let latestSkipRangeRequestId = 0;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
 
-    const updateSkipRanges = async () => {
+    const getNativeTimelineStart = () => {
+      const seekable = video.seekable;
+      if (seekable.length === 0) return 0;
+
+      const start = seekable.start(0);
+      return Number.isFinite(start) ? start : 0;
+    };
+
+    const updateSkipRanges = async (options?: {
+      playlistText?: string;
+      timelineStart?: number;
+    }) => {
+      const requestId = ++latestSkipRangeRequestId;
       try {
-        const ranges = await parseAdSkipRangesFromManifest(videoUrl, {
-          signal: manifestParseController.signal,
-        });
-        if (manifestParseController.signal.aborted) return;
+        const timelineStart = options?.timelineStart;
+        const ranges = options?.playlistText
+          ? parseAdSkipRangesFromPlaylistText(options.playlistText, {
+              timelineStart,
+            })
+          : await parseAdSkipRangesFromManifest(videoUrl, {
+              signal: manifestParseController.signal,
+              timelineStart,
+            });
+        if (
+          manifestParseController.signal.aborted ||
+          requestId !== latestSkipRangeRequestId
+        ) {
+          return;
+        }
 
         skipRangesRef.current = ranges;
         console.log("[VideoPlayer] Parsed ad tag skip ranges:", ranges);
@@ -229,10 +257,6 @@ export default function VideoPlayer({
 
       const initialTime = initialProgress;
 
-      if (autoSkip) {
-        void updateSkipRanges();
-      }
-
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = videoUrl;
@@ -240,6 +264,16 @@ export default function VideoPlayer({
           const onLoadedMetadata = () => {
             if (initialTime > 0) {
               video.currentTime = initialTime;
+            }
+            if (autoSkip) {
+              void updateSkipRanges({
+                timelineStart: getNativeTimelineStart(),
+              });
+              nativeSkipRefreshInterval = setInterval(() => {
+                void updateSkipRanges({
+                  timelineStart: getNativeTimelineStart(),
+                });
+              }, 15_000);
             }
             if (autoPlay) video.play().catch(() => {});
           };
@@ -258,6 +292,16 @@ export default function VideoPlayer({
 
       hls.on(Hls.Events.FRAG_CHANGED, () => {
         performSkip();
+      });
+
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!autoSkip) return;
+
+        const timelineStart = data.details.fragmentStart;
+        void updateSkipRanges({
+          playlistText: data.details.m3u8,
+          timelineStart: Number.isFinite(timelineStart) ? timelineStart : 0,
+        });
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -310,6 +354,7 @@ export default function VideoPlayer({
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
       cleanupWirelessListeners?.();
+      clearInterval(nativeSkipRefreshInterval);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       manifestParseController.abort();
       hls?.destroy();
