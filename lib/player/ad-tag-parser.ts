@@ -30,12 +30,24 @@ function parseTagAttributes(value: string): Record<string, string> {
   const attributes: string[] = [];
   let quote: string | null = null;
   let current = "";
+  let escaped = false;
 
   for (let index = 0; index < attributeText.length; index++) {
     const char = attributeText[index];
-    const previousChar = attributeText[index - 1];
 
-    if ((char === '"' || char === "'") && previousChar !== "\\") {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== null) {
+      current += char;
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
       quote = quote === char ? null : char;
     }
 
@@ -75,6 +87,7 @@ function parseTagAttributes(value: string): Record<string, string> {
 function isAdLikeDaterange(attributes: Record<string, string>): boolean {
   const classValue = attributes.CLASS ?? "";
   const normalizedClass = classValue.toLowerCase();
+  const classWords = normalizedClass.split(/[^a-z0-9]+/);
   const attributeText = Object.entries(attributes)
     .map(([key, value]) => `${key} ${value}`.toLowerCase())
     .join(" ");
@@ -89,7 +102,7 @@ function isAdLikeDaterange(attributes: Record<string, string>): boolean {
   ];
 
   return (
-    adKeywords.some((keyword) => normalizedClass.includes(keyword)) ||
+    adKeywords.some((keyword) => classWords.includes(keyword)) ||
     /\bad(s|vert(s|isement)?)?\b/.test(attributeText) ||
     /\bcommercial\b/.test(attributeText) ||
     /scte35/.test(attributeText)
@@ -127,7 +140,7 @@ function mergeSkipRanges(ranges: SkipRange[]): SkipRange[] {
 function parseCueDurationFromLine(line: string, prefix: string): number | null {
   const raw = line.substring(prefix.length).trim().replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
-  const durationFromAttrs = toFiniteNumber(attrs.DURATION);
+  const durationFromAttrs = toFiniteNumber(getTagAttribute(attrs, "DURATION"));
   if (durationFromAttrs !== null) return durationFromAttrs;
 
   const match = raw.match(/^[\s]*([0-9]+(?:\.[0-9]+)?)/);
@@ -141,6 +154,49 @@ function parseCueDurationFromLine(line: string, prefix: string): number | null {
   }
 
   return null;
+}
+
+function getTagAttribute(
+  attributes: Record<string, string>,
+  name: string,
+): string | undefined {
+  const normalizedName = name.toLowerCase();
+  const found = Object.entries(attributes).find(
+    ([key]) => key.toLowerCase() === normalizedName,
+  );
+
+  return found?.[1];
+}
+
+function parseCueOutContTiming(line: string): {
+  duration: number | null;
+  elapsed: number | null;
+} {
+  const raw = line
+    .substring("#EXT-X-CUE-OUT-CONT".length)
+    .trim()
+    .replace(/^:/, "");
+  const attrs = parseTagAttributes(raw);
+  const duration = toFiniteNumber(getTagAttribute(attrs, "DURATION"));
+  const elapsed =
+    toFiniteNumber(getTagAttribute(attrs, "ELAPSEDTIME")) ??
+    toFiniteNumber(getTagAttribute(attrs, "ELAPSED"));
+
+  if (duration !== null || elapsed !== null) {
+    return { duration, elapsed };
+  }
+
+  const slashMatch = raw.match(
+    /^\s*([0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/,
+  );
+  if (slashMatch) {
+    return {
+      elapsed: toFiniteNumber(slashMatch[1]),
+      duration: toFiniteNumber(slashMatch[2]),
+    };
+  }
+
+  return { duration: null, elapsed: null };
 }
 
 function parsePlaylistText(
@@ -207,12 +263,14 @@ function parsePlaylistText(
       }
 
       if (line.startsWith("#EXT-X-CUE-OUT-CONT")) {
-        const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-OUT-CONT");
+        const { duration, elapsed } = parseCueOutContTiming(line);
         if (duration !== null && Number.isFinite(duration)) {
           activeCueOutDuration = duration;
-          if (activeCueOutStart === null) {
-            activeCueOutStart = currentTime;
-          }
+        }
+        if (elapsed !== null && Number.isFinite(elapsed)) {
+          activeCueOutStart = currentTime - elapsed;
+        } else if (activeCueOutStart === null) {
+          activeCueOutStart = currentTime;
         }
         continue;
       }
@@ -235,7 +293,9 @@ function parsePlaylistText(
           continue;
         }
 
-        const duration = toFiniteNumber(attrs.DURATION);
+        const duration =
+          toFiniteNumber(attrs.DURATION) ??
+          toFiniteNumber(attrs["PLANNED-DURATION"]);
         const startDate = attrs["START-DATE"];
         const endDate = attrs["END-DATE"];
         const mappedStart = mapProgramDateTimeToTimeline(startDate);

@@ -241,7 +241,6 @@ export default function VideoPlayer({
         }
 
         skipRangesRef.current = ranges;
-        console.log("[VideoPlayer] Parsed ad tag skip ranges:", ranges);
 
         performSkip();
       } catch (err) {
@@ -273,7 +272,7 @@ export default function VideoPlayer({
                 void updateSkipRanges({
                   timelineStart: getNativeTimelineStart(),
                 });
-              }, 15_000);
+              }, 10_000);
             }
             if (autoPlay) video.play().catch(() => {});
           };
