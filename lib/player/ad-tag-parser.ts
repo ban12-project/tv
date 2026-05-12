@@ -439,26 +439,19 @@ export async function parseAdSkipRangesFromManifest(
 
     if (variantUrls.length > 0 && depth > 0) {
       let lastError: unknown;
-      let parsedVariant = false;
-      const variantRanges: SkipRange[] = [];
-      const variantResults = await Promise.allSettled(
-        variantUrls.map((variantUrl) => parseWithDepth(variantUrl, depth - 1)),
-      );
-
-      for (const result of variantResults) {
-        if (result.status === "fulfilled") {
-          parsedVariant = true;
-          variantRanges.push(...result.value);
-        } else {
-          lastError = result.reason;
+      for (const variantUrl of variantUrls) {
+        try {
+          return await parseWithDepth(variantUrl, depth - 1);
+        } catch (err) {
+          lastError = err;
         }
       }
 
-      if (!parsedVariant && lastError) {
+      if (lastError) {
         throw lastError;
       }
 
-      return mergeSkipRanges(variantRanges);
+      return [];
     }
 
     return parsePlaylistText(text, {
