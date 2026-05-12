@@ -4,6 +4,10 @@ import IntlMessageFormat from "intl-messageformat";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
+import {
+  parseAdSkipRangesFromManifest,
+  parseAdSkipRangesFromPlaylistText,
+} from "@/lib/player/ad-tag-parser";
 import { cn, formatTime } from "@/lib/utils";
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
@@ -201,6 +205,51 @@ export default function VideoPlayer({
     };
 
     let cleanupWirelessListeners: (() => void) | undefined;
+    let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let latestSkipRangeRequestId = 0;
+    const manifestParseController = new AbortController();
+    skipRangesRef.current = [];
+
+    const getNativeTimelineStart = () => {
+      const seekable = video.seekable;
+      if (seekable.length === 0) return 0;
+
+      const start = seekable.start(0);
+      return Number.isFinite(start) ? start : 0;
+    };
+
+    const updateSkipRanges = async (options?: {
+      playlistText?: string;
+      timelineStart?: number;
+    }) => {
+      const requestId = ++latestSkipRangeRequestId;
+      try {
+        const timelineStart = options?.timelineStart;
+        const ranges = options?.playlistText
+          ? parseAdSkipRangesFromPlaylistText(options.playlistText, {
+              timelineStart,
+            })
+          : await parseAdSkipRangesFromManifest(videoUrl, {
+              signal: manifestParseController.signal,
+              timelineStart,
+            });
+        if (
+          manifestParseController.signal.aborted ||
+          requestId !== latestSkipRangeRequestId
+        ) {
+          return;
+        }
+
+        skipRangesRef.current = ranges;
+
+        performSkip();
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.warn("[VideoPlayer] Failed to parse ad tags:", err);
+      }
+    };
 
     const initHls = () => {
       const useNative = !autoSkip || !Hls.isSupported();
@@ -214,6 +263,16 @@ export default function VideoPlayer({
           const onLoadedMetadata = () => {
             if (initialTime > 0) {
               video.currentTime = initialTime;
+            }
+            if (autoSkip) {
+              void updateSkipRanges({
+                timelineStart: getNativeTimelineStart(),
+              });
+              nativeSkipRefreshInterval = setInterval(() => {
+                void updateSkipRanges({
+                  timelineStart: getNativeTimelineStart(),
+                });
+              }, 5_000);
             }
             if (autoPlay) video.play().catch(() => {});
           };
@@ -230,64 +289,18 @@ export default function VideoPlayer({
         startPosition: initialTime,
       });
 
-      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        const fragments = data.details.fragments;
-        if (fragments.length === 0) return;
-
-        const newSkipRanges: { start: number; end: number }[] = [];
-
-        // 1. Calculate total duration for each continuity counter (cc) group
-        const ccDurations: Record<number, number> = {};
-        for (const frag of fragments) {
-          ccDurations[frag.cc] = (ccDurations[frag.cc] || 0) + frag.duration;
-        }
-
-        // 2. Identify "Content" CCs vs "Ad" CCs
-        const contentCCs = new Set<number>();
-        for (const ccStr in ccDurations) {
-          const cc = Number.parseInt(ccStr, 10);
-          // Any segment > 20s is assumed to be Content (Safety override for split content)
-          if (ccDurations[cc] > 20) {
-            contentCCs.add(cc);
-          }
-        }
-
-        // 3. Create skip ranges for fragments NOT in any content CC
-        let currentRange: { start: number; end: number } | null = null;
-
-        for (const frag of fragments) {
-          if (!contentCCs.has(frag.cc)) {
-            if (!currentRange) {
-              currentRange = {
-                start: frag.start,
-                end: frag.start + frag.duration,
-              };
-            } else {
-              currentRange.end = frag.start + frag.duration;
-            }
-          } else {
-            if (currentRange) {
-              newSkipRanges.push(currentRange);
-              currentRange = null;
-            }
-          }
-        }
-        if (currentRange) {
-          newSkipRanges.push(currentRange);
-        }
-
-        skipRangesRef.current = newSkipRanges;
-        console.log(
-          `[VideoPlayer] Identified content segments (CCs: ${Array.from(contentCCs).join(",")}). Skip ranges:`,
-          newSkipRanges,
-        );
-
-        // Check immediately after ranges are identified
+      hls.on(Hls.Events.FRAG_CHANGED, () => {
         performSkip();
       });
 
-      hls.on(Hls.Events.FRAG_CHANGED, () => {
-        performSkip();
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!autoSkip) return;
+
+        const timelineStart = data.details.fragmentStart;
+        void updateSkipRanges({
+          playlistText: data.details.m3u8,
+          timelineStart: Number.isFinite(timelineStart) ? timelineStart : 0,
+        });
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -340,7 +353,9 @@ export default function VideoPlayer({
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
       cleanupWirelessListeners?.();
+      clearInterval(nativeSkipRefreshInterval);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+      manifestParseController.abort();
       hls?.destroy();
     };
   }, [videoUrl, autoPlay, autoSkip]);
