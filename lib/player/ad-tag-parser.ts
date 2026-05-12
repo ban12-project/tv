@@ -141,7 +141,10 @@ function mergeSkipRanges(ranges: SkipRange[]): SkipRange[] {
 function parseCueDurationFromLine(line: string, prefix: string): number | null {
   const raw = line.substring(prefix.length).trim().replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
-  const durationFromAttrs = toFiniteNumber(getTagAttribute(attrs, "DURATION"));
+  const durationFromAttrs =
+    toFiniteNumber(getTagAttribute(attrs, "DURATION")) ??
+    toFiniteNumber(getTagAttribute(attrs, "TOTAL-DURATION")) ??
+    toFiniteNumber(getTagAttribute(attrs, "TOTAL_DURATION"));
   if (durationFromAttrs !== null) return durationFromAttrs;
 
   const match = raw.match(/^[\s]*([0-9]+(?:\.[0-9]+)?)/);
@@ -179,7 +182,10 @@ function parseCueOutContTiming(line: string): {
     .trim()
     .replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
-  const duration = toFiniteNumber(getTagAttribute(attrs, "DURATION"));
+  const duration =
+    toFiniteNumber(getTagAttribute(attrs, "DURATION")) ??
+    toFiniteNumber(getTagAttribute(attrs, "TOTAL-DURATION")) ??
+    toFiniteNumber(getTagAttribute(attrs, "TOTAL_DURATION"));
   const elapsed =
     toFiniteNumber(getTagAttribute(attrs, "ELAPSEDTIME")) ??
     toFiniteNumber(getTagAttribute(attrs, "ELAPSED"));
@@ -455,6 +461,9 @@ export async function parseAdSkipRangesFromManifest(
         try {
           return await parseWithDepth(variantUrl, depth - 1);
         } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            throw err;
+          }
           lastError = err;
         }
       }
