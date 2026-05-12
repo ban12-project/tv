@@ -272,7 +272,7 @@ export default function VideoPlayer({
                 void updateSkipRanges({
                   timelineStart: getNativeTimelineStart(),
                 });
-              }, 10_000);
+              }, 5_000);
             }
             if (autoPlay) video.play().catch(() => {});
           };
