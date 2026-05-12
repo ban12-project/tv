@@ -74,7 +74,8 @@ function parseTagAttributes(value: string): Record<string, string> {
 
     const quoteChar = rawValue[0];
     const isQuoted =
-      (quoteChar === '"' || quoteChar === "'") && rawValue.slice(-1) === quoteChar;
+      (quoteChar === '"' || quoteChar === "'") &&
+      rawValue.slice(-1) === quoteChar;
     const normalized = isQuoted
       ? rawValue.slice(1, -1).replace(/\\(["'\\])/g, "$1")
       : rawValue;
