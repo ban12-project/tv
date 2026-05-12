@@ -27,11 +27,45 @@ function parseTagAttributes(value: string): Record<string, string> {
   const attributeText = value.replace(/^\s*:\s*/, "");
   if (!attributeText) return result;
 
-  const regex = /([A-Za-z0-9-]+)=("([^"]*)"|'([^']*)'|[^,]*)/g;
-  for (const match of attributeText.matchAll(regex)) {
-    const key = match[1];
-    const rawValue = match[3] ?? match[4] ?? match[2];
-    const normalized = rawValue.replace(/^["']/, "").replace(/["']$/, "");
+  const attributes: string[] = [];
+  let quote: string | null = null;
+  let current = "";
+
+  for (let index = 0; index < attributeText.length; index++) {
+    const char = attributeText[index];
+    const previousChar = attributeText[index - 1];
+
+    if ((char === '"' || char === "'") && previousChar !== "\\") {
+      quote = quote === char ? null : char;
+    }
+
+    if (char === "," && quote === null) {
+      attributes.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    attributes.push(current);
+  }
+
+  for (const attribute of attributes) {
+    const separatorIndex = attribute.indexOf("=");
+    if (separatorIndex < 1) continue;
+
+    const key = attribute.slice(0, separatorIndex).trim();
+    const rawValue = attribute.slice(separatorIndex + 1).trim();
+    if (!key || !rawValue) continue;
+
+    const quoteChar = rawValue[0];
+    const isQuoted =
+      (quoteChar === '"' || quoteChar === "'") && rawValue.at(-1) === quoteChar;
+    const normalized = isQuoted
+      ? rawValue.slice(1, -1).replace(/\\(["'\\])/g, "$1")
+      : rawValue;
     result[key] = normalized;
   }
 
@@ -118,6 +152,7 @@ function parsePlaylistText(
 
   let currentTime = options.timelineStart ?? 0;
   let pendingSegmentDuration: number | null = null;
+  let currentProgramDateTimeMs: number | null = null;
   let activeCueOutStart: number | null = null;
   let activeCueOutDuration = Number.NaN;
   const ranges: SkipRange[] = [];
@@ -141,6 +176,15 @@ function parsePlaylistText(
     activeDaterangeStarts.delete(id);
   };
 
+  const mapProgramDateTimeToTimeline = (rawDate: string | undefined) => {
+    if (!rawDate || currentProgramDateTimeMs === null) return null;
+
+    const dateMs = Date.parse(rawDate);
+    if (!Number.isFinite(dateMs)) return null;
+
+    return currentTime + (dateMs - currentProgramDateTimeMs) / 1000;
+  };
+
   for (const line of lines) {
     if (!line || line.startsWith("#")) {
       if (!line) {
@@ -155,10 +199,10 @@ function parsePlaylistText(
         continue;
       }
 
-      if (line.startsWith("#EXT-X-CUE-OUT")) {
-        const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-OUT");
-        activeCueOutStart = currentTime;
-        activeCueOutDuration = duration ?? Number.NaN;
+      if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME")) {
+        const raw = line.replace(/^#EXT-X-PROGRAM-DATE-TIME:/, "");
+        const dateMs = Date.parse(raw);
+        currentProgramDateTimeMs = Number.isFinite(dateMs) ? dateMs : null;
         continue;
       }
 
@@ -170,6 +214,13 @@ function parsePlaylistText(
             activeCueOutStart = currentTime;
           }
         }
+        continue;
+      }
+
+      if (line.startsWith("#EXT-X-CUE-OUT")) {
+        const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-OUT");
+        activeCueOutStart = currentTime;
+        activeCueOutDuration = duration ?? Number.NaN;
         continue;
       }
 
@@ -187,11 +238,13 @@ function parsePlaylistText(
         const duration = toFiniteNumber(attrs.DURATION);
         const startDate = attrs["START-DATE"];
         const endDate = attrs["END-DATE"];
+        const mappedStart = mapProgramDateTimeToTimeline(startDate);
+        const rangeStart = mappedStart ?? currentTime;
 
         if (duration !== null && Number.isFinite(duration)) {
           ranges.push({
-            start: currentTime,
-            end: currentTime + duration,
+            start: rangeStart,
+            end: rangeStart + duration,
           });
           continue;
         }
@@ -204,9 +257,10 @@ function parsePlaylistText(
             Number.isFinite(endMs) &&
             endMs > startMs
           ) {
+            const mappedEnd = mapProgramDateTimeToTimeline(endDate);
             ranges.push({
-              start: currentTime,
-              end: currentTime + (endMs - startMs) / 1000,
+              start: rangeStart,
+              end: mappedEnd ?? rangeStart + (endMs - startMs) / 1000,
             });
             continue;
           }
@@ -217,7 +271,7 @@ function parsePlaylistText(
           if (activeDaterangeStarts.has(id)) {
             closeDaterange(id, currentTime);
           } else {
-            activeDaterangeStarts.set(id, currentTime);
+            activeDaterangeStarts.set(id, rangeStart);
           }
         } else {
           continue;
@@ -229,6 +283,9 @@ function parsePlaylistText(
 
     if (pendingSegmentDuration !== null) {
       currentTime += pendingSegmentDuration;
+      if (currentProgramDateTimeMs !== null) {
+        currentProgramDateTimeMs += pendingSegmentDuration * 1000;
+      }
       pendingSegmentDuration = null;
     }
   }
@@ -256,6 +313,30 @@ async function fetchManifestText(
   return response.text();
 }
 
+function findVariantPlaylistUrls(lines: string[], baseUrl: string): string[] {
+  const variantUrls: string[] = [];
+
+  for (let index = 0; index < lines.length; index++) {
+    if (!lines[index].startsWith("#EXT-X-STREAM-INF")) continue;
+
+    for (
+      let candidateIndex = index + 1;
+      candidateIndex < lines.length;
+      candidateIndex++
+    ) {
+      const candidate = lines[candidateIndex];
+      if (!candidate) continue;
+
+      if (!candidate.startsWith(MANIFEST_TAG_PREFIX)) {
+        variantUrls.push(new URL(candidate, baseUrl).toString());
+        break;
+      }
+    }
+  }
+
+  return variantUrls;
+}
+
 export async function parseAdSkipRangesFromManifest(
   manifestUrl: string,
   options: ParseManifestOptions = {},
@@ -274,27 +355,27 @@ export async function parseAdSkipRangesFromManifest(
     const lines = text.split(MANIFEST_LINE_BREAK).map((line) => line.trim());
     if (lines.length === 0) return [];
 
-    const streamInfIndexes = lines
-      .map((line, index) => (line.startsWith("#EXT-X-STREAM-INF") ? index : -1))
-      .filter((value) => value >= 0);
+    const variantUrls = findVariantPlaylistUrls(lines, url);
 
-    for (const index of streamInfIndexes) {
-      let nextLine: string | undefined;
-      for (let i = index + 1; i < lines.length; i++) {
-        const candidate = lines[i];
-        if (candidate && !candidate.startsWith(MANIFEST_TAG_PREFIX)) {
-          nextLine = candidate;
-          break;
+    if (variantUrls.length > 0 && depth > 0) {
+      let lastError: unknown;
+      let parsedVariant = false;
+
+      for (const variantUrl of variantUrls) {
+        try {
+          const ranges = await parseWithDepth(variantUrl, depth - 1);
+          parsedVariant = true;
+          if (ranges.length > 0) return ranges;
+        } catch (err) {
+          lastError = err;
         }
       }
 
-      if (nextLine) {
-        const variantUrl = new URL(nextLine, url).toString();
-        if (depth > 0) {
-          return parseWithDepth(variantUrl, depth - 1);
-        }
-        break;
+      if (!parsedVariant && lastError) {
+        throw lastError;
       }
+
+      return [];
     }
 
     return parsePlaylistText(text, {
