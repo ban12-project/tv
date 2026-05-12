@@ -393,8 +393,21 @@ async function fetchManifestText(
   return response.text();
 }
 
+function resolveManifestUrl(url: string): string {
+  try {
+    return new URL(url).toString();
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      return new URL(url, window.location.href).toString();
+    }
+
+    throw err;
+  }
+}
+
 function findVariantPlaylistUrls(lines: string[], baseUrl: string): string[] {
   const variantUrls: string[] = [];
+  const resolvedBaseUrl = resolveManifestUrl(baseUrl);
 
   for (let index = 0; index < lines.length; index++) {
     if (!lines[index].startsWith("#EXT-X-STREAM-INF")) continue;
@@ -408,7 +421,7 @@ function findVariantPlaylistUrls(lines: string[], baseUrl: string): string[] {
       if (!candidate) continue;
 
       if (!candidate.startsWith(MANIFEST_TAG_PREFIX)) {
-        variantUrls.push(new URL(candidate, baseUrl).toString());
+        variantUrls.push(new URL(candidate, resolvedBaseUrl).toString());
         break;
       }
     }
@@ -459,7 +472,10 @@ export async function parseAdSkipRangesFromManifest(
     });
   };
 
-  return parseWithDepth(manifestUrl, MAX_PLAYLIST_PARSE_DEPTH);
+  return parseWithDepth(
+    resolveManifestUrl(manifestUrl),
+    MAX_PLAYLIST_PARSE_DEPTH,
+  );
 }
 
 export function parseAdSkipRangesFromPlaylistText(
