@@ -85,10 +85,7 @@ function mergeSkipRanges(ranges: SkipRange[]): SkipRange[] {
   return merged;
 }
 
-function parseCueDurationFromLine(
-  line: string,
-  prefix: string,
-): number | null {
+function parseCueDurationFromLine(line: string, prefix: string): number | null {
   const raw = line.substring(prefix.length).trim().replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
   const durationFromAttrs = toFiniteNumber(attrs.DURATION);
@@ -96,7 +93,7 @@ function parseCueDurationFromLine(
 
   const match = raw.match(/^[\s]*([0-9]+(?:\.[0-9]+)?)/);
   if (match && !raw.includes("/")) {
-    return match ? toFiniteNumber(match[1]) : null;
+    return toFiniteNumber(match[1]);
   }
 
   if (raw.includes("/")) {
@@ -104,7 +101,7 @@ function parseCueDurationFromLine(
     return toFiniteNumber(lastSegment);
   }
 
-  return match ? toFiniteNumber(match[1]) : null;
+  return null;
 }
 
 function parsePlaylistText(text: string): SkipRange[] {
@@ -122,7 +119,7 @@ function parsePlaylistText(text: string): SkipRange[] {
     if (activeCueOutStart === null) return;
     const cueOutEnd =
       Number.isFinite(activeCueOutDuration) && activeCueOutDuration > 0
-        ? activeCueOutStart + activeCueOutDuration
+        ? Math.min(activeCueOutStart + activeCueOutDuration, end)
         : end;
     ranges.push({ start: activeCueOutStart, end: cueOutEnd });
     activeCueOutStart = null;
@@ -194,7 +191,11 @@ function parsePlaylistText(text: string): SkipRange[] {
         if (startDate && endDate) {
           const startMs = Date.parse(startDate);
           const endMs = Date.parse(endDate);
-          if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+          if (
+            Number.isFinite(startMs) &&
+            Number.isFinite(endMs) &&
+            endMs > startMs
+          ) {
             ranges.push({
               start: currentTime,
               end: currentTime + (endMs - startMs) / 1000,
@@ -228,7 +229,7 @@ function parsePlaylistText(text: string): SkipRange[] {
     ranges.push({ start: activeCueOutStart, end: currentTime });
   }
 
-  activeDaterangeStarts.forEach((start, id) => {
+  activeDaterangeStarts.forEach((_start, id) => {
     closeDaterange(id, currentTime);
   });
 

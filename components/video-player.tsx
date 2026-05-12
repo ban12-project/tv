@@ -229,6 +229,10 @@ export default function VideoPlayer({
 
       const initialTime = initialProgress;
 
+      if (autoSkip) {
+        void updateSkipRanges();
+      }
+
       if (useNative) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = videoUrl;
@@ -277,7 +281,6 @@ export default function VideoPlayer({
       });
 
       hls.loadSource(videoUrl);
-      void updateSkipRanges();
 
       // Set up AirPlay wireless listeners (handles attachMedia + fallback source)
       cleanupWirelessListeners = setupWirelessListeners();
