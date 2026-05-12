@@ -149,7 +149,8 @@ function parseCueDurationFromLine(line: string, prefix: string): number | null {
   }
 
   if (raw.includes("/")) {
-    const lastSegment = raw.trim().split("/").at(-1);
+    const segments = raw.trim().split("/");
+    const lastSegment = segments[segments.length - 1];
     return toFiniteNumber(lastSegment);
   }
 
