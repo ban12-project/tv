@@ -156,7 +156,7 @@ function parsePlaylistText(text: string): SkipRange[] {
 
       if (line.startsWith("#EXT-X-CUE-OUT-CONT")) {
         const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-OUT-CONT");
-        if (Number.isFinite(duration)) {
+        if (duration !== null && Number.isFinite(duration)) {
           activeCueOutDuration = duration;
           if (activeCueOutStart === null) {
             activeCueOutStart = currentTime;
@@ -180,7 +180,7 @@ function parsePlaylistText(text: string): SkipRange[] {
         const startDate = attrs["START-DATE"];
         const endDate = attrs["END-DATE"];
 
-        if (Number.isFinite(duration)) {
+        if (duration !== null && Number.isFinite(duration)) {
           ranges.push({
             start: currentTime,
             end: currentTime + duration,
