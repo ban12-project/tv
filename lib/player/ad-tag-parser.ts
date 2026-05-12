@@ -299,6 +299,7 @@ function parsePlaylistText(
       }
 
       if (line.startsWith("#EXT-X-CUE-OUT")) {
+        closeCueOut(currentTime);
         const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-OUT");
         activeCueOutStart = currentTime;
         activeCueOutDuration = duration ?? Number.NaN;
@@ -370,9 +371,7 @@ function parsePlaylistText(
     }
   }
 
-  if (activeCueOutStart !== null) {
-    ranges.push({ start: activeCueOutStart, end: currentTime });
-  }
+  closeCueOut(currentTime);
 
   activeDaterangeStarts.forEach((_start, id) => {
     closeDaterange(id, currentTime);
