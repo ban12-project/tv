@@ -4,6 +4,7 @@ import IntlMessageFormat from "intl-messageformat";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
+import { parseAdSkipRangesFromManifest } from "@/lib/player/ad-tag-parser";
 import { cn, formatTime } from "@/lib/utils";
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
@@ -201,6 +202,27 @@ export default function VideoPlayer({
     };
 
     let cleanupWirelessListeners: (() => void) | undefined;
+    const manifestParseController = new AbortController();
+    skipRangesRef.current = [];
+
+    const updateSkipRanges = async () => {
+      try {
+        const ranges = await parseAdSkipRangesFromManifest(videoUrl, {
+          signal: manifestParseController.signal,
+        });
+        if (manifestParseController.signal.aborted) return;
+
+        skipRangesRef.current = ranges;
+        console.log("[VideoPlayer] Parsed ad tag skip ranges:", ranges);
+
+        performSkip();
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        console.warn("[VideoPlayer] Failed to parse ad tags:", err);
+      }
+    };
 
     const initHls = () => {
       const useNative = !autoSkip || !Hls.isSupported();
@@ -230,62 +252,6 @@ export default function VideoPlayer({
         startPosition: initialTime,
       });
 
-      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        const fragments = data.details.fragments;
-        if (fragments.length === 0) return;
-
-        const newSkipRanges: { start: number; end: number }[] = [];
-
-        // 1. Calculate total duration for each continuity counter (cc) group
-        const ccDurations: Record<number, number> = {};
-        for (const frag of fragments) {
-          ccDurations[frag.cc] = (ccDurations[frag.cc] || 0) + frag.duration;
-        }
-
-        // 2. Identify "Content" CCs vs "Ad" CCs
-        const contentCCs = new Set<number>();
-        for (const ccStr in ccDurations) {
-          const cc = Number.parseInt(ccStr, 10);
-          // Any segment > 20s is assumed to be Content (Safety override for split content)
-          if (ccDurations[cc] > 20) {
-            contentCCs.add(cc);
-          }
-        }
-
-        // 3. Create skip ranges for fragments NOT in any content CC
-        let currentRange: { start: number; end: number } | null = null;
-
-        for (const frag of fragments) {
-          if (!contentCCs.has(frag.cc)) {
-            if (!currentRange) {
-              currentRange = {
-                start: frag.start,
-                end: frag.start + frag.duration,
-              };
-            } else {
-              currentRange.end = frag.start + frag.duration;
-            }
-          } else {
-            if (currentRange) {
-              newSkipRanges.push(currentRange);
-              currentRange = null;
-            }
-          }
-        }
-        if (currentRange) {
-          newSkipRanges.push(currentRange);
-        }
-
-        skipRangesRef.current = newSkipRanges;
-        console.log(
-          `[VideoPlayer] Identified content segments (CCs: ${Array.from(contentCCs).join(",")}). Skip ranges:`,
-          newSkipRanges,
-        );
-
-        // Check immediately after ranges are identified
-        performSkip();
-      });
-
       hls.on(Hls.Events.FRAG_CHANGED, () => {
         performSkip();
       });
@@ -311,6 +277,7 @@ export default function VideoPlayer({
       });
 
       hls.loadSource(videoUrl);
+      void updateSkipRanges();
 
       // Set up AirPlay wireless listeners (handles attachMedia + fallback source)
       cleanupWirelessListeners = setupWirelessListeners();
@@ -341,6 +308,7 @@ export default function VideoPlayer({
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
       cleanupWirelessListeners?.();
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
+      manifestParseController.abort();
       hls?.destroy();
     };
   }, [videoUrl, autoPlay, autoSkip]);
