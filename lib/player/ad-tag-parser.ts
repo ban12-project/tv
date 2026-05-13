@@ -331,7 +331,8 @@ class BitReader {
 }
 
 function removeEmulationPreventionBytes(bytes: Uint8Array): Uint8Array {
-  const result: number[] = [];
+  const result = new Uint8Array(bytes.length);
+  let resultIndex = 0;
   for (let index = 0; index < bytes.length; index++) {
     if (
       index >= 2 &&
@@ -341,10 +342,11 @@ function removeEmulationPreventionBytes(bytes: Uint8Array): Uint8Array {
     ) {
       continue;
     }
-    result.push(bytes[index]);
+    result[resultIndex] = bytes[index];
+    resultIndex += 1;
   }
 
-  return new Uint8Array(result);
+  return result.slice(0, resultIndex);
 }
 
 function skipScalingList(reader: BitReader, size: number) {
@@ -450,42 +452,68 @@ function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
   }
 }
 
-function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
-  const starts: number[] = [];
-  for (let index = 0; index < bytes.length - 2; index++) {
-    const isThreeByteStart =
-      bytes[index] === 0x00 &&
-      bytes[index + 1] === 0x00 &&
-      bytes[index + 2] === 0x01;
-    const isFourByteStart =
-      index < bytes.length - 3 &&
-      bytes[index] === 0x00 &&
-      bytes[index + 1] === 0x00 &&
-      bytes[index + 2] === 0x00 &&
-      bytes[index + 3] === 0x01;
-
-    if (isThreeByteStart || isFourByteStart) {
-      starts.push(index);
-      index += isFourByteStart ? 3 : 2;
-    }
+function getNalStartCodeLength(
+  bytes: Uint8Array,
+  index: number,
+): number | null {
+  if (
+    index < bytes.length - 2 &&
+    bytes[index] === 0x00 &&
+    bytes[index + 1] === 0x00 &&
+    bytes[index + 2] === 0x01
+  ) {
+    return 3;
   }
 
-  for (let index = 0; index < starts.length; index++) {
-    const startCodeLength = bytes[starts[index] + 2] === 0x01 ? 3 : 4;
-    const nalStart = starts[index] + startCodeLength;
-    const nalEnd = starts[index + 1] ?? bytes.length;
-    if (nalStart >= nalEnd) continue;
-
-    const nalType = bytes[nalStart] & 0x1f;
-    if (nalType !== 7) continue;
-
-    const resolution = parseH264SpsResolution(bytes.slice(nalStart, nalEnd));
-    if (resolution) return resolution;
+  if (
+    index < bytes.length - 3 &&
+    bytes[index] === 0x00 &&
+    bytes[index + 1] === 0x00 &&
+    bytes[index + 2] === 0x00 &&
+    bytes[index + 3] === 0x01
+  ) {
+    return 4;
   }
 
   return null;
 }
 
+function parseNalResolution(
+  bytes: Uint8Array,
+  nalStart: number,
+  nalEnd: number,
+): VideoResolution | null {
+  if (nalStart >= nalEnd) return null;
+
+  const nalType = bytes[nalStart] & 0x1f;
+  if (nalType !== 7) return null;
+
+  return parseH264SpsResolution(bytes.slice(nalStart, nalEnd));
+}
+
+function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
+  let pendingNalStart: number | null = null;
+
+  for (let index = 0; index < bytes.length - 2; index++) {
+    const startCodeLength = getNalStartCodeLength(bytes, index);
+    if (startCodeLength === null) continue;
+
+    if (pendingNalStart !== null) {
+      const resolution = parseNalResolution(bytes, pendingNalStart, index);
+      if (resolution) return resolution;
+    }
+
+    pendingNalStart = index + startCodeLength;
+    index += startCodeLength - 1;
+  }
+
+  if (pendingNalStart !== null) {
+    const resolution = parseNalResolution(bytes, pendingNalStart, bytes.length);
+    if (resolution) return resolution;
+  }
+
+  return null;
+}
 function getTsPacketPayloadOffset(
   bytes: Uint8Array,
   packetOffset: number,
@@ -592,7 +620,8 @@ function findH264VideoPid(bytes: Uint8Array): number | null {
 }
 
 function extractTsPayload(bytes: Uint8Array): Uint8Array {
-  const payload: number[] = [];
+  const payload = new Uint8Array(bytes.length);
+  let payloadIndex = 0;
   const packetSize = 188;
   const videoPid = findH264VideoPid(bytes);
 
@@ -621,12 +650,12 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
     }
     if (payloadOffset >= offset + packetSize) continue;
 
-    for (let index = payloadOffset; index < offset + packetSize; index++) {
-      payload.push(bytes[index]);
-    }
+    const chunk = bytes.subarray(payloadOffset, offset + packetSize);
+    payload.set(chunk, payloadIndex);
+    payloadIndex += chunk.length;
   }
 
-  return new Uint8Array(payload);
+  return payload.slice(0, payloadIndex);
 }
 
 async function probeSegmentResolution(
@@ -638,7 +667,10 @@ async function probeSegmentResolution(
   },
 ): Promise<VideoResolution | null> {
   if (options.cache.has(url)) {
-    return options.cache.get(url) ?? null;
+    const cached = options.cache.get(url) ?? null;
+    options.cache.delete(url);
+    options.cache.set(url, cached);
+    return cached;
   }
 
   try {
