@@ -13,6 +13,9 @@ const DISCONTINUITY_PROBE_LIMIT = 40;
 const MIN_ANOMALY_SEGMENTS = 2;
 const MAX_ANOMALY_SEGMENTS = 12;
 const RESOLUTION_PROBE_CACHE_LIMIT = 500;
+const H264_HIGH_PROFILES = new Set([
+  100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
+]);
 const resolutionProbeCache = new Map<string, VideoResolution | null>();
 
 interface ParseManifestOptions {
@@ -346,7 +349,7 @@ function removeEmulationPreventionBytes(bytes: Uint8Array): Uint8Array {
     resultIndex += 1;
   }
 
-  return result.slice(0, resultIndex);
+  return result.subarray(0, resultIndex);
 }
 
 function skipScalingList(reader: BitReader, size: number) {
@@ -372,10 +375,7 @@ function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
     reader.readUnsignedExpGolomb();
 
     let chromaFormatIdc = 1;
-    const highProfiles = new Set([
-      100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
-    ]);
-    if (highProfiles.has(profileIdc)) {
+    if (H264_HIGH_PROFILES.has(profileIdc)) {
       chromaFormatIdc = reader.readUnsignedExpGolomb();
       if (chromaFormatIdc === 3) {
         reader.readBit();
@@ -655,7 +655,7 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
     payloadIndex += chunk.length;
   }
 
-  return payload.slice(0, payloadIndex);
+  return payload.subarray(0, payloadIndex);
 }
 
 async function probeSegmentResolution(
