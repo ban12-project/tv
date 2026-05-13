@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
 import {
   parseAdSkipRangesFromManifest,
-  parseAdSkipRangesFromPlaylistText,
+  parseAdSkipRangesFromPlaylistTextWithSideChannel,
 } from "@/lib/player/ad-tag-parser";
 import { cn, formatTime } from "@/lib/utils";
+
+const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
@@ -206,7 +208,11 @@ export default function VideoPlayer({
 
     let cleanupWirelessListeners: (() => void) | undefined;
     let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let hlsSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let latestSkipRangeRequestId = 0;
+    let latestPlaylistText: string | undefined;
+    let latestPlaylistUrl: string | undefined;
+    let latestPlaylistTimelineStart = 0;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
 
@@ -220,18 +226,29 @@ export default function VideoPlayer({
 
     const updateSkipRanges = async (options?: {
       playlistText?: string;
+      playlistUrl?: string;
       timelineStart?: number;
     }) => {
       const requestId = ++latestSkipRangeRequestId;
       try {
         const timelineStart = options?.timelineStart;
+        const playbackTime = video.currentTime;
         const ranges = options?.playlistText
-          ? parseAdSkipRangesFromPlaylistText(options.playlistText, {
-              timelineStart,
-            })
+          ? await parseAdSkipRangesFromPlaylistTextWithSideChannel(
+              options.playlistText,
+              {
+                timelineStart,
+                playlistUrl: options.playlistUrl ?? videoUrl,
+                signal: manifestParseController.signal,
+                playbackTime,
+                enableResolutionProbe: true,
+              },
+            )
           : await parseAdSkipRangesFromManifest(videoUrl, {
               signal: manifestParseController.signal,
               timelineStart,
+              playbackTime,
+              enableResolutionProbe: true,
             });
         if (
           manifestParseController.signal.aborted ||
@@ -272,7 +289,7 @@ export default function VideoPlayer({
                 void updateSkipRanges({
                   timelineStart: getNativeTimelineStart(),
                 });
-              }, 5_000);
+              }, SKIP_RANGE_REFRESH_INTERVAL_MS);
             }
             if (autoPlay) video.play().catch(() => {});
           };
@@ -297,10 +314,25 @@ export default function VideoPlayer({
         if (!autoSkip) return;
 
         const timelineStart = data.details.fragmentStart;
+        latestPlaylistText = data.details.m3u8;
+        latestPlaylistUrl = data.details.url;
+        latestPlaylistTimelineStart = Number.isFinite(timelineStart)
+          ? timelineStart
+          : 0;
         void updateSkipRanges({
-          playlistText: data.details.m3u8,
-          timelineStart: Number.isFinite(timelineStart) ? timelineStart : 0,
+          playlistText: latestPlaylistText,
+          playlistUrl: latestPlaylistUrl,
+          timelineStart: latestPlaylistTimelineStart,
         });
+
+        hlsSkipRefreshInterval ??= setInterval(() => {
+          if (!latestPlaylistText) return;
+          void updateSkipRanges({
+            playlistText: latestPlaylistText,
+            playlistUrl: latestPlaylistUrl,
+            timelineStart: latestPlaylistTimelineStart,
+          });
+        }, SKIP_RANGE_REFRESH_INTERVAL_MS);
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -354,6 +386,7 @@ export default function VideoPlayer({
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
       cleanupWirelessListeners?.();
       clearInterval(nativeSkipRefreshInterval);
+      clearInterval(hlsSkipRefreshInterval);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       manifestParseController.abort();
       hls?.destroy();
