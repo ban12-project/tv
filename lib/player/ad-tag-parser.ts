@@ -6,14 +6,47 @@ interface SkipRange {
 const MAX_PLAYLIST_PARSE_DEPTH = 2;
 const MANIFEST_LINE_BREAK = /\r\n|\r|\n/;
 const MANIFEST_TAG_PREFIX = "#";
+const DEFAULT_RESOLUTION_PROBE_BYTES = 262_144;
+const DEFAULT_RESOLUTION_PROBE_WINDOW_SECONDS = 120;
+const BASELINE_SAMPLE_LIMIT = 12;
+const DISCONTINUITY_PROBE_LIMIT = 40;
+const MIN_ANOMALY_SEGMENTS = 2;
+const MAX_ANOMALY_SEGMENTS = 12;
+const RESOLUTION_PROBE_CACHE_LIMIT = 500;
+const resolutionProbeCache = new Map<string, VideoResolution | null>();
 
 interface ParseManifestOptions {
   signal?: AbortSignal;
   timelineStart?: number;
+  playbackTime?: number;
+  enableResolutionProbe?: boolean;
+  resolutionProbeByteLength?: number;
 }
 
 interface ParsePlaylistTextOptions {
   timelineStart?: number;
+  playlistUrl?: string;
+  signal?: AbortSignal;
+  playbackTime?: number;
+  enableResolutionProbe?: boolean;
+  resolutionProbeByteLength?: number;
+}
+
+interface SegmentTimelineEntry {
+  start: number;
+  end: number;
+  url: string;
+  startsAfterDiscontinuity: boolean;
+}
+
+interface PlaylistParseResult {
+  ranges: SkipRange[];
+  segments: SegmentTimelineEntry[];
+}
+
+interface VideoResolution {
+  width: number;
+  height: number;
 }
 
 function toFiniteNumber(raw: string | undefined): number | null {
@@ -138,6 +171,51 @@ function mergeSkipRanges(ranges: SkipRange[]): SkipRange[] {
   return merged;
 }
 
+function resolutionKey(resolution: VideoResolution): string {
+  return `${resolution.width}x${resolution.height}`;
+}
+
+function sameResolution(
+  left: VideoResolution | null,
+  right: VideoResolution | null,
+): boolean {
+  return (
+    left !== null &&
+    right !== null &&
+    left.width === right.width &&
+    left.height === right.height
+  );
+}
+
+function getModalResolution(
+  resolutions: (VideoResolution | null)[],
+): VideoResolution | null {
+  const counts = new Map<
+    string,
+    { resolution: VideoResolution; count: number }
+  >();
+  for (const resolution of resolutions) {
+    if (!resolution) continue;
+
+    const key = resolutionKey(resolution);
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, { resolution, count: 1 });
+    }
+  }
+
+  let best: { resolution: VideoResolution; count: number } | null = null;
+  for (const value of counts.values()) {
+    if (!best || value.count > best.count) {
+      best = value;
+    }
+  }
+
+  return best?.resolution ?? null;
+}
+
 function parseCueDurationFromLine(line: string, prefix: string): number | null {
   const raw = line.substring(prefix.length).trim().replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
@@ -207,12 +285,285 @@ function parseCueOutContTiming(line: string): {
   return { duration: null, elapsed: null };
 }
 
+class BitReader {
+  private bitOffset = 0;
+
+  private readonly bytes: Uint8Array;
+
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes;
+  }
+
+  readBit(): number {
+    if (this.bitOffset >= this.bytes.length * 8) {
+      throw new Error("Unexpected end of bitstream");
+    }
+
+    const byte = this.bytes[this.bitOffset >> 3];
+    const bit = (byte >> (7 - (this.bitOffset & 7))) & 1;
+    this.bitOffset += 1;
+    return bit;
+  }
+
+  readBits(length: number): number {
+    let value = 0;
+    for (let index = 0; index < length; index++) {
+      value = (value << 1) | this.readBit();
+    }
+    return value;
+  }
+
+  readUnsignedExpGolomb(): number {
+    let zeroCount = 0;
+    while (this.readBit() === 0) {
+      zeroCount += 1;
+    }
+
+    const suffix = zeroCount > 0 ? this.readBits(zeroCount) : 0;
+    return 2 ** zeroCount - 1 + suffix;
+  }
+
+  readSignedExpGolomb(): number {
+    const value = this.readUnsignedExpGolomb();
+    const sign = value % 2 === 0 ? -1 : 1;
+    return sign * Math.ceil(value / 2);
+  }
+}
+
+function removeEmulationPreventionBytes(bytes: Uint8Array): Uint8Array {
+  const result: number[] = [];
+  for (let index = 0; index < bytes.length; index++) {
+    if (
+      index >= 2 &&
+      bytes[index] === 0x03 &&
+      bytes[index - 1] === 0x00 &&
+      bytes[index - 2] === 0x00
+    ) {
+      continue;
+    }
+    result.push(bytes[index]);
+  }
+
+  return new Uint8Array(result);
+}
+
+function skipScalingList(reader: BitReader, size: number) {
+  let lastScale = 8;
+  let nextScale = 8;
+
+  for (let index = 0; index < size; index++) {
+    if (nextScale !== 0) {
+      const deltaScale = reader.readSignedExpGolomb();
+      nextScale = (lastScale + deltaScale + 256) % 256;
+    }
+    lastScale = nextScale === 0 ? lastScale : nextScale;
+  }
+}
+
+function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
+  try {
+    const data = removeEmulationPreventionBytes(nal.slice(1));
+    const reader = new BitReader(data);
+    const profileIdc = reader.readBits(8);
+    reader.readBits(8);
+    reader.readBits(8);
+    reader.readUnsignedExpGolomb();
+
+    let chromaFormatIdc = 1;
+    const highProfiles = new Set([
+      100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
+    ]);
+    if (highProfiles.has(profileIdc)) {
+      chromaFormatIdc = reader.readUnsignedExpGolomb();
+      if (chromaFormatIdc === 3) {
+        reader.readBit();
+      }
+      reader.readUnsignedExpGolomb();
+      reader.readUnsignedExpGolomb();
+      reader.readBit();
+      const seqScalingMatrixPresent = reader.readBit() === 1;
+      if (seqScalingMatrixPresent) {
+        const scalingListCount = chromaFormatIdc === 3 ? 12 : 8;
+        for (let index = 0; index < scalingListCount; index++) {
+          if (reader.readBit() === 1) {
+            skipScalingList(reader, index < 6 ? 16 : 64);
+          }
+        }
+      }
+    }
+
+    reader.readUnsignedExpGolomb();
+    const picOrderCntType = reader.readUnsignedExpGolomb();
+    if (picOrderCntType === 0) {
+      reader.readUnsignedExpGolomb();
+    } else if (picOrderCntType === 1) {
+      reader.readBit();
+      reader.readSignedExpGolomb();
+      reader.readSignedExpGolomb();
+      const cycleCount = reader.readUnsignedExpGolomb();
+      for (let index = 0; index < cycleCount; index++) {
+        reader.readSignedExpGolomb();
+      }
+    }
+
+    reader.readUnsignedExpGolomb();
+    reader.readBit();
+    const picWidthInMbsMinus1 = reader.readUnsignedExpGolomb();
+    const picHeightInMapUnitsMinus1 = reader.readUnsignedExpGolomb();
+    const frameMbsOnlyFlag = reader.readBit();
+    if (frameMbsOnlyFlag === 0) {
+      reader.readBit();
+    }
+    reader.readBit();
+
+    let frameCropLeftOffset = 0;
+    let frameCropRightOffset = 0;
+    let frameCropTopOffset = 0;
+    let frameCropBottomOffset = 0;
+    const frameCroppingFlag = reader.readBit();
+    if (frameCroppingFlag === 1) {
+      frameCropLeftOffset = reader.readUnsignedExpGolomb();
+      frameCropRightOffset = reader.readUnsignedExpGolomb();
+      frameCropTopOffset = reader.readUnsignedExpGolomb();
+      frameCropBottomOffset = reader.readUnsignedExpGolomb();
+    }
+
+    const width = (picWidthInMbsMinus1 + 1) * 16;
+    const height =
+      (2 - frameMbsOnlyFlag) * (picHeightInMapUnitsMinus1 + 1) * 16;
+    let cropUnitX = 1;
+    let cropUnitY = 2 - frameMbsOnlyFlag;
+    if (chromaFormatIdc === 1) {
+      cropUnitX = 2;
+      cropUnitY = 2 * (2 - frameMbsOnlyFlag);
+    } else if (chromaFormatIdc === 2) {
+      cropUnitX = 2;
+      cropUnitY = 2 - frameMbsOnlyFlag;
+    }
+
+    return {
+      width: width - (frameCropLeftOffset + frameCropRightOffset) * cropUnitX,
+      height: height - (frameCropTopOffset + frameCropBottomOffset) * cropUnitY,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
+  const starts: number[] = [];
+  for (let index = 0; index < bytes.length - 4; index++) {
+    const isThreeByteStart =
+      bytes[index] === 0x00 &&
+      bytes[index + 1] === 0x00 &&
+      bytes[index + 2] === 0x01;
+    const isFourByteStart =
+      bytes[index] === 0x00 &&
+      bytes[index + 1] === 0x00 &&
+      bytes[index + 2] === 0x00 &&
+      bytes[index + 3] === 0x01;
+
+    if (isThreeByteStart || isFourByteStart) {
+      starts.push(index);
+      index += isFourByteStart ? 3 : 2;
+    }
+  }
+
+  for (let index = 0; index < starts.length; index++) {
+    const startCodeLength = bytes[starts[index] + 2] === 0x01 ? 3 : 4;
+    const nalStart = starts[index] + startCodeLength;
+    const nalEnd = starts[index + 1] ?? bytes.length;
+    if (nalStart >= nalEnd) continue;
+
+    const nalType = bytes[nalStart] & 0x1f;
+    if (nalType !== 7) continue;
+
+    const resolution = parseH264SpsResolution(bytes.slice(nalStart, nalEnd));
+    if (resolution) return resolution;
+  }
+
+  return null;
+}
+
+function extractTsPayload(bytes: Uint8Array): Uint8Array {
+  const payload: number[] = [];
+  const packetSize = 188;
+
+  for (
+    let offset = 0;
+    offset + packetSize <= bytes.length;
+    offset += packetSize
+  ) {
+    if (bytes[offset] !== 0x47) continue;
+
+    const adaptationFieldControl = (bytes[offset + 3] >> 4) & 0x03;
+    if (adaptationFieldControl !== 1 && adaptationFieldControl !== 3) continue;
+
+    let payloadOffset = offset + 4;
+    if (adaptationFieldControl === 3) {
+      payloadOffset += 1 + bytes[payloadOffset];
+    }
+    if (payloadOffset >= offset + packetSize) continue;
+
+    for (let index = payloadOffset; index < offset + packetSize; index++) {
+      payload.push(bytes[index]);
+    }
+  }
+
+  return new Uint8Array(payload);
+}
+
+async function probeSegmentResolution(
+  url: string,
+  options: {
+    signal?: AbortSignal;
+    byteLength: number;
+    cache: Map<string, VideoResolution | null>;
+  },
+): Promise<VideoResolution | null> {
+  if (options.cache.has(url)) {
+    return options.cache.get(url) ?? null;
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Range: `bytes=0-${Math.max(0, options.byteLength - 1)}`,
+      },
+      signal: options.signal,
+    });
+
+    if (!response.ok) {
+      options.cache.set(url, null);
+      return null;
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const payload = extractTsPayload(bytes);
+    const resolution = findH264SpsResolution(payload);
+    options.cache.set(url, resolution);
+    if (options.cache.size > RESOLUTION_PROBE_CACHE_LIMIT) {
+      const firstKey = options.cache.keys().next().value;
+      if (firstKey) {
+        options.cache.delete(firstKey);
+      }
+    }
+    return resolution;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw err;
+    }
+    options.cache.set(url, null);
+    return null;
+  }
+}
+
 function parsePlaylistText(
   text: string,
   options: ParsePlaylistTextOptions = {},
-): SkipRange[] {
+): PlaylistParseResult {
   const lines = text.split(MANIFEST_LINE_BREAK).map((line) => line.trim());
-  if (lines.length === 0) return [];
+  if (lines.length === 0) return { ranges: [], segments: [] };
 
   let currentTime = options.timelineStart ?? 0;
   let pendingSegmentDuration: number | null = null;
@@ -220,7 +571,9 @@ function parsePlaylistText(
   let programDateTimeAnchorTimeline: number | null = null;
   let activeCueOutStart: number | null = null;
   let activeCueOutDuration = Number.NaN;
+  let pendingDiscontinuity = false;
   const ranges: SkipRange[] = [];
+  const segments: SegmentTimelineEntry[] = [];
   const activeDaterangeStarts = new Map<string, number>();
 
   const closeCueOut = (end: number) => {
@@ -288,6 +641,7 @@ function parsePlaylistText(
       if (line.startsWith("#EXT-X-DISCONTINUITY")) {
         programDateTimeAnchorMs = null;
         programDateTimeAnchorTimeline = null;
+        pendingDiscontinuity = true;
         continue;
       }
 
@@ -372,8 +726,18 @@ function parsePlaylistText(
     }
 
     if (pendingSegmentDuration !== null) {
+      const start = currentTime;
       currentTime += pendingSegmentDuration;
+      if (options.playlistUrl) {
+        segments.push({
+          start,
+          end: currentTime,
+          url: new URL(line, options.playlistUrl).toString(),
+          startsAfterDiscontinuity: pendingDiscontinuity,
+        });
+      }
       pendingSegmentDuration = null;
+      pendingDiscontinuity = false;
     }
   }
 
@@ -383,7 +747,101 @@ function parsePlaylistText(
     closeDaterange(id, currentTime);
   });
 
+  return {
+    ranges: mergeSkipRanges(ranges),
+    segments,
+  };
+}
+
+async function inferResolutionSkipRanges(
+  segments: SegmentTimelineEntry[],
+  options: ParsePlaylistTextOptions,
+): Promise<SkipRange[]> {
+  if (!options.enableResolutionProbe || segments.length === 0) return [];
+
+  const signal = options.signal;
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+
+  const byteLength =
+    options.resolutionProbeByteLength ?? DEFAULT_RESOLUTION_PROBE_BYTES;
+  const playbackTime = Math.max(0, options.playbackTime ?? 0);
+  const probeEndTime = playbackTime + DEFAULT_RESOLUTION_PROBE_WINDOW_SECONDS;
+  const probe = (segment: SegmentTimelineEntry) =>
+    probeSegmentResolution(segment.url, {
+      signal,
+      byteLength,
+      cache: resolutionProbeCache,
+    });
+
+  const previousSegments = segments
+    .filter((segment) => segment.end <= playbackTime)
+    .slice(-BASELINE_SAMPLE_LIMIT);
+  const baselineCandidates =
+    previousSegments.length >= MIN_ANOMALY_SEGMENTS
+      ? previousSegments
+      : segments.slice(0, BASELINE_SAMPLE_LIMIT);
+  const baseline = getModalResolution(
+    await Promise.all(baselineCandidates.map((segment) => probe(segment))),
+  );
+  if (!baseline) return [];
+
+  const ranges: SkipRange[] = [];
+  let checkedDiscontinuities = 0;
+
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index];
+    if (!segment.startsAfterDiscontinuity) continue;
+    if (segment.start < playbackTime || segment.start > probeEndTime) continue;
+
+    checkedDiscontinuities += 1;
+    if (checkedDiscontinuities > DISCONTINUITY_PROBE_LIMIT) break;
+
+    const anomalySegments: SegmentTimelineEntry[] = [];
+    for (
+      let probeIndex = index;
+      probeIndex < Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS);
+      probeIndex++
+    ) {
+      const currentSegment = segments[probeIndex];
+      const resolution = await probe(currentSegment);
+      if (signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+
+      if (!resolution) {
+        break;
+      }
+      if (sameResolution(resolution, baseline)) {
+        break;
+      }
+
+      anomalySegments.push(currentSegment);
+    }
+
+    if (anomalySegments.length >= MIN_ANOMALY_SEGMENTS) {
+      const first = anomalySegments[0];
+      const last = anomalySegments[anomalySegments.length - 1];
+      ranges.push({ start: first.start, end: last.end });
+      index += anomalySegments.length - 1;
+    }
+  }
+
   return mergeSkipRanges(ranges);
+}
+
+async function buildSkipRangesFromPlaylistText(
+  text: string,
+  options: ParsePlaylistTextOptions = {},
+): Promise<SkipRange[]> {
+  const result = parsePlaylistText(text, options);
+  const resolutionRanges = await inferResolutionSkipRanges(
+    result.segments,
+    options,
+  );
+
+  return mergeSkipRanges([...result.ranges, ...resolutionRanges]);
 }
 
 async function fetchManifestText(
@@ -475,8 +933,13 @@ export async function parseAdSkipRangesFromManifest(
       return [];
     }
 
-    return parsePlaylistText(text, {
+    return buildSkipRangesFromPlaylistText(text, {
       timelineStart: options.timelineStart,
+      playlistUrl: url,
+      signal,
+      playbackTime: options.playbackTime,
+      enableResolutionProbe: options.enableResolutionProbe,
+      resolutionProbeByteLength: options.resolutionProbeByteLength,
     });
   };
 
@@ -490,7 +953,14 @@ export function parseAdSkipRangesFromPlaylistText(
   text: string,
   options: ParsePlaylistTextOptions = {},
 ): SkipRange[] {
-  return parsePlaylistText(text, options);
+  return parsePlaylistText(text, options).ranges;
+}
+
+export async function parseAdSkipRangesFromPlaylistTextWithSideChannel(
+  text: string,
+  options: ParsePlaylistTextOptions = {},
+): Promise<SkipRange[]> {
+  return buildSkipRangesFromPlaylistText(text, options);
 }
 
 export type { SkipRange };
