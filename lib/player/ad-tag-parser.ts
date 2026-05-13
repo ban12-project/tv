@@ -538,6 +538,12 @@ async function probeSegmentResolution(
       return null;
     }
 
+    if (response.status !== 206) {
+      await response.body?.cancel();
+      options.cache.set(url, null);
+      return null;
+    }
+
     const bytes = new Uint8Array(await response.arrayBuffer());
     const payload = extractTsPayload(bytes);
     const resolution = findH264SpsResolution(payload);
@@ -778,12 +784,12 @@ async function inferResolutionSkipRanges(
   const previousSegments = segments
     .filter((segment) => segment.end <= playbackTime)
     .slice(-BASELINE_SAMPLE_LIMIT);
-  const baselineCandidates =
-    previousSegments.length >= MIN_ANOMALY_SEGMENTS
-      ? previousSegments
-      : segments.slice(0, BASELINE_SAMPLE_LIMIT);
+  if (previousSegments.length < MIN_ANOMALY_SEGMENTS) {
+    return [];
+  }
+
   const baseline = getModalResolution(
-    await Promise.all(baselineCandidates.map((segment) => probe(segment))),
+    await Promise.all(previousSegments.map((segment) => probe(segment))),
   );
   if (!baseline) return [];
 
@@ -793,7 +799,11 @@ async function inferResolutionSkipRanges(
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index];
     if (!segment.startsAfterDiscontinuity) continue;
-    if (segment.start < playbackTime || segment.start > probeEndTime) continue;
+    if (segment.start > probeEndTime) continue;
+
+    const candidateEnd =
+      segments[Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS) - 1].end;
+    if (candidateEnd <= playbackTime) continue;
 
     checkedDiscontinuities += 1;
     if (checkedDiscontinuities > DISCONTINUITY_PROBE_LIMIT) break;
