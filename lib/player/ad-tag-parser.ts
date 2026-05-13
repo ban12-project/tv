@@ -13,6 +13,9 @@ const DISCONTINUITY_PROBE_LIMIT = 40;
 const MIN_ANOMALY_SEGMENTS = 2;
 const MAX_ANOMALY_SEGMENTS = 12;
 const RESOLUTION_PROBE_CACHE_LIMIT = 500;
+const RESOLUTION_PROBE_CONCURRENCY = 4;
+const RESOLUTION_PROBE_TIMEOUT_MS = 8_000;
+const INITIAL_TS_PAYLOAD_BUFFER_BYTES = 64 * 1024;
 const H264_HIGH_PROFILES = new Set([
   100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
 ]);
@@ -620,10 +623,27 @@ function findH264VideoPid(bytes: Uint8Array): number | null {
 }
 
 function extractTsPayload(bytes: Uint8Array): Uint8Array {
-  const payload = new Uint8Array(bytes.length);
+  let payload = new Uint8Array(
+    Math.max(1, Math.min(bytes.length, INITIAL_TS_PAYLOAD_BUFFER_BYTES)),
+  );
   let payloadIndex = 0;
   const packetSize = 188;
   const videoPid = findH264VideoPid(bytes);
+
+  const appendPayload = (chunk: Uint8Array) => {
+    const requiredLength = payloadIndex + chunk.length;
+    if (requiredLength > payload.length) {
+      let nextLength = payload.length;
+      while (nextLength < requiredLength) {
+        nextLength *= 2;
+      }
+      const nextPayload = new Uint8Array(Math.min(nextLength, bytes.length));
+      nextPayload.set(payload);
+      payload = nextPayload;
+    }
+    payload.set(chunk, payloadIndex);
+    payloadIndex += chunk.length;
+  };
 
   for (
     let offset = 0;
@@ -651,11 +671,35 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
     if (payloadOffset >= offset + packetSize) continue;
 
     const chunk = bytes.subarray(payloadOffset, offset + packetSize);
-    payload.set(chunk, payloadIndex);
-    payloadIndex += chunk.length;
+    appendPayload(chunk);
   }
 
   return payload.subarray(0, payloadIndex);
+}
+
+function createTimeoutSignal(parentSignal: AbortSignal | undefined): {
+  signal: AbortSignal;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) {
+    abortFromParent();
+  } else {
+    parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, RESOLUTION_PROBE_TIMEOUT_MS);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timeout);
+      parentSignal?.removeEventListener("abort", abortFromParent);
+    },
+  };
 }
 
 async function probeSegmentResolution(
@@ -673,12 +717,13 @@ async function probeSegmentResolution(
     return cached;
   }
 
+  const timeoutSignal = createTimeoutSignal(options.signal);
   try {
     const response = await fetch(url, {
       headers: {
         Range: `bytes=0-${Math.max(0, options.byteLength - 1)}`,
       },
-      signal: options.signal,
+      signal: timeoutSignal.signal,
     });
 
     if (!response.ok) {
@@ -705,11 +750,39 @@ async function probeSegmentResolution(
     return resolution;
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
+      if (!options.signal?.aborted) {
+        options.cache.set(url, null);
+        return null;
+      }
       throw err;
     }
     options.cache.set(url, null);
     return null;
+  } finally {
+    timeoutSignal.cleanup();
   }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex]);
+      }
+    }),
+  );
+
+  return results;
 }
 
 function parsePlaylistText(
@@ -937,7 +1010,11 @@ async function inferResolutionSkipRanges(
   }
 
   const baseline = getModalResolution(
-    await Promise.all(previousSegments.map((segment) => probe(segment))),
+    await mapWithConcurrency(
+      previousSegments,
+      RESOLUTION_PROBE_CONCURRENCY,
+      probe,
+    ),
   );
   if (!baseline) return [];
 
@@ -960,8 +1037,10 @@ async function inferResolutionSkipRanges(
       index,
       Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS),
     );
-    const candidateResolutions = await Promise.all(
-      candidateSegments.map((candidate) => probe(candidate)),
+    const candidateResolutions = await mapWithConcurrency(
+      candidateSegments,
+      RESOLUTION_PROBE_CONCURRENCY,
+      probe,
     );
     if (signal?.aborted) {
       throw new DOMException("Aborted", "AbortError");
