@@ -452,12 +452,13 @@ function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
 
 function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
   const starts: number[] = [];
-  for (let index = 0; index < bytes.length - 4; index++) {
+  for (let index = 0; index < bytes.length - 2; index++) {
     const isThreeByteStart =
       bytes[index] === 0x00 &&
       bytes[index + 1] === 0x00 &&
       bytes[index + 2] === 0x01;
     const isFourByteStart =
+      index < bytes.length - 3 &&
       bytes[index] === 0x00 &&
       bytes[index + 1] === 0x00 &&
       bytes[index + 2] === 0x00 &&
@@ -485,9 +486,89 @@ function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
   return null;
 }
 
-function extractTsPayload(bytes: Uint8Array): Uint8Array {
-  const payload: number[] = [];
+function getTsPacketPayloadOffset(
+  bytes: Uint8Array,
+  packetOffset: number,
+): number | null {
   const packetSize = 188;
+  const adaptationFieldControl = (bytes[packetOffset + 3] >> 4) & 0x03;
+  if (adaptationFieldControl !== 1 && adaptationFieldControl !== 3) return null;
+
+  let payloadOffset = packetOffset + 4;
+  if (adaptationFieldControl === 3) {
+    payloadOffset += 1 + bytes[payloadOffset];
+  }
+  if (payloadOffset >= packetOffset + packetSize) return null;
+
+  return payloadOffset;
+}
+
+function getTsPacketPid(bytes: Uint8Array, packetOffset: number): number {
+  return ((bytes[packetOffset + 1] & 0x1f) << 8) | bytes[packetOffset + 2];
+}
+
+function readPsiSection(
+  bytes: Uint8Array,
+  packetOffset: number,
+): Uint8Array | null {
+  const payloadOffset = getTsPacketPayloadOffset(bytes, packetOffset);
+  if (payloadOffset === null) return null;
+
+  const payloadUnitStartIndicator = (bytes[packetOffset + 1] & 0x40) !== 0;
+  const sectionOffset = payloadUnitStartIndicator
+    ? payloadOffset + 1 + bytes[payloadOffset]
+    : payloadOffset;
+  if (sectionOffset + 3 > packetOffset + 188) return null;
+
+  const sectionLength =
+    ((bytes[sectionOffset + 1] & 0x0f) << 8) | bytes[sectionOffset + 2];
+  const sectionEnd = sectionOffset + 3 + sectionLength;
+  if (sectionEnd > packetOffset + 188) return null;
+
+  return bytes.slice(sectionOffset, sectionEnd);
+}
+
+function parsePatPmtPid(section: Uint8Array): number | null {
+  if (section[0] !== 0x00 || section.length < 12) return null;
+
+  const sectionLength = ((section[1] & 0x0f) << 8) | section[2];
+  const entriesEnd = Math.min(section.length, 3 + sectionLength - 4);
+  for (let offset = 8; offset + 4 <= entriesEnd; offset += 4) {
+    const programNumber = (section[offset] << 8) | section[offset + 1];
+    if (programNumber === 0) continue;
+
+    return ((section[offset + 2] & 0x1f) << 8) | section[offset + 3];
+  }
+
+  return null;
+}
+
+function parsePmtVideoPid(section: Uint8Array): number | null {
+  if (section[0] !== 0x02 || section.length < 16) return null;
+
+  const sectionLength = ((section[1] & 0x0f) << 8) | section[2];
+  const programInfoLength = ((section[10] & 0x0f) << 8) | section[11];
+  let offset = 12 + programInfoLength;
+  const entriesEnd = Math.min(section.length, 3 + sectionLength - 4);
+
+  while (offset + 5 <= entriesEnd) {
+    const streamType = section[offset];
+    const elementaryPid =
+      ((section[offset + 1] & 0x1f) << 8) | section[offset + 2];
+    const esInfoLength =
+      ((section[offset + 3] & 0x0f) << 8) | section[offset + 4];
+    if (streamType === 0x1b) {
+      return elementaryPid;
+    }
+    offset += 5 + esInfoLength;
+  }
+
+  return null;
+}
+
+function findH264VideoPid(bytes: Uint8Array): number | null {
+  const packetSize = 188;
+  let pmtPid: number | null = null;
 
   for (
     let offset = 0;
@@ -496,12 +577,47 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
   ) {
     if (bytes[offset] !== 0x47) continue;
 
-    const adaptationFieldControl = (bytes[offset + 3] >> 4) & 0x03;
-    if (adaptationFieldControl !== 1 && adaptationFieldControl !== 3) continue;
+    const pid = getTsPacketPid(bytes, offset);
+    const section = readPsiSection(bytes, offset);
+    if (!section) continue;
 
-    let payloadOffset = offset + 4;
-    if (adaptationFieldControl === 3) {
-      payloadOffset += 1 + bytes[payloadOffset];
+    if (pid === 0x0000) {
+      pmtPid = parsePatPmtPid(section);
+    } else if (pmtPid !== null && pid === pmtPid) {
+      return parsePmtVideoPid(section);
+    }
+  }
+
+  return null;
+}
+
+function extractTsPayload(bytes: Uint8Array): Uint8Array {
+  const payload: number[] = [];
+  const packetSize = 188;
+  const videoPid = findH264VideoPid(bytes);
+
+  for (
+    let offset = 0;
+    offset + packetSize <= bytes.length;
+    offset += packetSize
+  ) {
+    if (bytes[offset] !== 0x47) continue;
+    if (videoPid !== null && getTsPacketPid(bytes, offset) !== videoPid) {
+      continue;
+    }
+
+    let payloadOffset = getTsPacketPayloadOffset(bytes, offset);
+    if (payloadOffset === null) continue;
+
+    const payloadUnitStartIndicator = (bytes[offset + 1] & 0x40) !== 0;
+    if (
+      payloadUnitStartIndicator &&
+      payloadOffset + 9 < offset + packetSize &&
+      bytes[payloadOffset] === 0x00 &&
+      bytes[payloadOffset + 1] === 0x00 &&
+      bytes[payloadOffset + 2] === 0x01
+    ) {
+      payloadOffset += 9 + bytes[payloadOffset + 8];
     }
     if (payloadOffset >= offset + packetSize) continue;
 
