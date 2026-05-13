@@ -10,6 +10,8 @@ import {
 } from "@/lib/player/ad-tag-parser";
 import { cn, formatTime } from "@/lib/utils";
 
+const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
+
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
   poster?: string;
@@ -287,7 +289,7 @@ export default function VideoPlayer({
                 void updateSkipRanges({
                   timelineStart: getNativeTimelineStart(),
                 });
-              }, 5_000);
+              }, SKIP_RANGE_REFRESH_INTERVAL_MS);
             }
             if (autoPlay) video.play().catch(() => {});
           };
@@ -330,7 +332,7 @@ export default function VideoPlayer({
             playlistUrl: latestPlaylistUrl,
             timelineStart: latestPlaylistTimelineStart,
           });
-        }, 10_000);
+        }, SKIP_RANGE_REFRESH_INTERVAL_MS);
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {

@@ -956,14 +956,25 @@ async function inferResolutionSkipRanges(
     checkedDiscontinuities += 1;
     if (checkedDiscontinuities > DISCONTINUITY_PROBE_LIMIT) break;
 
+    const candidateSegments = segments.slice(
+      index,
+      Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS),
+    );
+    const candidateResolutions = await Promise.all(
+      candidateSegments.map((candidate) => probe(candidate)),
+    );
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
     const anomalySegments: SegmentTimelineEntry[] = [];
     for (
-      let probeIndex = index;
-      probeIndex < Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS);
+      let probeIndex = 0;
+      probeIndex < candidateSegments.length;
       probeIndex++
     ) {
-      const currentSegment = segments[probeIndex];
-      const resolution = await probe(currentSegment);
+      const currentSegment = candidateSegments[probeIndex];
+      const resolution = candidateResolutions[probeIndex];
       if (signal?.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
