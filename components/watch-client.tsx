@@ -1,8 +1,7 @@
 "use client";
 
-import { Info } from "lucide-react";
-import { usePathname } from "next/navigation";
-import Script from "next/script";
+import { ChevronLeft, ChevronRight, Info, ListVideo } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { EpisodeCard } from "@/components/episode-card";
@@ -17,14 +16,20 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayer from "@/components/video-player";
 import type { Messages } from "@/get-dictionary";
-import { findMatchesStream, saveVideoAspectRatio } from "@/lib/actions/content";
+import {
+  findMatchesStream,
+  saveContentProfile,
+  saveVideoAspectRatio,
+} from "@/lib/actions/content";
 import { saveWatchProgress } from "@/lib/actions/history";
-import type { Episode, Video } from "@/lib/adapters/types";
+import type { ContentProfile, Episode, Video } from "@/lib/adapters/types";
+import {
+  getPlaybackKind,
+  inferContentProfile,
+  isPortraitAspectRatio,
+  mergeContentProfiles,
+} from "@/lib/content-profile";
 import { cn } from "@/lib/utils";
-
-// import { dependencies } from "@/package.json";
-
-// const HLS_VERSION = dependencies["hls.js"].replace("^", "").replace("~", "");
 
 interface WatchProgress {
   epIndex: number;
@@ -32,26 +37,27 @@ interface WatchProgress {
   duration: number;
 }
 
+interface WatchSource {
+  name: string;
+  sourceId: string;
+  videoId: string;
+  episodes: Episode[];
+  contentProfile?: ContentProfile | null;
+}
+
 interface WatchClientProps {
   video: Video;
-  sources: {
-    name: string;
-    sourceId: string;
-    videoId: string;
-    episodes: Episode[];
-  }[];
+  sources: WatchSource[];
   dictionary: Messages;
   initialEpisodeIndex: number;
   initialSourceId: string;
   progressPromise?: Promise<WatchProgress | null>;
   initialAspectRatio?: string | null;
+  initialContentProfile?: ContentProfile | null;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
-const matchesCache = new Map<
-  string,
-  { name: string; sourceId: string; videoId: string; episodes: Episode[] }[]
->();
+const matchesCache = new Map<string, WatchSource[]>();
 
 export default function WatchClient({
   video,
@@ -61,6 +67,7 @@ export default function WatchClient({
   initialSourceId,
   progressPromise,
   initialAspectRatio,
+  initialContentProfile,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -72,32 +79,28 @@ export default function WatchClient({
   const [autoSkip, setAutoSkip] = useLocalStorage("auto-skip", false, {
     initializeWithValue: false,
   });
-  const [hlsLoader] = React.useState(() => {
-    let resolve!: (value: typeof import("hls.js").default) => void;
-    // Check if resolved on init (client-side only optimization)
-    const getHls = () =>
-      // biome-ignore lint/suspicious/noExplicitAny: explicit bypass for window.Hls
-      typeof window !== "undefined" ? (window as any).Hls : undefined;
-    const initialHls = getHls();
-
-    const promise = new Promise<typeof import("hls.js").default>((r) => {
-      resolve = r;
-      if (initialHls) r(initialHls);
-    });
-
-    const handleLoaded = () => {
-      const hls = getHls();
-      if (hls) resolve(hls);
-    };
-
-    return { promise, handleLoaded };
-  });
+  const [autoNext, setAutoNext] = useLocalStorage(
+    "short-drama-auto-next",
+    true,
+    { initializeWithValue: false },
+  );
+  const [hlsResourcePromise] = React.useState(() =>
+    import("hls.js").then((module) => module.default),
+  );
+  const [contentProfile, setContentProfile] = React.useState(() =>
+    initialContentProfile
+      ? initialContentProfile
+      : inferContentProfile(video, { aspectRatio: initialAspectRatio }),
+  );
 
   const lastSyncTimeRef = React.useRef<number>(0);
   const knownAspectRatioKeysRef = React.useRef(new Set<string>());
   const aspectRatioCacheRef = React.useRef(new Map<string, string>());
+  const savedProfileKeysRef = React.useRef(new Set<string>());
+  const activeEpisodeItemRef = React.useRef<HTMLLIElement | null>(null);
 
   const pathname = usePathname();
+  const router = useRouter();
 
   const setActivePlayback = React.useCallback(
     (sourceId: string, episodeIndex: number) => {
@@ -206,6 +209,7 @@ export default function WatchClient({
                     sourceId: match.sourceId,
                     videoId: match.video.id,
                     episodes: match.video.episodes || [],
+                    contentProfile: inferContentProfile(match.video),
                   });
                 }
               }
@@ -236,6 +240,74 @@ export default function WatchClient({
     (currentAspectRatioKey === `${initialSourceId}:${video.id}`
       ? (initialAspectRatio ?? null)
       : null);
+  const playbackKind = getPlaybackKind(contentProfile);
+  const isShortDrama = playbackKind === "short-drama";
+  const isPortraitPlayer =
+    isShortDrama &&
+    (isPortraitAspectRatio(aspectRatio) ||
+      contentProfile.signals.includes("portrait-video"));
+  const previousEpisodeIndex = activeEpisodeIndex - 1;
+  const nextEpisodeIndex = activeEpisodeIndex + 1;
+  const hasPreviousEpisode = previousEpisodeIndex >= 0;
+  const hasNextEpisode = nextEpisodeIndex < currentSource.episodes.length;
+  const nextEpisode = hasNextEpisode
+    ? currentSource.episodes[nextEpisodeIndex]
+    : undefined;
+  const playerShellClassName = cn(
+    "w-full mx-auto lg:px-6",
+    isPortraitPlayer ? "max-w-md sm:max-w-lg" : "max-w-7xl",
+  );
+  const playerAspectRatio = aspectRatio ?? (isPortraitPlayer ? "9 / 16" : null);
+  const setActiveEpisodeItem = React.useCallback(
+    (node: HTMLLIElement | null) => {
+      activeEpisodeItemRef.current = node;
+      if (!node || !isShortDrama) return;
+
+      node.scrollIntoView({
+        block: "nearest",
+        inline: "center",
+      });
+    },
+    [isShortDrama],
+  );
+
+  React.useEffect(() => {
+    const sourceProfile = currentSource.contentProfile;
+    if (!sourceProfile) return;
+
+    setContentProfile((current) =>
+      mergeContentProfiles(current, sourceProfile),
+    );
+  }, [currentSource.contentProfile]);
+
+  React.useEffect(() => {
+    if (!isShortDrama || !hasNextEpisode) return;
+
+    const nextUrl = new URL(`./${nextEpisodeIndex + 1}`, window.location.href);
+    router.prefetch(nextUrl.pathname);
+  }, [hasNextEpisode, isShortDrama, nextEpisodeIndex, router]);
+
+  React.useEffect(() => {
+    if (contentProfile.confidence <= 0) return;
+
+    const profileKey = `${currentSource.sourceId}:${currentSource.videoId}:${contentProfile.kind}:${contentProfile.confidence}:${contentProfile.signals.join(",")}`;
+    if (savedProfileKeysRef.current.has(profileKey)) return;
+    savedProfileKeysRef.current.add(profileKey);
+
+    void saveContentProfile({
+      sourceId: currentSource.sourceId,
+      videoId: currentSource.videoId,
+      resourceUrl: currentEpisode?.url ?? null,
+      profile: contentProfile,
+    }).catch(() => {
+      savedProfileKeysRef.current.delete(profileKey);
+    });
+  }, [
+    contentProfile,
+    currentEpisode?.url,
+    currentSource.sourceId,
+    currentSource.videoId,
+  ]);
 
   // Logic to handle source change (tabs click)
   const handleSourceChange = (newSourceId: string) => {
@@ -266,6 +338,12 @@ export default function WatchClient({
 
     // Update local state instantly for better UX
     setActivePlayback(newSourceId, newEpisodeIndex);
+    const sourceProfile = newSource?.contentProfile;
+    if (sourceProfile) {
+      setContentProfile((current) =>
+        mergeContentProfiles(current, sourceProfile),
+      );
+    }
 
     // Update URL shallowly
     const url = new URL(
@@ -290,12 +368,42 @@ export default function WatchClient({
     [activeEpisodeIndex, setActivePlayback],
   );
 
+  const handleStepEpisode = React.useCallback(
+    (direction: -1 | 1) => {
+      const nextIndex = activeEpisodeIndex + direction;
+      if (nextIndex < 0 || nextIndex >= currentSource.episodes.length) return;
+      handleEpisodeClick(nextIndex);
+    },
+    [activeEpisodeIndex, currentSource.episodes.length, handleEpisodeClick],
+  );
+
+  const handleAutoAdvance = React.useCallback(() => {
+    if (!isShortDrama || !autoNext || !hasNextEpisode) return;
+    handleEpisodeClick(nextEpisodeIndex);
+  }, [
+    autoNext,
+    handleEpisodeClick,
+    hasNextEpisode,
+    isShortDrama,
+    nextEpisodeIndex,
+  ]);
+
   const handleVideoMetadata = React.useEffectEvent(
     ({ width, height }: { width: number; height: number }) => {
       if (width <= 0 || height <= 0) return;
 
       const nextAspectRatio = `${width} / ${height}`;
       aspectRatioCacheRef.current.set(currentAspectRatioKey, nextAspectRatio);
+      setContentProfile((current) =>
+        mergeContentProfiles(
+          current,
+          inferContentProfile(video, {
+            aspectRatio: nextAspectRatio,
+            width,
+            height,
+          }),
+        ),
+      );
 
       if (knownAspectRatioKeysRef.current.has(currentAspectRatioKey)) {
         return;
@@ -326,7 +434,7 @@ export default function WatchClient({
       // Network Sync (Beacon vs Fetch)
       if (isBeacon) {
         const payload = JSON.stringify({
-          videoId: video.id,
+          videoId: currentSource.videoId,
           sourceId: currentSource.sourceId,
           epIndex: activeEpisodeIndex,
           progress: time,
@@ -347,7 +455,7 @@ export default function WatchClient({
         if (now - lastSyncTimeRef.current > 15000 && time > 5) {
           lastSyncTimeRef.current = now;
           saveWatchProgress({
-            videoId: video.id,
+            videoId: currentSource.videoId,
             sourceId: currentSource.sourceId,
             epIndex: activeEpisodeIndex,
             progress: time,
@@ -362,52 +470,102 @@ export default function WatchClient({
     <>
       {/* Main Player Area */}
       {currentEpisode ? (
-        <>
-          {/* TODO: https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/${HLS_VERSION}/hls.min.js
-            related issue: https://github.com/cdnjs/cdnjs/issues/14263
-          */}
-          <Script
-            src={`https://mirrors.sustech.edu.cn/cdnjs/ajax/libs/hls.js/1.6.13/hls.min.js`}
-            onReady={hlsLoader.handleLoaded}
-          />
-          <React.Suspense
-            fallback={
-              <div className={cn("w-full max-w-7xl mx-auto lg:px-6")}>
-                <div
-                  className="aspect-video bg-muted animate-pulse rounded-lg"
-                  style={{
-                    aspectRatio: aspectRatio ?? undefined,
-                  }}
-                />
-              </div>
-            }
-          >
-            <div className="w-full max-w-7xl mx-auto lg:px-6">
-              <VideoPlayer
-                className="aspect-video"
+        <React.Suspense
+          fallback={
+            <div className={playerShellClassName}>
+              <div
+                className={cn(
+                  "bg-muted animate-pulse rounded-lg",
+                  isPortraitPlayer ? "aspect-[9/16]" : "aspect-video",
+                )}
                 style={{
-                  aspectRatio: aspectRatio ?? undefined,
+                  aspectRatio: playerAspectRatio ?? undefined,
                 }}
-                videoUrl={currentEpisode.url}
-                poster={video.backgroundImage || video.image}
-                autoPlay={true}
-                autoSkip={autoSkip}
-                hlsResourcePromise={hlsLoader.promise}
-                initialProgress={initialProgress}
-                onProgressSync={handleProgressSync}
-                onVideoMetadata={handleVideoMetadata}
-                dictionary={dictionary}
               />
             </div>
-          </React.Suspense>
-        </>
+          }
+        >
+          <div className={playerShellClassName}>
+            <VideoPlayer
+              className={cn(
+                isPortraitPlayer ? "aspect-[9/16]" : "aspect-video",
+              )}
+              style={{
+                aspectRatio: playerAspectRatio ?? undefined,
+              }}
+              videoUrl={currentEpisode.url}
+              poster={video.backgroundImage || video.image}
+              autoPlay={true}
+              autoSkip={autoSkip}
+              hlsResourcePromise={hlsResourcePromise}
+              initialProgress={initialProgress}
+              onProgressSync={handleProgressSync}
+              onVideoMetadata={handleVideoMetadata}
+              playbackProfile={playbackKind}
+              nextVideoUrl={nextEpisode?.url}
+              onEndedAdvance={handleAutoAdvance}
+              dictionary={dictionary}
+            />
+          </div>
+        </React.Suspense>
       ) : (
         <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
           {dictionary.watch["no-source"] ?? "No playable source found."}
         </div>
       )}
 
-      <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 flex items-center gap-4 mb-6">
+      <div className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 flex flex-wrap items-center gap-4 mb-6">
+        {isShortDrama && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              disabled={!hasPreviousEpisode}
+              title={dictionary.watch["previous-episode"]}
+              onClick={() => handleStepEpisode(-1)}
+            >
+              <ChevronLeft className="size-4" />
+              <span className="sr-only">
+                {dictionary.watch["previous-episode"]}
+              </span>
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              disabled={!hasNextEpisode}
+              title={dictionary.watch["next-episode"]}
+              onClick={() => handleStepEpisode(1)}
+            >
+              <ChevronRight className="size-4" />
+              <span className="sr-only">
+                {dictionary.watch["next-episode"]}
+              </span>
+            </Button>
+            <div className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-secondary px-3 text-xs font-medium text-muted-foreground">
+              <ListVideo className="size-4" />
+              <span>{dictionary.watch["short-drama-mode"]}</span>
+            </div>
+          </div>
+        )}
+
+        {isShortDrama && (
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="auto-next"
+              checked={autoNext}
+              onCheckedChange={setAutoNext}
+            />
+            <Label
+              htmlFor="auto-next"
+              className="text-sm font-medium cursor-pointer"
+            >
+              {dictionary.watch["auto-next-label"]}
+            </Label>
+          </div>
+        )}
+
         <div className="flex items-center space-x-2">
           <Switch
             id="auto-skip"
@@ -428,7 +586,9 @@ export default function WatchClient({
                 className="h-4 w-4 rounded-full"
               >
                 <Info className="h-4 w-4 text-muted-foreground" />
-                <span className="sr-only">Info</span>
+                <span className="sr-only">
+                  {dictionary.watch["ad-skip-info"]}
+                </span>
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -469,13 +629,28 @@ export default function WatchClient({
               value="episodes"
               className="mt-0 outline-none focus-visible:ring-0"
             >
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 [content-visibility:auto] [contain-intrinsic-size:0_3rem]">
+              <ul
+                className={cn(
+                  "grid [content-visibility:auto] [contain-intrinsic-size:0_3rem]",
+                  isShortDrama
+                    ? "grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] gap-1.5"
+                    : "grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2",
+                )}
+              >
                 {currentSource.episodes.map((ep, index) => (
-                  <li key={`${ep.name}-${index}`}>
+                  <li
+                    key={`${ep.name}-${index}`}
+                    ref={
+                      activeEpisodeIndex === index
+                        ? setActiveEpisodeItem
+                        : undefined
+                    }
+                  >
                     <EpisodeCard
                       index={index}
                       isActive={activeEpisodeIndex === index}
-                      href={`/watch/${currentSource.sourceId}/${video.id}/${index + 1}`}
+                      href={`/watch/${currentSource.sourceId}/${currentSource.videoId}/${index + 1}`}
+                      dense={isShortDrama}
                       onClick={handleEpisodeClick}
                     />
                   </li>

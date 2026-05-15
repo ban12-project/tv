@@ -4,6 +4,7 @@ import IntlMessageFormat from "intl-messageformat";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
+import type { ContentKind } from "@/lib/adapters/types";
 import {
   parseAdSkipRangesFromManifest,
   parseAdSkipRangesFromPlaylistTextWithSideChannel,
@@ -28,6 +29,9 @@ interface VideoPlayerProps extends React.ComponentProps<"div"> {
   initialProgress?: number;
   onProgressSync?: (time: number, duration: number, isBeacon?: boolean) => void;
   onVideoMetadata?: (metadata: { width: number; height: number }) => void;
+  playbackProfile?: ContentKind;
+  nextVideoUrl?: string;
+  onEndedAdvance?: () => void;
   dictionary: Messages;
 }
 
@@ -40,6 +44,9 @@ export default function VideoPlayer({
   initialProgress = 0,
   onProgressSync,
   onVideoMetadata,
+  playbackProfile = "standard",
+  nextVideoUrl,
+  onEndedAdvance,
   dictionary,
   ...props
 }: VideoPlayerProps) {
@@ -122,8 +129,32 @@ export default function VideoPlayer({
     }
   });
 
+  const handleEndedAdvance = React.useEffectEvent(() => {
+    onEndedAdvance?.();
+  });
+
+  React.useEffect(() => {
+    if (playbackProfile !== "short-drama" || !nextVideoUrl) return;
+
+    const controller = new AbortController();
+    const warmManifest = () => {
+      fetch(nextVideoUrl, {
+        cache: "force-cache",
+        mode: "no-cors",
+        signal: controller.signal,
+      }).catch(() => {});
+    };
+
+    const warmManifestTimeout = window.setTimeout(warmManifest, 2500);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(warmManifestTimeout);
+    };
+  }, [nextVideoUrl, playbackProfile]);
+
   // ── HLS setup ──────────────────────────────────────────────────────
-  // Deps: videoUrl, autoPlay, and autoSkip. Hls is a stable module
+  // Deps: videoUrl, autoPlay, autoSkip, and playbackProfile. Hls is a stable module
   // constructor, performSkip / handleSeeking are useEffectEvent
   // (excluded from deps by design).
   // biome-ignore lint/correctness/useExhaustiveDependencies: Hls is a stable module constructor; performSkip/handleSeeking are useEffectEvent
@@ -223,6 +254,7 @@ export default function VideoPlayer({
     let latestPlaylistText: string | undefined;
     let latestPlaylistUrl: string | undefined;
     let latestPlaylistTimelineStart = 0;
+    let deferredShortDramaSkipLoadStarted = false;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
 
@@ -359,6 +391,16 @@ export default function VideoPlayer({
 
       hls = new Hls({
         startPosition: initialTime,
+        ...(playbackProfile === "short-drama"
+          ? {
+              backBufferLength: 15,
+              fragLoadingMaxRetry: 2,
+              manifestLoadingMaxRetry: 2,
+              maxBufferLength: 12,
+              maxMaxBufferLength: 30,
+              startFragPrefetch: true,
+            }
+          : {}),
       });
 
       hls.on(Hls.Events.FRAG_CHANGED, () => {
@@ -374,6 +416,9 @@ export default function VideoPlayer({
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
+        if (playbackProfile === "short-drama" && video.currentTime < 2) {
+          return;
+        }
         void updateSkipRanges({
           playlistText: latestPlaylistText,
           playlistUrl: latestPlaylistUrl,
@@ -427,6 +472,20 @@ export default function VideoPlayer({
     // for significantly reduced CPU usage while maintaining skip accuracy
     const handleTimeUpdate = () => {
       if (autoSkip) {
+        if (
+          playbackProfile === "short-drama" &&
+          !deferredShortDramaSkipLoadStarted &&
+          skipRangesRef.current.length === 0 &&
+          latestPlaylistText &&
+          video.currentTime > 2
+        ) {
+          deferredShortDramaSkipLoadStarted = true;
+          void updateSkipRanges({
+            playlistText: latestPlaylistText,
+            playlistUrl: latestPlaylistUrl,
+            timelineStart: latestPlaylistTimelineStart,
+          });
+        }
         performSkip();
       }
 
@@ -453,7 +512,7 @@ export default function VideoPlayer({
       manifestParseController.abort();
       hls?.destroy();
     };
-  }, [videoUrl, autoPlay, autoSkip]);
+  }, [videoUrl, autoPlay, autoSkip, playbackProfile]);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -590,16 +649,6 @@ export default function VideoPlayer({
       }
     };
 
-    const handlePlay = () => requestWakeLock();
-    const handlePause = () => {
-      releaseWakeLock();
-      saveProgress();
-    };
-    const handleEnded = () => {
-      releaseWakeLock();
-      saveProgress();
-    };
-
     // sendBeacon for pagehide / visibilitychange
     const beaconProgress = () => {
       const video = videoRef.current;
@@ -609,6 +658,17 @@ export default function VideoPlayer({
       if (!Number.isNaN(time) && !Number.isNaN(duration)) {
         onProgressSync(time, duration, true);
       }
+    };
+
+    const handlePlay = () => requestWakeLock();
+    const handlePause = () => {
+      releaseWakeLock();
+      saveProgress();
+    };
+    const handleEnded = () => {
+      releaseWakeLock();
+      beaconProgress();
+      handleEndedAdvance();
     };
 
     const handleVisibilityChange = async () => {
@@ -660,9 +720,9 @@ export default function VideoPlayer({
       >
         <track kind="captions" srcLang="en" />
         <p className="text-zinc-400 p-4">
-          Browser does not support video.
+          {dictionary.watch["browser-no-video"]}
           <a href={videoUrl} className="text-primary underline ml-1">
-            Download Video
+            {dictionary.watch["download-video"]}
           </a>
         </p>
       </video>

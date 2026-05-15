@@ -7,6 +7,7 @@ import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import {
   fetchVideoDetails,
+  getContentProfile,
   getEpisodeAspectRatio,
 } from "@/lib/actions/content";
 import { getWatchProgress } from "@/lib/actions/history";
@@ -14,7 +15,11 @@ import {
   checkIsRecommended,
   getRecommendedVideoTitle,
 } from "@/lib/actions/recommendations";
-import type { Episode } from "@/lib/adapters/types";
+import type { ContentProfile, Episode } from "@/lib/adapters/types";
+import {
+  inferContentProfile,
+  mergeContentProfiles,
+} from "@/lib/content-profile";
 
 type Props = Readonly<{
   params: Promise<{
@@ -27,18 +32,24 @@ type Props = Readonly<{
 
 export default async function WatchPage({ params }: Props) {
   const { lang, sourceId, id, ep } = await params;
-  const dictionary = await getDictionary(lang);
 
   // Clean sourceId if needed (decoder?) - usually Next.js handles decoding
   const decodedSourceId = decodeURIComponent(sourceId);
+  const dictionaryPromise = getDictionary(lang);
 
-  const [video, initialAspectRatio] = await Promise.all([
-    fetchVideoDetails(id, decodedSourceId),
-    getEpisodeAspectRatio({
-      sourceId: decodedSourceId,
-      videoId: id,
-    }),
-  ]);
+  const [dictionary, video, initialAspectRatio, cachedContentProfile] =
+    await Promise.all([
+      dictionaryPromise,
+      fetchVideoDetails(id, decodedSourceId),
+      getEpisodeAspectRatio({
+        sourceId: decodedSourceId,
+        videoId: id,
+      }),
+      getContentProfile({
+        sourceId: decodedSourceId,
+        videoId: id,
+      }),
+    ]);
 
   if (!video) {
     const title = await getRecommendedVideoTitle(decodedSourceId, id);
@@ -50,6 +61,10 @@ export default async function WatchPage({ params }: Props) {
 
   // Promise for checking status (don't await here)
   const isRecommendedPromise = checkIsRecommended(decodedSourceId, id);
+  const initialContentProfile = mergeContentProfiles(
+    cachedContentProfile,
+    inferContentProfile(video, { aspectRatio: initialAspectRatio }),
+  );
 
   const episodeIndex = Number.parseInt(ep, 10) - 1;
   const validIndex =
@@ -61,6 +76,7 @@ export default async function WatchPage({ params }: Props) {
     sourceId: string;
     videoId: string;
     episodes: Episode[];
+    contentProfile?: ContentProfile;
   }[] = [];
 
   // Add current video as first source
@@ -69,6 +85,7 @@ export default async function WatchPage({ params }: Props) {
     sourceId: decodedSourceId,
     videoId: id,
     episodes: video.episodes || [],
+    contentProfile: initialContentProfile,
   });
 
   // Fetch initial progress from the database (non-blocking)
@@ -84,6 +101,7 @@ export default async function WatchPage({ params }: Props) {
         initialSourceId={decodedSourceId}
         progressPromise={progressPromise}
         initialAspectRatio={initialAspectRatio}
+        initialContentProfile={initialContentProfile}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
