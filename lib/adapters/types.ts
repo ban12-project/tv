@@ -60,6 +60,21 @@ export interface Video {
   vod_play_url?: string;
   vod_play_from?: string;
   episodes?: Episode[];
+  remarks?: string;
+  blurb?: string;
+  contentKind?: ContentKind;
+  contentConfidence?: number;
+  contentSignals?: string[];
+}
+
+export type ContentKind = "standard" | "short-drama";
+
+export interface ContentProfile {
+  kind: ContentKind;
+  confidence: number;
+  signals: string[];
+  inferredAt?: string;
+  aspectRatio?: string;
 }
 
 export interface Episode {

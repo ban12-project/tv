@@ -7,12 +7,14 @@ interface EpisodeCardProps
   extends Omit<React.ComponentProps<typeof HoverPrefetchLink>, "onClick"> {
   index: number;
   isActive: boolean;
+  dense?: boolean;
   onClick?: (index: number) => void;
 }
 
 export function EpisodeCard({
   index,
   isActive,
+  dense = false,
   onClick,
   ...props
 }: EpisodeCardProps) {
@@ -26,7 +28,8 @@ export function EpisodeCard({
         }
       }}
       className={cn(
-        "flex items-center justify-center w-12 h-12 rounded-lg text-sm font-medium transition-colors",
+        "flex items-center justify-center rounded-lg font-medium transition-colors",
+        dense ? "size-10 text-xs" : "size-12 text-sm",
         isActive
           ? "bg-primary text-primary-foreground"
           : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",

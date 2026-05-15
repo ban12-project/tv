@@ -1,3 +1,4 @@
+import { inferContentProfile } from "@/lib/content-profile";
 import type {
   MacCMSListParams,
   MacCMSVideo,
@@ -90,7 +91,16 @@ export class MacCMSAdapter implements VideoSourceAdapter {
    * @param item MacCMSVideo object
    */
   private mapToVideo = (item: MacCMSVideo): Video => {
+    const episodes = parseEpisodes(item.vod_play_url);
     const type = getType(item);
+    const contentProfile = inferContentProfile({
+      title: item.vod_name,
+      genre: [item.type_name],
+      description: item.vod_content ?? "",
+      episodes,
+      remarks: item.vod_remarks,
+      blurb: item.vod_blurb,
+    });
 
     return {
       id: item.vod_id.toString(),
@@ -114,7 +124,12 @@ export class MacCMSAdapter implements VideoSourceAdapter {
       cast: item.vod_actor ? item.vod_actor.split(",") : [],
       vod_play_url: item.vod_play_url.replace(/^http:\/\//i, "https://"),
       vod_play_from: item.vod_play_from,
-      episodes: parseEpisodes(item.vod_play_url),
+      episodes,
+      remarks: item.vod_remarks,
+      blurb: item.vod_blurb,
+      contentKind: contentProfile.kind,
+      contentConfidence: contentProfile.confidence,
+      contentSignals: contentProfile.signals,
     };
   };
 
