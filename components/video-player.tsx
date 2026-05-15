@@ -11,6 +11,13 @@ import {
 import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
+const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
+
+type VideoFrameCallback = (now: number, metadata: unknown) => void;
+type VideoWithFrameCallback = HTMLVideoElement & {
+  requestVideoFrameCallback?: (callback: VideoFrameCallback) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
@@ -72,7 +79,10 @@ export default function VideoPlayer({
 
     const currentTime = video.currentTime;
     for (const range of skipRangesRef.current) {
-      if (currentTime >= range.start && currentTime < range.end) {
+      const skipStart = video.paused
+        ? range.start
+        : Math.max(0, range.start - SKIP_RANGE_PRE_ROLL_SECONDS);
+      if (currentTime >= skipStart && currentTime < range.end) {
         console.log(
           `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
         );
@@ -224,6 +234,50 @@ export default function VideoPlayer({
       return Number.isFinite(start) ? start : 0;
     };
 
+    let skipWatchVideoFrameId: number | undefined;
+    let skipWatchRafId: number | undefined;
+
+    const cancelSkipWatch = () => {
+      const videoWithFrameCallback = video as VideoWithFrameCallback;
+      if (skipWatchVideoFrameId !== undefined) {
+        videoWithFrameCallback.cancelVideoFrameCallback?.(
+          skipWatchVideoFrameId,
+        );
+        skipWatchVideoFrameId = undefined;
+      }
+      if (skipWatchRafId !== undefined) {
+        cancelAnimationFrame(skipWatchRafId);
+        skipWatchRafId = undefined;
+      }
+    };
+
+    const queueSkipWatch = () => {
+      if (
+        !autoSkip ||
+        video.paused ||
+        video.ended ||
+        skipWatchVideoFrameId !== undefined ||
+        skipWatchRafId !== undefined
+      ) {
+        return;
+      }
+
+      const tick = () => {
+        skipWatchVideoFrameId = undefined;
+        skipWatchRafId = undefined;
+        performSkip();
+        queueSkipWatch();
+      };
+
+      const videoWithFrameCallback = video as VideoWithFrameCallback;
+      if (videoWithFrameCallback.requestVideoFrameCallback) {
+        skipWatchVideoFrameId =
+          videoWithFrameCallback.requestVideoFrameCallback(tick);
+      } else {
+        skipWatchRafId = requestAnimationFrame(tick);
+      }
+    };
+
     const updateSkipRanges = async (options?: {
       playlistText?: string;
       playlistUrl?: string;
@@ -260,6 +314,7 @@ export default function VideoPlayer({
         skipRangesRef.current = ranges;
 
         performSkip();
+        queueSkipWatch();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
@@ -363,6 +418,9 @@ export default function VideoPlayer({
 
     video.addEventListener("seeking", handleSeeking, { passive: true });
     video.addEventListener("loadedmetadata", reportVideoMetadata);
+    video.addEventListener("play", queueSkipWatch, { passive: true });
+    video.addEventListener("pause", cancelSkipWatch);
+    video.addEventListener("ended", cancelSkipWatch);
     initHls();
 
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
@@ -384,6 +442,10 @@ export default function VideoPlayer({
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
+      video.removeEventListener("play", queueSkipWatch);
+      video.removeEventListener("pause", cancelSkipWatch);
+      video.removeEventListener("ended", cancelSkipWatch);
+      cancelSkipWatch();
       cleanupWirelessListeners?.();
       clearInterval(nativeSkipRefreshInterval);
       clearInterval(hlsSkipRefreshInterval);
