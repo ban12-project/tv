@@ -29,6 +29,7 @@ const SUPPORTING_SHORT_FORM_PATTERNS = [
 ];
 
 const SHORT_DRAMA_CONFIDENCE_THRESHOLD = 60;
+const PORTRAIT_ASPECT_RATIO_THRESHOLD = 0.85;
 
 export interface InferContentProfileOptions {
   aspectRatio?: string | null;
@@ -50,12 +51,14 @@ export function isPortraitAspectRatio(value?: string | null) {
   if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) return false;
   if (rawWidth <= 0 || rawHeight <= 0) return false;
 
-  return rawWidth / rawHeight < 0.85;
+  return rawWidth / rawHeight < PORTRAIT_ASPECT_RATIO_THRESHOLD;
 }
 
 export function isPortraitDimensions(width?: number, height?: number) {
   if (!width || !height) return false;
-  return width > 0 && height > 0 && width / height < 0.85;
+  return (
+    width > 0 && height > 0 && width / height < PORTRAIT_ASPECT_RATIO_THRESHOLD
+  );
 }
 
 export function getPlaybackKind(profile?: ContentProfile | null): ContentKind {
