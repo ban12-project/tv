@@ -13,6 +13,7 @@ import {
   getEpisodeMetadataCacheQuery,
   upsertEpisodeMetadataCacheQuery,
 } from "@/lib/db/queries";
+import { hasDatabase } from "@/lib/features";
 import { MissingApiSourcesError, sourceProvider } from "@/lib/source-provider";
 
 const searchSchema = z.object({
@@ -191,6 +192,10 @@ export async function getEpisodeLayoutMetadata(payload: {
   const { sourceId, videoId } = validatedFields.data;
   cacheTag(getEpisodeAspectRatioTag(sourceId, videoId));
 
+  if (!hasDatabase()) {
+    return null;
+  }
+
   try {
     const cachedMetadata = await getEpisodeMetadataCacheQuery(
       sourceId,
@@ -237,6 +242,10 @@ export async function getContentProfile(payload: {
 
   const { sourceId, videoId } = validatedFields.data;
   cacheTag(getContentProfileTag(sourceId, videoId));
+
+  if (!hasDatabase()) {
+    return null;
+  }
 
   try {
     const cachedMetadata = await getEpisodeMetadataCacheQuery(

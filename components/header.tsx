@@ -8,16 +8,26 @@ import type { Messages } from "@/get-dictionary";
 import { getAllowList } from "@/lib/actions";
 import { getDoubanTop250 } from "@/lib/actions/douban";
 import { getRecommendations } from "@/lib/actions/recommendations";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+import {
+  hasAuth,
+  hasChatbot,
+  hasCmsAdmin,
+  hasDoubanTop250,
+} from "@/lib/features";
 import { AllowlistDialog } from "./allowlist-dialog";
 import { AuthButtons } from "./auth-buttons";
 import ColorSchemeToggle from "./color-scheme-toggle-client";
 import { EmojiLogo } from "./emoji-logo";
 
 export default async function Header({ messages }: { messages: Messages }) {
+  const authEnabled = hasAuth();
+  const chatEnabled = hasChatbot();
+  const cmsAdminEnabled = hasCmsAdmin();
+  const doubanEnabled = hasDoubanTop250();
   const [recommendations, doubanItems] = await Promise.all([
     getRecommendations(),
-    getDoubanTop250(0, 50),
+    doubanEnabled ? getDoubanTop250(0, 50) : [],
   ]);
 
   return (
@@ -33,12 +43,16 @@ export default async function Header({ messages }: { messages: Messages }) {
                 recommendations={recommendations}
                 doubanItems={doubanItems}
                 dictionary={messages}
+                doubanEnabled={doubanEnabled}
+                cmsAdminEnabled={cmsAdminEnabled}
               >
-                <ViewTransition>
-                  <Suspense>
-                    <SuspendedAllowlistDialog messages={messages} />
-                  </Suspense>
-                </ViewTransition>
+                {authEnabled ? (
+                  <ViewTransition>
+                    <Suspense>
+                      <SuspendedAllowlistDialog messages={messages} />
+                    </Suspense>
+                  </ViewTransition>
+                ) : null}
               </Menu>
             </div>
 
@@ -48,9 +62,9 @@ export default async function Header({ messages }: { messages: Messages }) {
                 dictionary={messages}
                 recommendations={recommendations}
               />
-              <ChatToggle dictionary={messages.chat} />
+              {chatEnabled ? <ChatToggle dictionary={messages.chat} /> : null}
               <ColorSchemeToggle aria-label={messages.common["color-scheme"]} />
-              <AuthButtons dictionary={messages.auth} />
+              {authEnabled ? <AuthButtons dictionary={messages.auth} /> : null}
             </div>
           </div>
         </div>
@@ -60,7 +74,9 @@ export default async function Header({ messages }: { messages: Messages }) {
 }
 
 async function SuspendedAllowlistDialog({ messages }: { messages: Messages }) {
-  const session = await auth.api.getSession({
+  if (!hasAuth()) return null;
+
+  const session = await getAuth().api.getSession({
     headers: await headers(),
   });
 

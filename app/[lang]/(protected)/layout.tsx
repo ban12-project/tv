@@ -7,11 +7,13 @@ import { ChatWidget } from "@/components/chat-bot/chat-widget";
 import Header from "@/components/header";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+import { hasAuth, hasChatbot } from "@/lib/features";
 
 export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   const { lang } = await props.params;
   const dict = await getDictionary(lang as Locale);
+  const chatEnabled = hasChatbot();
 
   return (
     <section className="flex min-w-0">
@@ -32,15 +34,19 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
           </ViewTransition>
         </Suspense>
       </div>
-      <ChatWidget dictionary={dict} />
+      {chatEnabled ? <ChatWidget dictionary={dict} /> : null}
     </section>
   );
 }
 
 async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
+  if (!hasAuth()) {
+    return children;
+  }
+
   try {
-    const session = await auth.api.getSession({
+    const session = await getAuth().api.getSession({
       headers: await headers(),
     });
 

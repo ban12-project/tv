@@ -1,7 +1,8 @@
 import "server-only";
 
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+import { hasAuth } from "@/lib/features";
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -11,7 +12,9 @@ export class UnauthorizedError extends Error {
 }
 
 export async function getCurrentSession() {
-  return auth.api.getSession({
+  if (!hasAuth()) return null;
+
+  return getAuth().api.getSession({
     headers: await headers(),
   });
 }

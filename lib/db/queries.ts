@@ -1,19 +1,7 @@
 import "server-only";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import { cacheLife, cacheTag } from "next/cache";
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not defined");
-}
-
-const neonSql = neon(process.env.DATABASE_URL);
-
-import * as schema from "./schema";
-
-export const db = drizzle({ client: neonSql, schema });
-
 import { and, desc, eq, gt, type SQL, sql } from "drizzle-orm";
+import { cacheLife, cacheTag } from "next/cache";
+import { getDb } from "./client";
 import {
   allowList,
   apiSource,
@@ -25,13 +13,16 @@ import {
   user,
   watchHistory,
 } from "./schema";
+
+export { getDb };
+
 // -- CMS Queries --
 
 export async function getApiSourcesQuery() {
   "use cache";
   cacheTag("api-sources");
   cacheLife("days");
-  return await db.select().from(apiSource).orderBy(apiSource.createdAt);
+  return await getDb().select().from(apiSource).orderBy(apiSource.createdAt);
 }
 
 export async function createApiSourceQuery(data: {
@@ -39,18 +30,18 @@ export async function createApiSourceQuery(data: {
   url: string;
   type: string;
 }) {
-  return await db.insert(apiSource).values(data);
+  return await getDb().insert(apiSource).values(data);
 }
 
 export async function updateApiSourceQuery(
   id: string,
   data: { name: string; url: string; type: string },
 ) {
-  return await db.update(apiSource).set(data).where(eq(apiSource.id, id));
+  return await getDb().update(apiSource).set(data).where(eq(apiSource.id, id));
 }
 
 export async function deleteApiSourceQuery(id: string) {
-  return await db.delete(apiSource).where(eq(apiSource.id, id));
+  return await getDb().delete(apiSource).where(eq(apiSource.id, id));
 }
 
 // -- Recommendation Queries --
@@ -58,7 +49,7 @@ export async function getRecommendationsQuery(limit: number) {
   "use cache";
   cacheTag("recommendations");
   cacheLife("hours");
-  return await db
+  return await getDb()
     .select()
     .from(recommendations)
     .orderBy(desc(recommendations.createdAt))
@@ -70,7 +61,7 @@ export async function findRecommendation(
   sourceId?: string | null,
   videoId?: string | null,
 ) {
-  return await db
+  return await getDb()
     .select()
     .from(recommendations)
     .where(
@@ -96,7 +87,7 @@ export async function createRecommendationQuery(data: {
   epIndex: string | null;
   userId: string;
 }) {
-  return await db
+  return await getDb()
     .insert(recommendations)
     .values(data)
     .onConflictDoNothing({
@@ -113,7 +104,7 @@ export async function deleteRecommendationQuery(
   sourceId: string,
   videoId: string,
 ) {
-  return await db
+  return await getDb()
     .delete(recommendations)
     .where(
       and(
@@ -128,7 +119,7 @@ export async function findRecommendationByVideoId(
   sourceId: string,
   videoId: string,
 ) {
-  return await db
+  return await getDb()
     .select({ title: recommendations.title })
     .from(recommendations)
     .where(
@@ -142,7 +133,7 @@ export async function findRecommendationByVideoId(
 
 // -- Auth/Allowlist Queries --
 export async function findAllowlistByEmail(email: string) {
-  return await db
+  return await getDb()
     .select()
     .from(allowList)
     .where(eq(allowList.email, email))
@@ -153,19 +144,19 @@ export async function getAllAllowList() {
   "use cache";
   cacheTag("allow-list");
   cacheLife("days");
-  return await db.select().from(allowList);
+  return await getDb().select().from(allowList);
 }
 
 export async function addToAllowListQuery(email: string) {
-  return await db.insert(allowList).values({ email });
+  return await getDb().insert(allowList).values({ email });
 }
 
 export async function removeFromAllowListQuery(id: string) {
-  return await db.delete(allowList).where(eq(allowList.id, id));
+  return await getDb().delete(allowList).where(eq(allowList.id, id));
 }
 
 export async function findPasskeyRegistrationByName(name: string) {
-  return await db
+  return await getDb()
     .select({
       userId: passkey.userId,
       isAnonymous: user.isAnonymous,
@@ -176,7 +167,11 @@ export async function findPasskeyRegistrationByName(name: string) {
 }
 
 export async function findUserByEmail(email: string) {
-  return await db.select().from(user).where(eq(user.email, email)).limit(1);
+  return await getDb()
+    .select()
+    .from(user)
+    .where(eq(user.email, email))
+    .limit(1);
 }
 
 // -- AI/Embedding Queries --
@@ -185,7 +180,7 @@ export async function findRelevantContentQuery(
   limit = 4,
   threshold = 0.5,
 ) {
-  return await db
+  return await getDb()
     .select({ name: resources.content, similarity })
     .from(embeddings)
     .leftJoin(resources, eq(embeddings.resourceId, resources.id))
@@ -199,7 +194,7 @@ export async function getEpisodeMetadataCacheQuery(
   videoId: string,
   metadataKey: string,
 ) {
-  return await db
+  return await getDb()
     .select({
       metadata: episodeMetadataCache.metadata,
       resourceUrl: episodeMetadataCache.resourceUrl,
@@ -223,7 +218,7 @@ export async function upsertWatchProgressQuery(data: {
   progress: number;
   duration: number;
 }) {
-  return await db
+  return await getDb()
     .insert(watchHistory)
     .values({
       userId: data.userId,
@@ -255,7 +250,7 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
   resourceUrl?: string | null;
   metadata: Record<string, unknown>;
 }) {
-  return await db
+  return await getDb()
     .insert(episodeMetadataCache)
     .values({
       sourceId: data.sourceId,

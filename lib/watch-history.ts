@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { upsertWatchProgressQuery } from "@/lib/db/queries";
+import { hasDatabase } from "@/lib/features";
 
 export const watchProgressSchema = z.object({
   videoId: z.string().min(1),
@@ -17,6 +18,10 @@ export async function upsertWatchProgressForUser(
   userId: string,
   payload: WatchProgressInput,
 ) {
+  if (!hasDatabase()) {
+    return null;
+  }
+
   return upsertWatchProgressQuery({
     userId,
     videoId: payload.videoId,

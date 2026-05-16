@@ -20,11 +20,15 @@ export function Menu({
   doubanItems,
   dictionary,
   children,
+  doubanEnabled,
+  cmsAdminEnabled,
 }: {
   recommendations: SelectRecommendation[];
   doubanItems: DoubanItem[];
   dictionary: Messages;
   children?: React.ReactNode;
+  doubanEnabled: boolean;
+  cmsAdminEnabled: boolean;
 }) {
   const recommendationNodes = recommendations.map((rec) => {
     const href =
@@ -45,31 +49,39 @@ export function Menu({
       title: dictionary.header.recommended,
       children: recommendationNodes,
     },
-    {
-      title: dictionary.header["verify-cms"],
-      href: "/verify-cms",
-    },
+    ...(cmsAdminEnabled
+      ? [
+          {
+            title: dictionary.header["verify-cms"],
+            href: "/verify-cms",
+          },
+        ]
+      : []),
   ];
 
   return (
     <>
       <DesktopMenu nodes={customNodes}>
-        <DoubanMenu
-          initialItems={doubanItems}
-          dictionary={dictionary}
-          variant="desktop"
-        />
+        {doubanEnabled ? (
+          <DoubanMenu
+            initialItems={doubanItems}
+            dictionary={dictionary}
+            variant="desktop"
+          />
+        ) : null}
         {children}
       </DesktopMenu>
       <MobileMenu
         nodes={customNodes}
         openLabel={dictionary.common["open-menu"]}
       >
-        <DoubanMenu
-          initialItems={doubanItems}
-          dictionary={dictionary}
-          variant="mobile"
-        />
+        {doubanEnabled ? (
+          <DoubanMenu
+            initialItems={doubanItems}
+            dictionary={dictionary}
+            variant="mobile"
+          />
+        ) : null}
         {children}
       </MobileMenu>
     </>

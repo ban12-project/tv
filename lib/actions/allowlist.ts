@@ -2,15 +2,22 @@
 
 import { refresh } from "next/cache";
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import {
   addToAllowListQuery,
   getAllAllowList,
   removeFromAllowListQuery,
 } from "@/lib/db/queries";
+import { hasAuth } from "@/lib/features";
 
 async function checkPermission() {
-  const session = await auth.api.getSession({
+  if (!hasAuth()) {
+    throw new Error(
+      "Unauthorized: Only registered users can manage the allowlist.",
+    );
+  }
+
+  const session = await getAuth().api.getSession({
     headers: await headers(),
   });
 
