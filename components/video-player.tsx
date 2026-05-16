@@ -52,6 +52,8 @@ interface TimelineMappedRange {
   calibrated: boolean;
 }
 
+type TimelineSampleIndex = FragmentTimelineSample[];
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
@@ -69,7 +71,7 @@ function upsertFragmentTimelineSample(
   samples: Map<string, FragmentTimelineSample>,
   sample: FragmentTimelineSample,
 ) {
-  if (sample.playlistEnd <= sample.playlistStart) return;
+  if (sample.playlistEnd <= sample.playlistStart) return false;
 
   const existing = samples.get(sample.key);
   if (existing) {
@@ -90,6 +92,8 @@ function upsertFragmentTimelineSample(
     if (oldestKey === undefined) break;
     samples.delete(oldestKey);
   }
+
+  return true;
 }
 
 function getPlaylistBoundsFromFragment(
@@ -124,29 +128,52 @@ function getMediaBoundsFromFragment(frag: HlsFragmentLike) {
   return { mediaStart, mediaEnd };
 }
 
+function buildTimelineSampleIndex(
+  samples: Map<string, FragmentTimelineSample>,
+): TimelineSampleIndex {
+  return Array.from(samples.values())
+    .filter(
+      (sample) =>
+        isFiniteNumber(sample.mediaStart) && isFiniteNumber(sample.mediaEnd),
+    )
+    .sort((left, right) => left.playlistStart - right.playlistStart);
+}
+
+function getBoundaryDistance(sample: FragmentTimelineSample, time: number) {
+  return Math.min(
+    Math.abs(time - sample.playlistStart),
+    Math.abs(time - sample.playlistEnd),
+  );
+}
+
 function findTimelineSampleForPlaylistTime(
-  samples: Iterable<FragmentTimelineSample>,
+  samples: TimelineSampleIndex,
   time: number,
 ) {
-  let nearest: FragmentTimelineSample | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
+  let low = 0;
+  let high = samples.length - 1;
+  let insertionIndex = 0;
 
-  for (const sample of samples) {
-    if (
-      !isFiniteNumber(sample.mediaStart) ||
-      !isFiniteNumber(sample.mediaEnd)
-    ) {
-      continue;
-    }
-
-    if (time >= sample.playlistStart && time <= sample.playlistEnd) {
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const sample = samples[middle];
+    if (time < sample.playlistStart) {
+      high = middle - 1;
+      insertionIndex = middle;
+    } else if (time > sample.playlistEnd) {
+      low = middle + 1;
+      insertionIndex = low;
+    } else {
       return sample;
     }
+  }
 
-    const distance = Math.min(
-      Math.abs(time - sample.playlistStart),
-      Math.abs(time - sample.playlistEnd),
-    );
+  let nearest: FragmentTimelineSample | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const sample of [samples[insertionIndex - 1], samples[insertionIndex]]) {
+    if (!sample) continue;
+
+    const distance = getBoundaryDistance(sample, time);
     if (distance < nearestDistance) {
       nearest = sample;
       nearestDistance = distance;
@@ -157,10 +184,10 @@ function findTimelineSampleForPlaylistTime(
 }
 
 function mapPlaylistTimeToMediaTime(
-  samples: Map<string, FragmentTimelineSample>,
+  samples: TimelineSampleIndex,
   time: number,
 ) {
-  const sample = findTimelineSampleForPlaylistTime(samples.values(), time);
+  const sample = findTimelineSampleForPlaylistTime(samples, time);
   if (
     !sample ||
     !isFiniteNumber(sample.mediaStart) ||
@@ -181,7 +208,7 @@ function mapPlaylistTimeToMediaTime(
 }
 
 function mapSkipRangeToMediaTime(
-  samples: Map<string, FragmentTimelineSample>,
+  samples: TimelineSampleIndex,
   range: { start: number; end: number },
 ): TimelineMappedRange {
   const mappedStart = mapPlaylistTimeToMediaTime(samples, range.start);
@@ -195,6 +222,13 @@ function mapSkipRangeToMediaTime(
     end: mappedEnd,
     calibrated: true,
   };
+}
+
+function mapSkipRangesToMediaTime(
+  samples: TimelineSampleIndex,
+  ranges: { start: number; end: number }[],
+) {
+  return ranges.map((range) => mapSkipRangeToMediaTime(samples, range));
 }
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
@@ -235,6 +269,8 @@ export default function VideoPlayer({
   const timelineSamplesRef = React.useRef<Map<string, FragmentTimelineSample>>(
     new Map(),
   );
+  const timelineSampleIndexRef = React.useRef<TimelineSampleIndex>([]);
+  const mappedSkipRangesRef = React.useRef<TimelineMappedRange[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -265,20 +301,14 @@ export default function VideoPlayer({
     if (!video || isSeekingRef.current) return false;
 
     const currentTime = video.currentTime;
-    for (const range of skipRangesRef.current) {
-      const mappedRange = mapSkipRangeToMediaTime(
-        timelineSamplesRef.current,
-        range,
-      );
+    for (const mappedRange of mappedSkipRangesRef.current) {
       const skipStart = video.paused
         ? mappedRange.start
         : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
       if (currentTime >= skipStart && currentTime < mappedRange.end) {
         console.log(
-          `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}${
-            mappedRange.calibrated
-              ? ` mapped to ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}`
-              : ""
+          `[VideoPlayer] Skipping ad range: ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}${
+            mappedRange.calibrated ? " (calibrated)" : ""
           }`,
         );
         isAutoSkippingRef.current = true;
@@ -446,6 +476,8 @@ export default function VideoPlayer({
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
     timelineSamplesRef.current.clear();
+    timelineSampleIndexRef.current = [];
+    mappedSkipRangesRef.current = [];
 
     const getNativeTimelineStart = () => {
       const seekable = video.seekable;
@@ -499,6 +531,16 @@ export default function VideoPlayer({
       }
     };
 
+    const refreshMappedSkipRanges = () => {
+      timelineSampleIndexRef.current = buildTimelineSampleIndex(
+        timelineSamplesRef.current,
+      );
+      mappedSkipRangesRef.current = mapSkipRangesToMediaTime(
+        timelineSampleIndexRef.current,
+        skipRangesRef.current,
+      );
+    };
+
     const updateSkipRanges = async (options?: {
       playlistText?: string;
       playlistUrl?: string;
@@ -533,6 +575,7 @@ export default function VideoPlayer({
         }
 
         skipRangesRef.current = ranges;
+        refreshMappedSkipRanges();
 
         performSkip();
         queueSkipWatch();
@@ -548,6 +591,7 @@ export default function VideoPlayer({
       fragments: HlsFragmentLike[],
       playlistTimelineStart: number,
     ) => {
+      let changed = false;
       for (const frag of fragments) {
         const bounds = getPlaylistBoundsFromFragment(
           frag,
@@ -555,12 +599,17 @@ export default function VideoPlayer({
         );
         if (!bounds) continue;
 
-        upsertFragmentTimelineSample(timelineSamplesRef.current, {
-          key: getFragmentTimelineKey(frag),
-          cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
-          playlistStart: bounds.playlistStart,
-          playlistEnd: bounds.playlistEnd,
-        });
+        changed =
+          upsertFragmentTimelineSample(timelineSamplesRef.current, {
+            key: getFragmentTimelineKey(frag),
+            cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+            playlistStart: bounds.playlistStart,
+            playlistEnd: bounds.playlistEnd,
+          }) || changed;
+      }
+
+      if (changed) {
+        refreshMappedSkipRanges();
       }
     };
 
@@ -572,7 +621,7 @@ export default function VideoPlayer({
       const mediaBounds = getMediaBoundsFromFragment(frag);
       if (!bounds || !mediaBounds) return;
 
-      upsertFragmentTimelineSample(timelineSamplesRef.current, {
+      const changed = upsertFragmentTimelineSample(timelineSamplesRef.current, {
         key: getFragmentTimelineKey(frag),
         cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
         playlistStart: bounds.playlistStart,
@@ -580,6 +629,9 @@ export default function VideoPlayer({
         mediaStart: mediaBounds.mediaStart,
         mediaEnd: mediaBounds.mediaEnd,
       });
+      if (changed) {
+        refreshMappedSkipRanges();
+      }
     };
 
     const initHls = () => {
