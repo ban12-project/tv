@@ -192,7 +192,11 @@ export default function WatchClient({
     let isMounted = true;
     const fetchMatches = async () => {
       try {
-        const iterator = await findMatchesStream(video);
+        const iterator = await findMatchesStream({
+          title: video.title,
+          year: video.year,
+          type: video.type,
+        });
 
         for await (const matches of iterator) {
           if (!isMounted) break;
@@ -510,7 +514,7 @@ export default function WatchClient({
         </React.Suspense>
       ) : (
         <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
-          {dictionary.watch["no-source"] ?? "No playable source found."}
+          {dictionary.watch["no-source"]}
         </div>
       )}
 

@@ -68,6 +68,17 @@ export function RecommendationDialog({
   );
 
   const t = dictionary.watch.recommendation;
+  const getRecommendationError = React.useCallback(
+    (error: string) => {
+      if (error === "UNAUTHORIZED") return t["error-unauthorized"];
+      if (error === "DUPLICATE_RECOMMENDATION") return t["error-duplicate"];
+      if (error === "INVALID_RECOMMENDATION") return t["error-invalid"];
+      if (error === "SAVE_RECOMMENDATION_FAILED") return t["error-save"];
+      if (error === "DELETE_RECOMMENDATION_FAILED") return t["error-delete"];
+      return error;
+    },
+    [t],
+  );
 
   React.useEffect(() => {
     if (saveState.success) {
@@ -79,10 +90,12 @@ export function RecommendationDialog({
 
   React.useEffect(() => {
     if (deleteState.success) {
-      toast.success("Recommendation withdrawn");
+      toast.success(t["withdraw-success"]);
       setIsRecommended(false);
+    } else if (deleteState.error && typeof deleteState.error === "string") {
+      toast.error(getRecommendationError(deleteState.error));
     }
-  }, [deleteState.success]);
+  }, [deleteState, getRecommendationError, t]);
 
   if (isRecommended) {
     return (
@@ -187,7 +200,9 @@ export function RecommendationDialog({
           </div>
 
           {saveState.error && typeof saveState.error === "string" && (
-            <p className="text-sm text-destructive">{saveState.error}</p>
+            <p className="text-sm text-destructive">
+              {getRecommendationError(saveState.error)}
+            </p>
           )}
 
           <DialogFooter>

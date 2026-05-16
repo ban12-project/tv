@@ -61,7 +61,10 @@ export function Menu({
         />
         {children}
       </DesktopMenu>
-      <MobileMenu nodes={customNodes}>
+      <MobileMenu
+        nodes={customNodes}
+        openLabel={dictionary.common["open-menu"]}
+      >
         <DoubanMenu
           initialItems={doubanItems}
           dictionary={dictionary}

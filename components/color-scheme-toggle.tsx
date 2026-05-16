@@ -12,7 +12,7 @@ const themes = [
   { label: <Monitor className="size-4" />, value: "system" },
 ];
 
-export default function ColorSchemeToggle({ className }: Props) {
+export default function ColorSchemeToggle({ className, ...props }: Props) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -23,7 +23,7 @@ export default function ColorSchemeToggle({ className }: Props) {
       )}
       role="radiogroup"
       tabIndex={0}
-      aria-label="Select a color scheme preference"
+      {...props}
     >
       {themes.map(({ label, value }) => (
         <label data-color-scheme-option={value} key={value}>

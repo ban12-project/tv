@@ -1,8 +1,14 @@
-import { redirect } from "next/navigation";
 import { getApiSources } from "@/lib/actions/cms";
 import { MacCMSAdapter } from "./adapters/mac-cms-adapter";
 import type { SearchResult, Video, VideoSourceAdapter } from "./adapters/types";
 import { getVideoUniqueKey } from "./adapters/util";
+
+export class MissingApiSourcesError extends Error {
+  constructor() {
+    super("No API sources configured.");
+    this.name = "MissingApiSourcesError";
+  }
+}
 
 export class MultiSourceProvider implements VideoSourceAdapter {
   async getAdapters(): Promise<
@@ -21,7 +27,7 @@ export class MultiSourceProvider implements VideoSourceAdapter {
   private async ensureAdapters() {
     const adapters = await this.getAdapters();
     if (adapters.length === 0) {
-      redirect("/verify-cms");
+      throw new MissingApiSourcesError();
     }
     return adapters;
   }
@@ -157,7 +163,7 @@ export class MultiSourceProvider implements VideoSourceAdapter {
   }
 
   async *findMatchesStream(
-    video: Video,
+    video: Pick<Video, "title" | "year" | "type">,
   ): AsyncGenerator<{ sourceId: string; sourceName: string; video: Video }[]> {
     const adapters = await this.ensureAdapters();
     const simpleKey = getVideoUniqueKey(video);

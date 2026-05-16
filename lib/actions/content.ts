@@ -3,6 +3,7 @@
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 import * as z from "zod";
 import type { ContentProfile, Video } from "@/lib/adapters/types";
+import { requireRegisteredUser } from "@/lib/auth-utils";
 import {
   inferContentProfile,
   isPortraitDimensions,
@@ -12,7 +13,7 @@ import {
   getEpisodeMetadataCacheQuery,
   upsertEpisodeMetadataCacheQuery,
 } from "@/lib/db/queries";
-import { sourceProvider } from "@/lib/source-provider";
+import { MissingApiSourcesError, sourceProvider } from "@/lib/source-provider";
 
 const searchSchema = z.object({
   query: z
@@ -100,6 +101,9 @@ export async function fetchVideoDetails(id: string, sourceId: string) {
   try {
     return await sourceProvider.getDetails(id, sourceId);
   } catch (error) {
+    if (error instanceof MissingApiSourcesError) {
+      throw error;
+    }
     console.error(`Error fetching details for ${id}:`, error);
     return null;
   }
@@ -129,6 +133,9 @@ export async function getInitialSearchResults(query: string) {
       }
     }
   } catch (e) {
+    if (e instanceof MissingApiSourcesError) {
+      throw e;
+    }
     console.error("Initial search failed", e);
   }
 
@@ -148,7 +155,9 @@ export async function searchVideosStream(query: string) {
   return sourceProvider.searchStream(validatedFields.data.query);
 }
 
-export async function findMatchesStream(video: Video) {
+export async function findMatchesStream(
+  video: Pick<Video, "title" | "year" | "type">,
+) {
   return sourceProvider.findMatchesStream(video);
 }
 
@@ -225,6 +234,12 @@ export async function saveContentProfile(payload: {
   resourceUrl?: string | null;
   profile: ContentProfile;
 }) {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   const validatedFields = saveContentProfileSchema.safeParse(payload);
 
   if (!validatedFields.success) {
@@ -270,6 +285,12 @@ export async function saveVideoAspectRatio(payload: {
   height: number;
   resourceUrl?: string | null;
 }) {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   const validatedFields = saveAspectRatioSchema.safeParse(payload);
 
   if (!validatedFields.success) {

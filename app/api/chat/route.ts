@@ -9,11 +9,18 @@ import * as z from "zod";
 import { createResource } from "@/lib/actions/resources";
 import { findRelevantContent } from "@/lib/ai/embedding";
 import { openai } from "@/lib/ai/providers";
+import { requireRegisteredUser } from "@/lib/auth-utils";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({

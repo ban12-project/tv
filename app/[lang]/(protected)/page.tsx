@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import { HomeSearch } from "@/components/home-search";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getInitialSearchResults } from "@/lib/actions/content";
 import type { Video } from "@/lib/adapters/types";
+import { MissingApiSourcesError } from "@/lib/source-provider";
 
 export default async function Home(props: {
   params: Promise<{ lang: Locale }>;
@@ -19,6 +21,9 @@ export default async function Home(props: {
     try {
       initialResults.push(...(await getInitialSearchResults(q)));
     } catch (error) {
+      if (error instanceof MissingApiSourcesError) {
+        redirect(`/${lang}/verify-cms`);
+      }
       console.error("SSR search failed:", error);
     }
   }

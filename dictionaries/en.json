@@ -1,6 +1,15 @@
 {
   "common": {
-    "loading": "Hold on, let the bullets fly for a bit..."
+    "loading": "Hold on, let the bullets fly for a bit...",
+    "search": "Search",
+    "close": "Close",
+    "remove": "Remove",
+    "retry": "Retry",
+    "copy": "Copy",
+    "submit": "Submit",
+    "upload-files": "Upload files",
+    "color-scheme": "Select a color scheme preference",
+    "open-menu": "Open menu"
   },
   "brand-name": "Bullet TV",
   "root-description": "Access the mainframe. movies, and TV shows decrypted and ready for infiltration. Execute stream sequence on any authorized device.",
@@ -88,8 +97,52 @@
       "submitting": "Submitting...",
       "success": "Recommendation submitted successfully.",
       "recommended": "Recommended",
-      "withdraw": "Withdraw"
+      "withdraw": "Withdraw",
+      "withdraw-success": "Recommendation withdrawn.",
+      "error-unauthorized": "You must be logged in to recommend.",
+      "error-duplicate": "You have already recommended this video.",
+      "error-invalid": "That recommendation packet is malformed.",
+      "error-save": "Failed to save recommendation. Please try again.",
+      "error-delete": "Failed to delete recommendation."
     }
+  },
+  "chat": {
+    "title": "Ask AI",
+    "drawer-title": "Chat Bot",
+    "drawer-description": "Ask AI for recommendations",
+    "toggle": "Ask AI",
+    "clear": "Clear chat",
+    "placeholder": "Ask AI...",
+    "web-search": "Search",
+    "sent-with-attachments": "Sent with attachments",
+    "add-attachments": "Add photos or files",
+    "image": "Image",
+    "attachment": "Attachment",
+    "sources-used": "Used {count} sources",
+    "thinking": "Thinking...",
+    "thought-few": "Thought for a few seconds",
+    "thought-seconds": "Thought for {seconds} seconds"
+  },
+  "verify-cms": {
+    "title": "API Sources",
+    "description": "Manage MAC CMS API sources for video content.",
+    "name": "Name",
+    "url": "URL",
+    "type": "Type",
+    "actions": "Actions",
+    "empty": "No API sources found. Add one above.",
+    "source-name": "Source Name",
+    "api-url": "API URL",
+    "api-url-placeholder": "https://example.com/api.php/provide/vod",
+    "add-source": "Add Source",
+    "delete-source": "Delete source",
+    "name-required": "Name is required",
+    "url-invalid": "Must be a valid URL",
+    "unauthorized": "Access denied. Registered agents only.",
+    "invalid-source": "That source dossier is malformed.",
+    "create-failed": "Failed to create source.",
+    "update-failed": "Failed to update source.",
+    "delete-failed": "Failed to delete source."
   },
   "allowlist": {
     "button": "Mainframe Access",

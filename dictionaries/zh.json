@@ -1,6 +1,15 @@
 {
   "common": {
-    "loading": "呜————咔嚓咔嚓咔嚓..."
+    "loading": "呜————咔嚓咔嚓咔嚓...",
+    "search": "搜一搜",
+    "close": "关门",
+    "remove": "抹掉",
+    "retry": "再来一枪",
+    "copy": "抄一份",
+    "submit": "呈上来",
+    "upload-files": "递交物证",
+    "color-scheme": "挑个天色",
+    "open-menu": "开堂"
   },
   "brand-name": "鹅城 TV",
   "root-description": "来鹅城，只办三件事：公平，公平，还是他妈的公平！在这里，不管是大银幕还是小荧屏，一网打尽，让你看个痛快！",
@@ -88,8 +97,52 @@
       "submitting": "正在呈送...",
       "success": "成了！片子上架了，让大家伙儿都瞧瞧。",
       "recommended": "已举荐",
-      "withdraw": "撤回"
+      "withdraw": "撤回",
+      "withdraw-success": "撤了！这折子先压下。",
+      "error-unauthorized": "没验明正身，不能递折子。",
+      "error-duplicate": "这折子你已经递过了，师爷记着呢。",
+      "error-invalid": "这份举荐文书不对劲。",
+      "error-save": "举荐没成，再试一回。",
+      "error-delete": "撤折子没成，再试一回。"
     }
+  },
+  "chat": {
+    "title": "问师爷",
+    "drawer-title": "师爷密谈",
+    "drawer-description": "找师爷问问片单门路",
+    "toggle": "问师爷",
+    "clear": "清空供词",
+    "placeholder": "师爷，给翻译翻译...",
+    "web-search": "外头打探",
+    "sent-with-attachments": "带着物证送出去了",
+    "add-attachments": "加画像或物证",
+    "image": "画像",
+    "attachment": "物证",
+    "sources-used": "师爷查了 {count} 处线报",
+    "thinking": "让师爷琢磨一会儿...",
+    "thought-few": "师爷琢磨了几息",
+    "thought-seconds": "师爷琢磨了 {seconds} 秒"
+  },
+  "verify-cms": {
+    "title": "山头码头",
+    "description": "在这儿登记 MAC CMS 山头，片源从哪儿来，师爷心里得有数。",
+    "name": "名号",
+    "url": "门路",
+    "type": "路数",
+    "actions": "处置",
+    "empty": "一个山头都没登记，上头添一个再开锣。",
+    "source-name": "山头名号",
+    "api-url": "API 门路",
+    "api-url-placeholder": "https://example.com/api.php/provide/vod",
+    "add-source": "插旗立寨",
+    "delete-source": "拔旗",
+    "name-required": "名号不能为空",
+    "url-invalid": "这门路不成，得是正经 URL",
+    "unauthorized": "衙门不认，先验明正身。",
+    "invalid-source": "这份山头文书不对劲。",
+    "create-failed": "插旗没成，再查查门路。",
+    "update-failed": "改旗号没成，再查查。",
+    "delete-failed": "拔旗没成，再试一回。"
   },
   "allowlist": {
     "button": "鹅城名册",

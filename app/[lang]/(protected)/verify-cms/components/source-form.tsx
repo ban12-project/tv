@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import type { Messages } from "@/get-dictionary";
 import { createApiSource } from "@/lib/actions/cms";
 
 const initialState = {
@@ -23,12 +24,20 @@ const initialState = {
   message: "",
 };
 
-const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  url: z.url("Must be a valid URL"),
-});
+export default function SourceForm({
+  dictionary,
+}: {
+  dictionary: Messages["verify-cms"];
+}) {
+  const formSchema = React.useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, dictionary["name-required"]),
+        url: z.url(dictionary["url-invalid"]),
+      }),
+    [dictionary],
+  );
 
-export default function SourceForm() {
   const [state, dispatch, isPending] = React.useActionState(
     createApiSource,
     initialState,
@@ -56,6 +65,15 @@ export default function SourceForm() {
     if (state.success) form.reset();
   }, [state, form.reset]);
 
+  const actionError =
+    state.error === "UNAUTHORIZED"
+      ? dictionary.unauthorized
+      : state.error === "INVALID_SOURCE"
+        ? dictionary["invalid-source"]
+        : state.error === "CREATE_FAILED"
+          ? dictionary["create-failed"]
+          : state.error || "";
+
   return (
     <Form {...form}>
       <form
@@ -67,10 +85,10 @@ export default function SourceForm() {
           name="name"
           render={({ field }) => (
             <FormItem className="flex-1">
-              <FormLabel>Name</FormLabel>
+              <FormLabel>{dictionary.name}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Source Name"
+                  placeholder={dictionary["source-name"]}
                   className="bg-background"
                   {...field}
                 />
@@ -84,10 +102,10 @@ export default function SourceForm() {
           name="url"
           render={({ field }) => (
             <FormItem className="flex-2">
-              <FormLabel>API URL</FormLabel>
+              <FormLabel>{dictionary["api-url"]}</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="https://example.com/api.php/provide/vod"
+                  placeholder={dictionary["api-url-placeholder"]}
                   className="bg-background"
                   {...field}
                 />
@@ -102,10 +120,10 @@ export default function SourceForm() {
           ) : (
             <Plus className="h-4 w-4 mr-2" />
           )}
-          Add Source
+          {dictionary["add-source"]}
         </Button>
         <FormMessage className="w-full">
-          {!state.success ? state.error : ""}
+          {!state.success ? actionError : ""}
         </FormMessage>
       </form>
     </Form>

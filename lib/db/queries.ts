@@ -7,13 +7,13 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not defined");
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const neonSql = neon(process.env.DATABASE_URL);
 
 import * as schema from "./schema";
 
-export const db = drizzle({ client: sql, schema });
+export const db = drizzle({ client: neonSql, schema });
 
-import { and, desc, eq, gt, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, type SQL, sql } from "drizzle-orm";
 import {
   allowList,
   apiSource,
@@ -23,6 +23,7 @@ import {
   recommendations,
   resources,
   user,
+  watchHistory,
 } from "./schema";
 // -- CMS Queries --
 
@@ -95,7 +96,16 @@ export async function createRecommendationQuery(data: {
   epIndex: string | null;
   userId: string;
 }) {
-  return await db.insert(recommendations).values(data);
+  return await db
+    .insert(recommendations)
+    .values(data)
+    .onConflictDoNothing({
+      target: [
+        recommendations.userId,
+        recommendations.sourceId,
+        recommendations.videoId,
+      ],
+    });
 }
 
 export async function deleteRecommendationQuery(
@@ -154,18 +164,15 @@ export async function removeFromAllowListQuery(id: string) {
   return await db.delete(allowList).where(eq(allowList.id, id));
 }
 
-export async function updateUserToRegistered(userId: string, email: string) {
+export async function findPasskeyRegistrationByName(name: string) {
   return await db
-    .update(user)
-    .set({
-      email,
-      isAnonymous: false,
+    .select({
+      userId: passkey.userId,
+      isAnonymous: user.isAnonymous,
     })
-    .where(eq(user.id, userId));
-}
-
-export async function findPasskeyByName(name: string) {
-  return await db.select().from(passkey).where(eq(passkey.name, name)).limit(1);
+    .from(passkey)
+    .innerJoin(user, eq(passkey.userId, user.id))
+    .where(sql`lower(${passkey.name}) = ${name}`);
 }
 
 export async function findUserByEmail(email: string) {
@@ -208,6 +215,39 @@ export async function getEpisodeMetadataCacheQuery(
     .limit(1);
 }
 
+export async function upsertWatchProgressQuery(data: {
+  userId: string;
+  videoId: string;
+  sourceId: string;
+  epIndex: number;
+  progress: number;
+  duration: number;
+}) {
+  return await db
+    .insert(watchHistory)
+    .values({
+      userId: data.userId,
+      videoId: data.videoId,
+      sourceId: data.sourceId,
+      epIndex: data.epIndex,
+      progress: Math.floor(data.progress),
+      duration: Math.floor(data.duration),
+    })
+    .onConflictDoUpdate({
+      target: [
+        watchHistory.userId,
+        watchHistory.videoId,
+        watchHistory.sourceId,
+      ],
+      set: {
+        epIndex: data.epIndex,
+        progress: Math.floor(data.progress),
+        duration: Math.floor(data.duration),
+        updatedAt: sql`now()`,
+      },
+    });
+}
+
 export async function upsertEpisodeMetadataCacheQuery(data: {
   sourceId: string;
   videoId: string;
@@ -215,33 +255,25 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
   resourceUrl?: string | null;
   metadata: Record<string, unknown>;
 }) {
-  const existing = await db
-    .select({ id: episodeMetadataCache.id })
-    .from(episodeMetadataCache)
-    .where(
-      and(
-        eq(episodeMetadataCache.sourceId, data.sourceId),
-        eq(episodeMetadataCache.videoId, data.videoId),
-        eq(episodeMetadataCache.metadataKey, data.metadataKey),
-      ),
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    return await db
-      .update(episodeMetadataCache)
-      .set({
+  return await db
+    .insert(episodeMetadataCache)
+    .values({
+      sourceId: data.sourceId,
+      videoId: data.videoId,
+      metadataKey: data.metadataKey,
+      resourceUrl: data.resourceUrl ?? null,
+      metadata: data.metadata,
+    })
+    .onConflictDoUpdate({
+      target: [
+        episodeMetadataCache.sourceId,
+        episodeMetadataCache.videoId,
+        episodeMetadataCache.metadataKey,
+      ],
+      set: {
         resourceUrl: data.resourceUrl ?? null,
         metadata: data.metadata,
-      })
-      .where(eq(episodeMetadataCache.id, existing[0].id));
-  }
-
-  return await db.insert(episodeMetadataCache).values({
-    sourceId: data.sourceId,
-    videoId: data.videoId,
-    metadataKey: data.metadataKey,
-    resourceUrl: data.resourceUrl ?? null,
-    metadata: data.metadata,
-  });
+        updatedAt: sql`now()`,
+      },
+    });
 }

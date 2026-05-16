@@ -1,5 +1,6 @@
 "use server";
 
+import { requireRegisteredUser } from "@/lib/auth-utils";
 import { db } from "@/lib/db/queries";
 import {
   insertResourceSchema,
@@ -11,6 +12,8 @@ import { embeddings as embeddingsTable } from "../db/schema/embeddings";
 
 export const createResource = async (input: NewResourceParams) => {
   try {
+    await requireRegisteredUser();
+
     const { content } = insertResourceSchema.parse(input);
 
     const [resource] = await db

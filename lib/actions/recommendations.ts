@@ -1,9 +1,8 @@
 "use server";
 
 import { cacheTag, revalidatePath, updateTag } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { getCurrentSession, requireRegisteredUser } from "@/lib/auth-utils";
 import {
   createRecommendationQuery,
   deleteRecommendationQuery,
@@ -30,14 +29,13 @@ export async function saveRecommendation(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let user: Awaited<ReturnType<typeof requireRegisteredUser>>;
+  try {
+    user = await requireRegisteredUser();
+  } catch {
     return {
       success: false,
-      error: "You must be logged in to recommend.",
+      error: "UNAUTHORIZED",
     };
   }
 
@@ -53,7 +51,7 @@ export async function saveRecommendation(
   if (!validatedFields.success) {
     return {
       success: false,
-      error: z.prettifyError(validatedFields.error),
+      error: "INVALID_RECOMMENDATION",
     };
   }
 
@@ -62,16 +60,12 @@ export async function saveRecommendation(
 
   try {
     // Check for existing recommendation
-    const existing = await findRecommendation(
-      session.user.id,
-      sourceId,
-      videoId,
-    );
+    const existing = await findRecommendation(user.id, sourceId, videoId);
 
     if (existing.length > 0) {
       return {
         success: false,
-        error: "You have already recommended this video.",
+        error: "DUPLICATE_RECOMMENDATION",
       };
     }
 
@@ -82,7 +76,7 @@ export async function saveRecommendation(
       sourceId: sourceId || null,
       videoId: videoId || null,
       epIndex: epIndex || null,
-      userId: session.user.id,
+      userId: user.id,
     });
 
     updateTag("recommendations");
@@ -93,7 +87,7 @@ export async function saveRecommendation(
     console.error("Failed to save recommendation:", error);
     return {
       success: false,
-      error: "Failed to save recommendation. Please try again.",
+      error: "SAVE_RECOMMENDATION_FAILED",
     };
   }
 }
@@ -102,14 +96,13 @@ export async function deleteRecommendation(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user?.id) {
+  let user: Awaited<ReturnType<typeof requireRegisteredUser>>;
+  try {
+    user = await requireRegisteredUser();
+  } catch {
     return {
       success: false,
-      error: "Unauthorized",
+      error: "UNAUTHORIZED",
     };
   }
 
@@ -117,7 +110,7 @@ export async function deleteRecommendation(
   const videoId = formData.get("videoId") as string;
 
   try {
-    await deleteRecommendationQuery(session.user.id, sourceId, videoId);
+    await deleteRecommendationQuery(user.id, sourceId, videoId);
 
     updateTag("recommendations");
     revalidatePath("/", "layout");
@@ -127,7 +120,7 @@ export async function deleteRecommendation(
     console.error("Failed to delete recommendation:", error);
     return {
       success: false,
-      error: "Failed to delete recommendation.",
+      error: "DELETE_RECOMMENDATION_FAILED",
     };
   }
 }
@@ -137,9 +130,7 @@ export async function checkIsRecommended(
   sourceId: string,
   videoId: string,
 ): Promise<boolean> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getCurrentSession();
 
   if (!session?.user?.id) {
     return false;
