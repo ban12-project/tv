@@ -367,14 +367,14 @@ export default function VideoPlayer({
                 playlistUrl: options.playlistUrl ?? videoUrl,
                 signal: manifestParseController.signal,
                 playbackTime,
-                enableResolutionProbe: true,
+                enableMediaFingerprintProbe: true,
               },
             )
           : await parseAdSkipRangesFromManifest(videoUrl, {
               signal: manifestParseController.signal,
               timelineStart,
               playbackTime,
-              enableResolutionProbe: true,
+              enableMediaFingerprintProbe: true,
             });
         if (
           manifestParseController.signal.aborted ||
