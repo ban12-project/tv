@@ -42,14 +42,21 @@ export function isFiniteNumber(value: unknown): value is number {
 }
 
 export function getFragmentTimelineKey(frag: HlsFragmentLike) {
-  const url = frag.url ?? frag.relurl ?? "url";
-  const stableUrl = url.split(/[?#]/, 1)[0];
-  return [
-    isFiniteNumber(frag.level) ? frag.level : "level",
-    isFiniteNumber(frag.cc) ? frag.cc : "cc",
-    frag.sn ?? "sn",
-    stableUrl,
-  ].join(":");
+  const parts: string[] = [];
+  if (isFiniteNumber(frag.level)) parts.push(`level=${frag.level}`);
+  if (isFiniteNumber(frag.cc)) parts.push(`cc=${frag.cc}`);
+  if (frag.sn !== undefined && frag.sn !== null) parts.push(`sn=${frag.sn}`);
+
+  const url = frag.url ?? frag.relurl;
+  const stableUrl = url?.split(/[?#]/, 1)[0];
+  if (stableUrl) parts.push(`url=${stableUrl}`);
+
+  if (parts.length === 0) {
+    if (isFiniteNumber(frag.start)) parts.push(`start=${frag.start}`);
+    if (isFiniteNumber(frag.duration)) parts.push(`duration=${frag.duration}`);
+  }
+
+  return parts.join(":");
 }
 
 export function upsertFragmentTimelineSample(
