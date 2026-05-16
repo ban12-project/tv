@@ -59,11 +59,13 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function getFragmentTimelineKey(frag: HlsFragmentLike) {
+  const url = frag.url ?? frag.relurl ?? "url";
+  const stableUrl = url.split(/[?#]/, 1)[0];
   return [
     isFiniteNumber(frag.level) ? frag.level : "level",
     isFiniteNumber(frag.cc) ? frag.cc : "cc",
     frag.sn ?? "sn",
-    frag.url ?? frag.relurl ?? "url",
+    stableUrl,
   ].join(":");
 }
 
