@@ -8,7 +8,6 @@ export interface HlsFragmentLike {
   endPTS?: number;
   level?: number;
   minEndPTS?: number;
-  playlistOffset?: number;
   relurl?: string;
   sn?: number | string;
   start?: number;
@@ -117,19 +116,13 @@ export function cleanupTimelineSamples(
   return changed;
 }
 
-export function getPlaylistBoundsFromFragment(
-  frag: HlsFragmentLike,
-  playlistAbsoluteStart: number,
-) {
-  const playlistOffset = isFiniteNumber(frag.playlistOffset)
-    ? frag.playlistOffset
-    : null;
+export function getPlaylistBoundsFromFragment(frag: HlsFragmentLike) {
+  const playlistStart = isFiniteNumber(frag.start) ? frag.start : null;
   const duration = isFiniteNumber(frag.duration) ? frag.duration : null;
-  if (playlistOffset === null || duration === null || duration <= 0) {
+  if (playlistStart === null || duration === null || duration <= 0) {
     return null;
   }
 
-  const playlistStart = playlistAbsoluteStart + playlistOffset;
   return {
     playlistStart,
     playlistEnd: playlistStart + duration,

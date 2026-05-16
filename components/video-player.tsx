@@ -398,15 +398,11 @@ export default function VideoPlayer({
 
     const updateFragmentTimelineFromPlaylist = (
       fragments: HlsFragmentLike[],
-      playlistAbsoluteStart: number,
     ) => {
       let changed = false;
       let indexChanged = false;
       for (const frag of fragments) {
-        const bounds = getPlaylistBoundsFromFragment(
-          frag,
-          playlistAbsoluteStart,
-        );
+        const bounds = getPlaylistBoundsFromFragment(frag);
         if (!bounds) continue;
 
         const result = upsertFragmentTimelineSample(
@@ -530,10 +526,7 @@ export default function VideoPlayer({
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
-        updateFragmentTimelineFromPlaylist(
-          data.details.fragments,
-          latestPlaylistTimelineStart,
-        );
+        updateFragmentTimelineFromPlaylist(data.details.fragments);
         if (playbackProfile === "short-drama" && video.currentTime < 2) {
           return;
         }
