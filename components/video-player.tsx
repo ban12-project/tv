@@ -514,6 +514,16 @@ export default function VideoPlayer({
       });
 
       hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
+        const fragments = Array.isArray(data.details?.fragments)
+          ? data.details.fragments
+          : [];
+        if (fragments.length > 0) {
+          for (const frag of fragments) {
+            updateFragmentTimelineFromMedia(frag);
+          }
+          return;
+        }
+
         updateFragmentTimelineFromMedia(data.frag);
       });
 
