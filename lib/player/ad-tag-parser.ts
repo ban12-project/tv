@@ -317,7 +317,7 @@ function getMedianNumber(values: (number | null)[]): number | null {
     .filter(
       (value): value is number => value !== null && Number.isFinite(value),
     )
-    .toSorted((a, b) => a - b);
+    .sort((a, b) => a - b);
   if (sorted.length === 0) return null;
 
   const middle = Math.floor(sorted.length / 2);
@@ -840,7 +840,8 @@ function getProgramLayoutKey(program: TsProgramInfo): string | null {
   if (program.streams.length === 0) return null;
 
   const streams = program.streams
-    .toSorted((a, b) => a.pid - b.pid)
+    .slice()
+    .sort((a, b) => a.pid - b.pid)
     .map((stream) => `${stream.streamType.toString(16)}@${stream.pid}`)
     .join(",");
   return [
@@ -1532,7 +1533,7 @@ async function inferMediaFingerprintSkipRanges(
     }
 
     const anomalyDuration =
-      anomalySegments.at(-1)?.end && anomalySegments[0]
+      anomalySegments[anomalySegments.length - 1]?.end && anomalySegments[0]
         ? anomalySegments[anomalySegments.length - 1].end -
           anomalySegments[0].start
         : 0;
