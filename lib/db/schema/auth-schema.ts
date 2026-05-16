@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -101,6 +101,7 @@ export const passkey = pgTable(
   },
   (table) => [
     index("passkey_userId_idx").on(table.userId),
+    index("passkey_name_lower_idx").using("btree", sql`lower(${table.name})`),
     uniqueIndex("passkey_credentialID_unique").on(table.credentialID),
   ],
 );

@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
@@ -48,11 +49,9 @@ export const recommendations = pgTable(
   },
   (t) => [
     index("recommendations_source_video_idx").on(t.sourceId, t.videoId),
-    uniqueIndex("recommendations_user_source_video_unique").on(
-      t.userId,
-      t.sourceId,
-      t.videoId,
-    ),
+    unique("recommendations_user_source_video_unique")
+      .on(t.userId, t.sourceId, t.videoId)
+      .nullsNotDistinct(),
   ],
 );
 
