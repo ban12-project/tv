@@ -243,7 +243,7 @@ export async function upsertWatchProgressQuery(data: {
         epIndex: data.epIndex,
         progress: Math.floor(data.progress),
         duration: Math.floor(data.duration),
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       },
     });
 }
@@ -273,7 +273,7 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
       set: {
         resourceUrl: data.resourceUrl ?? null,
         metadata: data.metadata,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       },
     });
 }
