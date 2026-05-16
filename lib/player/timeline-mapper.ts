@@ -123,9 +123,7 @@ export function getPlaylistBoundsFromFragment(
 ) {
   const playlistOffset = isFiniteNumber(frag.playlistOffset)
     ? frag.playlistOffset
-    : isFiniteNumber(frag.start)
-      ? frag.start - playlistTimelineStart
-      : null;
+    : null;
   const duration = isFiniteNumber(frag.duration) ? frag.duration : null;
   if (playlistOffset === null || duration === null || duration <= 0) {
     return null;
