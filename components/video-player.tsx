@@ -74,17 +74,33 @@ function upsertFragmentTimelineSample(
   if (sample.playlistEnd <= sample.playlistStart) return false;
 
   const existing = samples.get(sample.key);
+  const playlistStart = existing?.playlistStart ?? sample.playlistStart;
+  const playlistEnd = existing?.playlistEnd ?? sample.playlistEnd;
+  const mediaStart = sample.mediaStart ?? existing?.mediaStart;
+  const mediaEnd = sample.mediaEnd ?? existing?.mediaEnd;
+
+  if (
+    existing &&
+    existing.playlistStart === playlistStart &&
+    existing.playlistEnd === playlistEnd &&
+    existing.mediaStart === mediaStart &&
+    existing.mediaEnd === mediaEnd
+  ) {
+    samples.delete(sample.key);
+    samples.set(sample.key, existing);
+    return false;
+  }
+
   if (existing) {
     samples.delete(sample.key);
   }
 
   samples.set(sample.key, {
-    ...existing,
     ...sample,
-    playlistStart: existing?.playlistStart ?? sample.playlistStart,
-    playlistEnd: existing?.playlistEnd ?? sample.playlistEnd,
-    mediaStart: sample.mediaStart ?? existing?.mediaStart,
-    mediaEnd: sample.mediaEnd ?? existing?.mediaEnd,
+    playlistStart,
+    playlistEnd,
+    mediaStart,
+    mediaEnd,
   });
 
   while (samples.size > TIMELINE_SAMPLE_LIMIT) {
