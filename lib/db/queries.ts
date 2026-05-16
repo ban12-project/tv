@@ -7,13 +7,13 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not defined");
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const neonSql = neon(process.env.DATABASE_URL);
 
 import * as schema from "./schema";
 
-export const db = drizzle({ client: sql, schema });
+export const db = drizzle({ client: neonSql, schema });
 
-import { and, desc, eq, gt, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, type SQL, sql } from "drizzle-orm";
 import {
   allowList,
   apiSource,
@@ -164,18 +164,15 @@ export async function removeFromAllowListQuery(id: string) {
   return await db.delete(allowList).where(eq(allowList.id, id));
 }
 
-export async function updateUserToRegistered(userId: string, email: string) {
+export async function findPasskeyRegistrationByName(name: string) {
   return await db
-    .update(user)
-    .set({
-      email,
-      isAnonymous: false,
+    .select({
+      userId: passkey.userId,
+      isAnonymous: user.isAnonymous,
     })
-    .where(eq(user.id, userId));
-}
-
-export async function findPasskeyByName(name: string) {
-  return await db.select().from(passkey).where(eq(passkey.name, name)).limit(1);
+    .from(passkey)
+    .innerJoin(user, eq(passkey.userId, user.id))
+    .where(sql`lower(${passkey.name}) = ${name}`);
 }
 
 export async function findUserByEmail(email: string) {

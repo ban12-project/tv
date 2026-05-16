@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { Messages } from "@/get-dictionary";
-import { checkRegistrationStatus, preUpgradeAnonymous } from "@/lib/actions";
+import { checkRegistrationStatus } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ export function SignupForm({
       );
       return;
     }
-    const { email } = validatedFields.data;
+    const email = validatedFields.data.email.toLowerCase();
 
     startTransition(async () => {
       const { allowed, registered } = await checkRegistrationStatus(email);
@@ -88,8 +88,7 @@ export function SignupForm({
       await authClient.passkey.addPasskey({
         name: email,
         fetchOptions: {
-          async onSuccess() {
-            await preUpgradeAnonymous(email);
+          onSuccess() {
             toast.success(dictionary.success);
             const callbackUrl = searchParams.get("callbackUrl") || "/";
             router.push(callbackUrl);
