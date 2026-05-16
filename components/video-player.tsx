@@ -13,12 +13,193 @@ import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
+const TIMELINE_SAMPLE_LIMIT = 500;
+const TIMELINE_BOUNDARY_EPSILON_SECONDS = 0.025;
 
 type VideoFrameCallback = (now: number, metadata: unknown) => void;
 type VideoWithFrameCallback = HTMLVideoElement & {
   requestVideoFrameCallback?: (callback: VideoFrameCallback) => number;
   cancelVideoFrameCallback?: (handle: number) => void;
 };
+
+interface HlsFragmentLike {
+  cc?: number;
+  duration?: number;
+  end?: number;
+  endPTS?: number;
+  level?: number;
+  minEndPTS?: number;
+  playlistOffset?: number;
+  relurl?: string;
+  sn?: number | string;
+  start?: number;
+  startPTS?: number;
+  url?: string;
+}
+
+interface FragmentTimelineSample {
+  key: string;
+  cc: number;
+  playlistStart: number;
+  playlistEnd: number;
+  mediaStart?: number;
+  mediaEnd?: number;
+}
+
+interface TimelineMappedRange {
+  start: number;
+  end: number;
+  calibrated: boolean;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function getFragmentTimelineKey(frag: HlsFragmentLike) {
+  return [
+    isFiniteNumber(frag.level) ? frag.level : "level",
+    isFiniteNumber(frag.cc) ? frag.cc : "cc",
+    frag.sn ?? "sn",
+    frag.url ?? frag.relurl ?? "url",
+  ].join(":");
+}
+
+function upsertFragmentTimelineSample(
+  samples: Map<string, FragmentTimelineSample>,
+  sample: FragmentTimelineSample,
+) {
+  if (sample.playlistEnd <= sample.playlistStart) return;
+
+  const existing = samples.get(sample.key);
+  samples.set(sample.key, {
+    ...existing,
+    ...sample,
+    mediaStart: sample.mediaStart ?? existing?.mediaStart,
+    mediaEnd: sample.mediaEnd ?? existing?.mediaEnd,
+  });
+
+  while (samples.size > TIMELINE_SAMPLE_LIMIT) {
+    const oldestKey = samples.keys().next().value;
+    if (!oldestKey) break;
+    samples.delete(oldestKey);
+  }
+}
+
+function getPlaylistBoundsFromFragment(
+  frag: HlsFragmentLike,
+  playlistTimelineStart: number,
+) {
+  const playlistOffset = isFiniteNumber(frag.playlistOffset)
+    ? frag.playlistOffset
+    : isFiniteNumber(frag.start)
+      ? frag.start - playlistTimelineStart
+      : null;
+  const duration = isFiniteNumber(frag.duration) ? frag.duration : null;
+  if (playlistOffset === null || duration === null || duration <= 0) {
+    return null;
+  }
+
+  const playlistStart = playlistTimelineStart + playlistOffset;
+  return {
+    playlistStart,
+    playlistEnd: playlistStart + duration,
+  };
+}
+
+function getMediaBoundsFromFragment(frag: HlsFragmentLike) {
+  const mediaStart = isFiniteNumber(frag.startPTS)
+    ? frag.startPTS
+    : isFiniteNumber(frag.start)
+      ? frag.start
+      : null;
+  const mediaEnd = isFiniteNumber(frag.minEndPTS)
+    ? frag.minEndPTS
+    : isFiniteNumber(frag.endPTS)
+      ? frag.endPTS
+      : isFiniteNumber(frag.end)
+        ? frag.end
+        : null;
+
+  if (mediaStart === null || mediaEnd === null || mediaEnd <= mediaStart) {
+    return null;
+  }
+
+  return { mediaStart, mediaEnd };
+}
+
+function findTimelineSampleForPlaylistTime(
+  samples: Iterable<FragmentTimelineSample>,
+  time: number,
+) {
+  let nearest: FragmentTimelineSample | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const sample of samples) {
+    if (
+      !isFiniteNumber(sample.mediaStart) ||
+      !isFiniteNumber(sample.mediaEnd)
+    ) {
+      continue;
+    }
+
+    if (time >= sample.playlistStart && time <= sample.playlistEnd) {
+      return sample;
+    }
+
+    const distance = Math.min(
+      Math.abs(time - sample.playlistStart),
+      Math.abs(time - sample.playlistEnd),
+    );
+    if (distance < nearestDistance) {
+      nearest = sample;
+      nearestDistance = distance;
+    }
+  }
+
+  return nearestDistance <= TIMELINE_BOUNDARY_EPSILON_SECONDS ? nearest : null;
+}
+
+function mapPlaylistTimeToMediaTime(
+  samples: Map<string, FragmentTimelineSample>,
+  time: number,
+) {
+  const sample = findTimelineSampleForPlaylistTime(samples.values(), time);
+  if (
+    !sample ||
+    !isFiniteNumber(sample.mediaStart) ||
+    !isFiniteNumber(sample.mediaEnd)
+  ) {
+    return null;
+  }
+
+  const playlistDuration = sample.playlistEnd - sample.playlistStart;
+  const mediaDuration = sample.mediaEnd - sample.mediaStart;
+  if (playlistDuration <= 0 || mediaDuration <= 0) return null;
+
+  const ratio = Math.min(
+    1,
+    Math.max(0, (time - sample.playlistStart) / playlistDuration),
+  );
+  return sample.mediaStart + ratio * mediaDuration;
+}
+
+function mapSkipRangeToMediaTime(
+  samples: Map<string, FragmentTimelineSample>,
+  range: { start: number; end: number },
+): TimelineMappedRange {
+  const mappedStart = mapPlaylistTimeToMediaTime(samples, range.start);
+  const mappedEnd = mapPlaylistTimeToMediaTime(samples, range.end);
+  if (mappedStart === null || mappedEnd === null || mappedEnd <= mappedStart) {
+    return { ...range, calibrated: false };
+  }
+
+  return {
+    start: mappedStart,
+    end: mappedEnd,
+    calibrated: true,
+  };
+}
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
@@ -55,6 +236,9 @@ export default function VideoPlayer({
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
+  const timelineSamplesRef = React.useRef<Map<string, FragmentTimelineSample>>(
+    new Map(),
+  );
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -86,15 +270,23 @@ export default function VideoPlayer({
 
     const currentTime = video.currentTime;
     for (const range of skipRangesRef.current) {
+      const mappedRange = mapSkipRangeToMediaTime(
+        timelineSamplesRef.current,
+        range,
+      );
       const skipStart = video.paused
-        ? range.start
-        : Math.max(0, range.start - SKIP_RANGE_PRE_ROLL_SECONDS);
-      if (currentTime >= skipStart && currentTime < range.end) {
+        ? mappedRange.start
+        : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
+      if (currentTime >= skipStart && currentTime < mappedRange.end) {
         console.log(
-          `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
+          `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}${
+            mappedRange.calibrated
+              ? ` mapped to ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}`
+              : ""
+          }`,
         );
         isAutoSkippingRef.current = true;
-        video.currentTime = range.end;
+        video.currentTime = mappedRange.end;
         return true;
       }
     }
@@ -257,6 +449,7 @@ export default function VideoPlayer({
     let deferredShortDramaSkipLoadStarted = false;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
+    timelineSamplesRef.current.clear();
 
     const getNativeTimelineStart = () => {
       const seekable = video.seekable;
@@ -355,6 +548,44 @@ export default function VideoPlayer({
       }
     };
 
+    const updateFragmentTimelineFromPlaylist = (
+      fragments: HlsFragmentLike[],
+      playlistTimelineStart: number,
+    ) => {
+      for (const frag of fragments) {
+        const bounds = getPlaylistBoundsFromFragment(
+          frag,
+          playlistTimelineStart,
+        );
+        if (!bounds) continue;
+
+        upsertFragmentTimelineSample(timelineSamplesRef.current, {
+          key: getFragmentTimelineKey(frag),
+          cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+          playlistStart: bounds.playlistStart,
+          playlistEnd: bounds.playlistEnd,
+        });
+      }
+    };
+
+    const updateFragmentTimelineFromMedia = (frag: HlsFragmentLike) => {
+      const bounds = getPlaylistBoundsFromFragment(
+        frag,
+        latestPlaylistTimelineStart,
+      );
+      const mediaBounds = getMediaBoundsFromFragment(frag);
+      if (!bounds || !mediaBounds) return;
+
+      upsertFragmentTimelineSample(timelineSamplesRef.current, {
+        key: getFragmentTimelineKey(frag),
+        cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+        playlistStart: bounds.playlistStart,
+        playlistEnd: bounds.playlistEnd,
+        mediaStart: mediaBounds.mediaStart,
+        mediaEnd: mediaBounds.mediaEnd,
+      });
+    };
+
     const initHls = () => {
       const useNative = !autoSkip || !Hls.isSupported();
 
@@ -403,8 +634,17 @@ export default function VideoPlayer({
           : {}),
       });
 
-      hls.on(Hls.Events.FRAG_CHANGED, () => {
+      hls.on(Hls.Events.FRAG_CHANGED, (_event, data) => {
+        updateFragmentTimelineFromMedia(data.frag);
         performSkip();
+      });
+
+      hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
+        updateFragmentTimelineFromMedia(data.frag);
+      });
+
+      hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
+        updateFragmentTimelineFromMedia(data.frag);
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -416,6 +656,10 @@ export default function VideoPlayer({
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
+        updateFragmentTimelineFromPlaylist(
+          data.details.fragments,
+          latestPlaylistTimelineStart,
+        );
         if (playbackProfile === "short-drama" && video.currentTime < 2) {
           return;
         }
