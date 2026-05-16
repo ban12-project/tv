@@ -9,6 +9,20 @@ import {
   parseAdSkipRangesFromManifest,
   parseAdSkipRangesFromPlaylistTextWithSideChannel,
 } from "@/lib/player/ad-tag-parser";
+import {
+  buildTimelineSampleIndex,
+  cleanupTimelineSamples,
+  type FragmentTimelineSample,
+  getFragmentTimelineKey,
+  getMediaBoundsFromFragment,
+  getPlaylistBoundsFromFragment,
+  type HlsFragmentLike,
+  isFiniteNumber,
+  mapSkipRangesToMediaTime,
+  type TimelineMappedRange,
+  type TimelineSampleIndex,
+  upsertFragmentTimelineSample,
+} from "@/lib/player/timeline-mapper";
 import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
@@ -55,6 +69,11 @@ export default function VideoPlayer({
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const skipRangesRef = React.useRef<{ start: number; end: number }[]>([]);
+  const timelineSamplesRef = React.useRef<Map<string, FragmentTimelineSample>>(
+    new Map(),
+  );
+  const timelineSampleIndexRef = React.useRef<TimelineSampleIndex>([]);
+  const mappedSkipRangesRef = React.useRef<TimelineMappedRange[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -85,16 +104,18 @@ export default function VideoPlayer({
     if (!video || isSeekingRef.current) return false;
 
     const currentTime = video.currentTime;
-    for (const range of skipRangesRef.current) {
+    for (const mappedRange of mappedSkipRangesRef.current) {
       const skipStart = video.paused
-        ? range.start
-        : Math.max(0, range.start - SKIP_RANGE_PRE_ROLL_SECONDS);
-      if (currentTime >= skipStart && currentTime < range.end) {
+        ? mappedRange.start
+        : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
+      if (currentTime >= skipStart && currentTime < mappedRange.end) {
         console.log(
-          `[VideoPlayer] Skipping ad range: ${range.start.toFixed(1)} - ${range.end.toFixed(1)}`,
+          `[VideoPlayer] Skipping ad range: ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}${
+            mappedRange.calibrated ? " (calibrated)" : ""
+          }`,
         );
         isAutoSkippingRef.current = true;
-        video.currentTime = range.end;
+        video.currentTime = mappedRange.end;
         return true;
       }
     }
@@ -257,6 +278,9 @@ export default function VideoPlayer({
     let deferredShortDramaSkipLoadStarted = false;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
+    timelineSamplesRef.current.clear();
+    timelineSampleIndexRef.current = [];
+    mappedSkipRangesRef.current = [];
 
     const getNativeTimelineStart = () => {
       const seekable = video.seekable;
@@ -310,6 +334,22 @@ export default function VideoPlayer({
       }
     };
 
+    const refreshMappedSkipRanges = (options?: { rebuildIndex?: boolean }) => {
+      if (options?.rebuildIndex ?? true) {
+        timelineSampleIndexRef.current = buildTimelineSampleIndex(
+          timelineSamplesRef.current,
+        );
+      } else {
+        timelineSampleIndexRef.current = timelineSampleIndexRef.current.flatMap(
+          (sample) => timelineSamplesRef.current.get(sample.key) ?? [],
+        );
+      }
+      mappedSkipRangesRef.current = mapSkipRangesToMediaTime(
+        timelineSampleIndexRef.current,
+        skipRangesRef.current,
+      );
+    };
+
     const updateSkipRanges = async (options?: {
       playlistText?: string;
       playlistUrl?: string;
@@ -344,6 +384,7 @@ export default function VideoPlayer({
         }
 
         skipRangesRef.current = ranges;
+        refreshMappedSkipRanges();
 
         performSkip();
         queueSkipWatch();
@@ -352,6 +393,78 @@ export default function VideoPlayer({
           return;
         }
         console.warn("[VideoPlayer] Failed to parse ad tags:", err);
+      }
+    };
+
+    const updateFragmentTimelineFromPlaylist = (
+      fragments: HlsFragmentLike[],
+    ) => {
+      let changed = false;
+      let indexChanged = false;
+      for (const frag of fragments) {
+        const bounds = getPlaylistBoundsFromFragment(frag);
+        if (!bounds) continue;
+
+        const result = upsertFragmentTimelineSample(
+          timelineSamplesRef.current,
+          {
+            key: getFragmentTimelineKey(frag),
+            cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+            playlistStart: bounds.playlistStart,
+            playlistEnd: bounds.playlistEnd,
+          },
+        );
+        changed = result.changed || changed;
+        indexChanged = result.indexChanged || indexChanged;
+      }
+
+      if (cleanupTimelineSamples(timelineSamplesRef.current)) {
+        changed = true;
+        indexChanged = true;
+      }
+
+      if (changed) {
+        refreshMappedSkipRanges({ rebuildIndex: indexChanged });
+      }
+    };
+
+    const updateFragmentTimelineFromMedia = (
+      fragments: HlsFragmentLike | HlsFragmentLike[] | null | undefined,
+    ) => {
+      if (!fragments) return;
+
+      const frags = Array.isArray(fragments) ? fragments : [fragments];
+      let changed = false;
+      let indexChanged = false;
+
+      for (const frag of frags) {
+        const mediaBounds = getMediaBoundsFromFragment(frag);
+        if (!mediaBounds) continue;
+
+        const key = getFragmentTimelineKey(frag);
+        const existing = timelineSamplesRef.current.get(key);
+        if (!existing) continue;
+
+        const result = upsertFragmentTimelineSample(
+          timelineSamplesRef.current,
+          {
+            key,
+            cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+            playlistStart: existing.playlistStart,
+            playlistEnd: existing.playlistEnd,
+            mediaStart: mediaBounds.mediaStart,
+            mediaEnd: mediaBounds.mediaEnd,
+          },
+        );
+        changed = result.changed || changed;
+        indexChanged = result.indexChanged || indexChanged;
+      }
+
+      const cleanupChanged = cleanupTimelineSamples(timelineSamplesRef.current);
+      if (changed || cleanupChanged) {
+        refreshMappedSkipRanges({
+          rebuildIndex: indexChanged || cleanupChanged,
+        });
       }
     };
 
@@ -403,8 +516,22 @@ export default function VideoPlayer({
           : {}),
       });
 
-      hls.on(Hls.Events.FRAG_CHANGED, () => {
+      hls.on(Hls.Events.FRAG_CHANGED, (_event, data) => {
+        updateFragmentTimelineFromMedia(data.frag);
         performSkip();
+      });
+
+      hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
+        updateFragmentTimelineFromMedia(data.frag);
+      });
+
+      hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
+        const fragments = Array.isArray(data.details?.fragments)
+          ? data.details.fragments
+          : data.frag
+            ? [data.frag]
+            : [];
+        updateFragmentTimelineFromMedia(fragments);
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -416,6 +543,7 @@ export default function VideoPlayer({
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
+        updateFragmentTimelineFromPlaylist(data.details.fragments);
         if (playbackProfile === "short-drama" && video.currentTime < 2) {
           return;
         }
