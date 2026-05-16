@@ -6,25 +6,34 @@ interface SkipRange {
 const MAX_PLAYLIST_PARSE_DEPTH = 2;
 const MANIFEST_LINE_BREAK = /\r\n|\r|\n/;
 const MANIFEST_TAG_PREFIX = "#";
-const DEFAULT_RESOLUTION_PROBE_BYTES = 262_144;
-const DEFAULT_RESOLUTION_PROBE_WINDOW_SECONDS = 120;
+const DEFAULT_MEDIA_FINGERPRINT_PROBE_BYTES = 262_144;
+const DEFAULT_MEDIA_FINGERPRINT_PROBE_WINDOW_SECONDS = 120;
 const BASELINE_SAMPLE_LIMIT = 12;
 const DISCONTINUITY_PROBE_LIMIT = 40;
 const MIN_ANOMALY_SEGMENTS = 2;
 const MAX_ANOMALY_SEGMENTS = 12;
-const RESOLUTION_PROBE_CACHE_LIMIT = 500;
-const RESOLUTION_PROBE_CONCURRENCY = 4;
-const RESOLUTION_PROBE_TIMEOUT_MS = 8_000;
+const MEDIA_FINGERPRINT_PROBE_CACHE_LIMIT = 500;
+const MEDIA_FINGERPRINT_PROBE_CONCURRENCY = 4;
+const MEDIA_FINGERPRINT_PROBE_TIMEOUT_MS = 8_000;
 const INITIAL_TS_PAYLOAD_BUFFER_BYTES = 64 * 1024;
+const BITRATE_ANOMALY_RATIO = 0.35;
+const MIN_STRONG_ANOMALY_SECONDS = 1.5;
+const DEFAULT_RESOLUTION_PROBE_BYTES = DEFAULT_MEDIA_FINGERPRINT_PROBE_BYTES;
 const H264_HIGH_PROFILES = new Set([
   100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135,
 ]);
-const resolutionProbeCache = new Map<string, VideoResolution | null>();
+const mediaFingerprintProbeCache = new Map<string, SegmentFingerprint | null>();
+const ADTS_SAMPLE_RATES = [
+  96_000, 88_200, 64_000, 48_000, 44_100, 32_000, 24_000, 22_050, 16_000,
+  12_000, 11_025, 8_000, 7_350,
+];
 
 interface ParseManifestOptions {
   signal?: AbortSignal;
   timelineStart?: number;
   playbackTime?: number;
+  enableMediaFingerprintProbe?: boolean;
+  mediaFingerprintProbeByteLength?: number;
   enableResolutionProbe?: boolean;
   resolutionProbeByteLength?: number;
 }
@@ -34,6 +43,8 @@ interface ParsePlaylistTextOptions {
   playlistUrl?: string;
   signal?: AbortSignal;
   playbackTime?: number;
+  enableMediaFingerprintProbe?: boolean;
+  mediaFingerprintProbeByteLength?: number;
   enableResolutionProbe?: boolean;
   resolutionProbeByteLength?: number;
 }
@@ -53,6 +64,61 @@ interface PlaylistParseResult {
 interface VideoResolution {
   width: number;
   height: number;
+}
+
+interface H264CodecInfo extends VideoResolution {
+  profileIdc: number;
+  constraintFlags: number;
+  levelIdc: number;
+  spsHash: string;
+  ppsHash: string | null;
+}
+
+interface AacAudioInfo {
+  profile: number;
+  sampleRate: number;
+  channelConfig: number;
+}
+
+interface TsStreamInfo {
+  pid: number;
+  streamType: number;
+}
+
+interface TsProgramInfo {
+  programNumber: number | null;
+  pmtPid: number | null;
+  pcrPid: number | null;
+  videoPid: number | null;
+  audioPid: number | null;
+  streams: TsStreamInfo[];
+}
+
+interface SegmentFingerprint {
+  resolution: VideoResolution | null;
+  h264CodecKey: string | null;
+  spsHash: string | null;
+  ppsHash: string | null;
+  audioKey: string | null;
+  programLayoutKey: string | null;
+  bitrateKbps: number | null;
+  urlFamilyKey: string;
+}
+
+interface FingerprintBaseline {
+  resolution: VideoResolution | null;
+  h264CodecKey: string | null;
+  spsHash: string | null;
+  ppsHash: string | null;
+  audioKey: string | null;
+  programLayoutKey: string | null;
+  bitrateKbps: number | null;
+  urlFamilyKey: string | null;
+}
+
+interface SegmentAnomalyEvidence {
+  strong: number;
+  weak: number;
 }
 
 function toFiniteNumber(raw: string | undefined): number | null {
@@ -222,6 +288,77 @@ function getModalResolution(
   return best?.resolution ?? null;
 }
 
+function getModalValue<T>(values: (T | null)[]): T | null {
+  const counts = new Map<string, { value: T; count: number }>();
+  for (const value of values) {
+    if (value === null) continue;
+
+    const key = String(value);
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, { value, count: 1 });
+    }
+  }
+
+  let best: { value: T; count: number } | null = null;
+  for (const count of counts.values()) {
+    if (!best || count.count > best.count) {
+      best = count;
+    }
+  }
+
+  return best?.value ?? null;
+}
+
+function getMedianNumber(values: (number | null)[]): number | null {
+  const sorted = values
+    .filter(
+      (value): value is number => value !== null && Number.isFinite(value),
+    )
+    .sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function hashBytes(bytes: Uint8Array): string {
+  let hash = 0x811c9dc5;
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash.toString(16).padStart(8, "0");
+}
+
+function getUrlFamilyKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    parts.pop();
+    return `${parsed.host}/${parts.join("/")}`;
+  } catch {
+    const [path] = url.split(/[?#]/, 1);
+    const slashIndex = path.lastIndexOf("/");
+    return slashIndex > -1 ? path.slice(0, slashIndex) : path;
+  }
+}
+
+function getContentRangeTotalBytes(contentRange: string | null): number | null {
+  if (!contentRange) return null;
+
+  const match = contentRange.match(/\/(\d+)$/);
+  if (!match) return null;
+
+  const total = Number.parseInt(match[1], 10);
+  return Number.isFinite(total) && total > 0 ? total : null;
+}
+
 function parseCueDurationFromLine(line: string, prefix: string): number | null {
   const raw = line.substring(prefix.length).trim().replace(/^:/, "");
   const attrs = parseTagAttributes(raw);
@@ -368,13 +505,13 @@ function skipScalingList(reader: BitReader, size: number) {
   }
 }
 
-function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
+function parseH264SpsInfo(nal: Uint8Array): H264CodecInfo | null {
   try {
-    const data = removeEmulationPreventionBytes(nal.slice(1));
+    const data = removeEmulationPreventionBytes(nal.subarray(1));
     const reader = new BitReader(data);
     const profileIdc = reader.readBits(8);
-    reader.readBits(8);
-    reader.readBits(8);
+    const constraintFlags = reader.readBits(8);
+    const levelIdc = reader.readBits(8);
     reader.readUnsignedExpGolomb();
 
     let chromaFormatIdc = 1;
@@ -446,9 +583,19 @@ function parseH264SpsResolution(nal: Uint8Array): VideoResolution | null {
       cropUnitY = 2 - frameMbsOnlyFlag;
     }
 
+    const parsedWidth =
+      width - (frameCropLeftOffset + frameCropRightOffset) * cropUnitX;
+    const parsedHeight =
+      height - (frameCropTopOffset + frameCropBottomOffset) * cropUnitY;
+
     return {
-      width: width - (frameCropLeftOffset + frameCropRightOffset) * cropUnitX,
-      height: height - (frameCropTopOffset + frameCropBottomOffset) * cropUnitY,
+      width: parsedWidth,
+      height: parsedHeight,
+      profileIdc,
+      constraintFlags,
+      levelIdc,
+      spsHash: hashBytes(nal),
+      ppsHash: null,
     };
   } catch {
     return null;
@@ -481,41 +628,78 @@ function getNalStartCodeLength(
   return null;
 }
 
-function parseNalResolution(
+function parseNalInfo(
   bytes: Uint8Array,
   nalStart: number,
   nalEnd: number,
-): VideoResolution | null {
+): {
+  h264: H264CodecInfo | null;
+  ppsHash: string | null;
+} | null {
   if (nalStart >= nalEnd) return null;
 
   const nalType = bytes[nalStart] & 0x1f;
-  if (nalType !== 7) return null;
+  if (nalType === 7) {
+    return {
+      h264: parseH264SpsInfo(bytes.subarray(nalStart, nalEnd)),
+      ppsHash: null,
+    };
+  }
+  if (nalType === 8) {
+    return {
+      h264: null,
+      ppsHash: hashBytes(bytes.subarray(nalStart, nalEnd)),
+    };
+  }
 
-  return parseH264SpsResolution(bytes.slice(nalStart, nalEnd));
+  return {
+    h264: null,
+    ppsHash: null,
+  };
 }
 
-function findH264SpsResolution(bytes: Uint8Array): VideoResolution | null {
+function findH264CodecInfo(bytes: Uint8Array): H264CodecInfo | null {
   let pendingNalStart: number | null = null;
+  let h264: H264CodecInfo | null = null;
+  let ppsHash: string | null = null;
+
+  const applyNal = (nalStart: number, nalEnd: number) => {
+    const parsed = parseNalInfo(bytes, nalStart, nalEnd);
+    if (!parsed) {
+      return {
+        h264: null,
+        ppsHash: null,
+      };
+    }
+
+    return parsed;
+  };
 
   for (let index = 0; index < bytes.length - 2; index++) {
     const startCodeLength = getNalStartCodeLength(bytes, index);
     if (startCodeLength === null) continue;
 
     if (pendingNalStart !== null) {
-      const resolution = parseNalResolution(bytes, pendingNalStart, index);
-      if (resolution) return resolution;
+      const parsed = applyNal(pendingNalStart, index);
+      h264 ??= parsed.h264;
+      ppsHash ??= parsed.ppsHash;
+      if (h264 && ppsHash) break;
     }
 
     pendingNalStart = index + startCodeLength;
     index += startCodeLength - 1;
   }
 
-  if (pendingNalStart !== null) {
-    const resolution = parseNalResolution(bytes, pendingNalStart, bytes.length);
-    if (resolution) return resolution;
+  if (pendingNalStart !== null && (!h264 || !ppsHash)) {
+    const parsed = applyNal(pendingNalStart, bytes.length);
+    h264 ??= parsed.h264;
+    ppsHash ??= parsed.ppsHash;
   }
 
-  return null;
+  const parsedH264 = h264;
+  if (parsedH264 === null) return null;
+
+  return { ...parsedH264, ppsHash };
 }
 function getTsPacketPayloadOffset(
   bytes: Uint8Array,
@@ -556,10 +740,13 @@ function readPsiSection(
   const sectionEnd = sectionOffset + 3 + sectionLength;
   if (sectionEnd > packetOffset + 188) return null;
 
-  return bytes.slice(sectionOffset, sectionEnd);
+  return bytes.subarray(sectionOffset, sectionEnd);
 }
 
-function parsePatPmtPid(section: Uint8Array): number | null {
+function parsePatProgram(section: Uint8Array): {
+  programNumber: number;
+  pmtPid: number;
+} | null {
   if (section[0] !== 0x00 || section.length < 12) return null;
 
   const sectionLength = ((section[1] & 0x0f) << 8) | section[2];
@@ -568,19 +755,28 @@ function parsePatPmtPid(section: Uint8Array): number | null {
     const programNumber = (section[offset] << 8) | section[offset + 1];
     if (programNumber === 0) continue;
 
-    return ((section[offset + 2] & 0x1f) << 8) | section[offset + 3];
+    return {
+      programNumber,
+      pmtPid: ((section[offset + 2] & 0x1f) << 8) | section[offset + 3],
+    };
   }
 
   return null;
 }
 
-function parsePmtVideoPid(section: Uint8Array): number | null {
+function parsePmtInfo(
+  section: Uint8Array,
+): Pick<TsProgramInfo, "audioPid" | "pcrPid" | "streams" | "videoPid"> | null {
   if (section[0] !== 0x02 || section.length < 16) return null;
 
   const sectionLength = ((section[1] & 0x0f) << 8) | section[2];
+  const pcrPid = ((section[8] & 0x1f) << 8) | section[9];
   const programInfoLength = ((section[10] & 0x0f) << 8) | section[11];
   let offset = 12 + programInfoLength;
   const entriesEnd = Math.min(section.length, 3 + sectionLength - 4);
+  let videoPid: number | null = null;
+  let audioPid: number | null = null;
+  const streams: TsStreamInfo[] = [];
 
   while (offset + 5 <= entriesEnd) {
     const streamType = section[offset];
@@ -588,18 +784,22 @@ function parsePmtVideoPid(section: Uint8Array): number | null {
       ((section[offset + 1] & 0x1f) << 8) | section[offset + 2];
     const esInfoLength =
       ((section[offset + 3] & 0x0f) << 8) | section[offset + 4];
-    if (streamType === 0x1b) {
-      return elementaryPid;
+    streams.push({ pid: elementaryPid, streamType });
+    if (videoPid === null && streamType === 0x1b) {
+      videoPid = elementaryPid;
+    } else if (audioPid === null && streamType === 0x0f) {
+      audioPid = elementaryPid;
     }
     offset += 5 + esInfoLength;
   }
 
-  return null;
+  return { audioPid, pcrPid, streams, videoPid };
 }
 
-function findH264VideoPid(bytes: Uint8Array): number | null {
+function findTsProgramInfo(bytes: Uint8Array): TsProgramInfo {
   const packetSize = 188;
   let pmtPid: number | null = null;
+  let programNumber: number | null = null;
 
   for (
     let offset = 0;
@@ -613,22 +813,51 @@ function findH264VideoPid(bytes: Uint8Array): number | null {
     if (!section) continue;
 
     if (pid === 0x0000) {
-      pmtPid = parsePatPmtPid(section);
+      const program = parsePatProgram(section);
+      if (program) {
+        programNumber = program.programNumber;
+        pmtPid = program.pmtPid;
+      }
     } else if (pmtPid !== null && pid === pmtPid) {
-      return parsePmtVideoPid(section);
+      const pmt = parsePmtInfo(section);
+      if (pmt) {
+        return { programNumber, pmtPid, ...pmt };
+      }
     }
   }
 
-  return null;
+  return {
+    audioPid: null,
+    pcrPid: null,
+    programNumber,
+    pmtPid,
+    streams: [],
+    videoPid: null,
+  };
 }
 
-function extractTsPayload(bytes: Uint8Array): Uint8Array {
+function getProgramLayoutKey(program: TsProgramInfo): string | null {
+  if (program.streams.length === 0) return null;
+
+  const streams = program.streams
+    .slice()
+    .sort((a, b) => a.pid - b.pid)
+    .map((stream) => `${stream.streamType.toString(16)}@${stream.pid}`)
+    .join(",");
+  return [
+    `program=${program.programNumber ?? "?"}`,
+    `pmt=${program.pmtPid ?? "?"}`,
+    `pcr=${program.pcrPid ?? "?"}`,
+    streams,
+  ].join("|");
+}
+
+function extractTsPayload(bytes: Uint8Array, pid: number | null): Uint8Array {
   let payload = new Uint8Array(
     Math.max(1, Math.min(bytes.length, INITIAL_TS_PAYLOAD_BUFFER_BYTES)),
   );
   let payloadIndex = 0;
   const packetSize = 188;
-  const videoPid = findH264VideoPid(bytes);
 
   const appendPayload = (chunk: Uint8Array) => {
     const requiredLength = payloadIndex + chunk.length;
@@ -651,7 +880,7 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
     offset += packetSize
   ) {
     if (bytes[offset] !== 0x47) continue;
-    if (videoPid !== null && getTsPacketPid(bytes, offset) !== videoPid) {
+    if (pid !== null && getTsPacketPid(bytes, offset) !== pid) {
       continue;
     }
 
@@ -677,6 +906,86 @@ function extractTsPayload(bytes: Uint8Array): Uint8Array {
   return payload.subarray(0, payloadIndex);
 }
 
+function findAacAudioInfo(bytes: Uint8Array): AacAudioInfo | null {
+  for (let index = 0; index + 7 <= bytes.length; index++) {
+    if (bytes[index] !== 0xff || (bytes[index + 1] & 0xf0) !== 0xf0) {
+      continue;
+    }
+
+    const sampleRateIndex = (bytes[index + 2] & 0x3c) >> 2;
+    const sampleRate = ADTS_SAMPLE_RATES[sampleRateIndex];
+    if (!sampleRate) continue;
+
+    return {
+      profile: ((bytes[index + 2] & 0xc0) >> 6) + 1,
+      sampleRate,
+      channelConfig:
+        ((bytes[index + 2] & 0x01) << 2) | ((bytes[index + 3] & 0xc0) >> 6),
+    };
+  }
+
+  return null;
+}
+
+function getH264CodecKey(h264: H264CodecInfo | null): string | null {
+  if (!h264) return null;
+
+  return [
+    h264.width,
+    h264.height,
+    h264.profileIdc,
+    h264.constraintFlags,
+    h264.levelIdc,
+  ].join("x");
+}
+
+function getAacAudioKey(audio: AacAudioInfo | null): string | null {
+  if (!audio) return null;
+
+  return [audio.profile, audio.sampleRate, audio.channelConfig].join("x");
+}
+
+function buildSegmentFingerprint(
+  bytes: Uint8Array,
+  options: {
+    duration: number;
+    totalBytes: number | null;
+    url: string;
+  },
+): SegmentFingerprint | null {
+  const program = findTsProgramInfo(bytes);
+  const videoPayload =
+    program.videoPid !== null
+      ? extractTsPayload(bytes, program.videoPid)
+      : null;
+  const audioPayload =
+    program.audioPid !== null
+      ? extractTsPayload(bytes, program.audioPid)
+      : null;
+  const h264 = videoPayload ? findH264CodecInfo(videoPayload) : null;
+  const audio = audioPayload ? findAacAudioInfo(audioPayload) : null;
+  const duration = Math.max(0, options.duration);
+  const bitrateKbps =
+    options.totalBytes !== null && duration > 0
+      ? (options.totalBytes * 8) / duration / 1000
+      : null;
+
+  if (!h264 && !audio && program.streams.length === 0 && bitrateKbps === null) {
+    return null;
+  }
+
+  return {
+    resolution: h264 ? { width: h264.width, height: h264.height } : null,
+    h264CodecKey: getH264CodecKey(h264),
+    spsHash: h264?.spsHash ?? null,
+    ppsHash: h264?.ppsHash ?? null,
+    audioKey: getAacAudioKey(audio),
+    programLayoutKey: getProgramLayoutKey(program),
+    bitrateKbps,
+    urlFamilyKey: getUrlFamilyKey(options.url),
+  };
+}
+
 function createTimeoutSignal(parentSignal: AbortSignal | undefined): {
   signal: AbortSignal;
   cleanup: () => void;
@@ -691,7 +1000,7 @@ function createTimeoutSignal(parentSignal: AbortSignal | undefined): {
 
   const timeout = setTimeout(() => {
     controller.abort();
-  }, RESOLUTION_PROBE_TIMEOUT_MS);
+  }, MEDIA_FINGERPRINT_PROBE_TIMEOUT_MS);
 
   return {
     signal: controller.signal,
@@ -702,24 +1011,24 @@ function createTimeoutSignal(parentSignal: AbortSignal | undefined): {
   };
 }
 
-async function probeSegmentResolution(
-  url: string,
+async function probeSegmentFingerprint(
+  segment: SegmentTimelineEntry,
   options: {
     signal?: AbortSignal;
     byteLength: number;
-    cache: Map<string, VideoResolution | null>;
+    cache: Map<string, SegmentFingerprint | null>;
   },
-): Promise<VideoResolution | null> {
-  if (options.cache.has(url)) {
-    const cached = options.cache.get(url) ?? null;
-    options.cache.delete(url);
-    options.cache.set(url, cached);
+): Promise<SegmentFingerprint | null> {
+  if (options.cache.has(segment.url)) {
+    const cached = options.cache.get(segment.url) ?? null;
+    options.cache.delete(segment.url);
+    options.cache.set(segment.url, cached);
     return cached;
   }
 
   const timeoutSignal = createTimeoutSignal(options.signal);
   try {
-    const response = await fetch(url, {
+    const response = await fetch(segment.url, {
       headers: {
         Range: `bytes=0-${Math.max(0, options.byteLength - 1)}`,
       },
@@ -727,36 +1036,42 @@ async function probeSegmentResolution(
     });
 
     if (!response.ok) {
-      options.cache.set(url, null);
+      options.cache.set(segment.url, null);
       return null;
     }
 
     if (response.status !== 206) {
       await response.body?.cancel();
-      options.cache.set(url, null);
+      options.cache.set(segment.url, null);
       return null;
     }
 
+    const totalBytes = getContentRangeTotalBytes(
+      response.headers.get("Content-Range"),
+    );
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const payload = extractTsPayload(bytes);
-    const resolution = findH264SpsResolution(payload);
-    options.cache.set(url, resolution);
-    if (options.cache.size > RESOLUTION_PROBE_CACHE_LIMIT) {
+    const fingerprint = buildSegmentFingerprint(bytes, {
+      duration: segment.end - segment.start,
+      totalBytes,
+      url: segment.url,
+    });
+    options.cache.set(segment.url, fingerprint);
+    if (options.cache.size > MEDIA_FINGERPRINT_PROBE_CACHE_LIMIT) {
       const firstKey = options.cache.keys().next().value;
       if (firstKey) {
         options.cache.delete(firstKey);
       }
     }
-    return resolution;
+    return fingerprint;
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
       if (!options.signal?.aborted) {
-        options.cache.set(url, null);
+        options.cache.set(segment.url, null);
         return null;
       }
       throw err;
     }
-    options.cache.set(url, null);
+    options.cache.set(segment.url, null);
     return null;
   } finally {
     timeoutSignal.cleanup();
@@ -980,26 +1295,162 @@ function parsePlaylistText(
   };
 }
 
-async function inferResolutionSkipRanges(
+function isMediaFingerprintProbeEnabled(
+  options: ParsePlaylistTextOptions,
+): boolean {
+  return (
+    options.enableMediaFingerprintProbe ??
+    options.enableResolutionProbe ??
+    false
+  );
+}
+
+function getMediaFingerprintProbeByteLength(
+  options: ParsePlaylistTextOptions,
+): number {
+  return (
+    options.mediaFingerprintProbeByteLength ??
+    options.resolutionProbeByteLength ??
+    DEFAULT_RESOLUTION_PROBE_BYTES
+  );
+}
+
+function buildFingerprintBaseline(
+  fingerprints: (SegmentFingerprint | null)[],
+): FingerprintBaseline | null {
+  const usable = fingerprints.filter(
+    (fingerprint): fingerprint is SegmentFingerprint => fingerprint !== null,
+  );
+  if (usable.length < MIN_ANOMALY_SEGMENTS) return null;
+
+  return {
+    resolution: getModalResolution(
+      usable.map((fingerprint) => fingerprint.resolution),
+    ),
+    h264CodecKey: getModalValue(
+      usable.map((fingerprint) => fingerprint.h264CodecKey),
+    ),
+    spsHash: getModalValue(usable.map((fingerprint) => fingerprint.spsHash)),
+    ppsHash: getModalValue(usable.map((fingerprint) => fingerprint.ppsHash)),
+    audioKey: getModalValue(usable.map((fingerprint) => fingerprint.audioKey)),
+    programLayoutKey: getModalValue(
+      usable.map((fingerprint) => fingerprint.programLayoutKey),
+    ),
+    bitrateKbps: getMedianNumber(
+      usable.map((fingerprint) => fingerprint.bitrateKbps),
+    ),
+    urlFamilyKey: getModalValue(
+      usable.map((fingerprint) => fingerprint.urlFamilyKey),
+    ),
+  };
+}
+
+function compareNullableValue(
+  left: string | null,
+  right: string | null,
+): boolean {
+  return left !== null && right !== null && left !== right;
+}
+
+function getSegmentAnomalyEvidence(
+  fingerprint: SegmentFingerprint | null,
+  baseline: FingerprintBaseline,
+): SegmentAnomalyEvidence {
+  if (!fingerprint) return { strong: 0, weak: 0 };
+
+  let strong = 0;
+  let weak = 0;
+  if (!sameResolution(fingerprint.resolution, baseline.resolution)) {
+    if (fingerprint.resolution && baseline.resolution) {
+      strong += 1;
+    }
+  }
+  if (compareNullableValue(fingerprint.h264CodecKey, baseline.h264CodecKey)) {
+    strong += 1;
+  }
+  if (compareNullableValue(fingerprint.spsHash, baseline.spsHash)) {
+    strong += 1;
+  }
+  if (compareNullableValue(fingerprint.ppsHash, baseline.ppsHash)) {
+    strong += 1;
+  }
+  if (compareNullableValue(fingerprint.audioKey, baseline.audioKey)) {
+    strong += 1;
+  }
+  if (
+    compareNullableValue(
+      fingerprint.programLayoutKey,
+      baseline.programLayoutKey,
+    )
+  ) {
+    strong += 1;
+  }
+  if (
+    fingerprint.bitrateKbps !== null &&
+    baseline.bitrateKbps !== null &&
+    baseline.bitrateKbps > 0 &&
+    Math.abs(fingerprint.bitrateKbps - baseline.bitrateKbps) /
+      baseline.bitrateKbps >=
+      BITRATE_ANOMALY_RATIO
+  ) {
+    weak += 1;
+  }
+  if (compareNullableValue(fingerprint.urlFamilyKey, baseline.urlFamilyKey)) {
+    weak += 1;
+  }
+
+  return { strong, weak };
+}
+
+function isAnomalousSegment(
+  segment: SegmentTimelineEntry,
+  evidence: SegmentAnomalyEvidence,
+): boolean {
+  const duration = segment.end - segment.start;
+  return (
+    (evidence.strong > 0 && duration >= MIN_STRONG_ANOMALY_SECONDS) ||
+    evidence.strong > 1 ||
+    evidence.weak >= 2
+  );
+}
+
+function findDiscontinuityCandidateIndex(
+  segments: SegmentTimelineEntry[],
+  index: number,
+): number | null {
+  for (let current = index; current >= 0; current--) {
+    if (segments[current].startsAfterDiscontinuity) {
+      return current;
+    }
+
+    if (index - current >= MAX_ANOMALY_SEGMENTS) break;
+  }
+
+  return null;
+}
+
+async function inferMediaFingerprintSkipRanges(
   segments: SegmentTimelineEntry[],
   options: ParsePlaylistTextOptions,
 ): Promise<SkipRange[]> {
-  if (!options.enableResolutionProbe || segments.length === 0) return [];
+  if (!isMediaFingerprintProbeEnabled(options) || segments.length === 0) {
+    return [];
+  }
 
   const signal = options.signal;
   if (signal?.aborted) {
     throw new DOMException("Aborted", "AbortError");
   }
 
-  const byteLength =
-    options.resolutionProbeByteLength ?? DEFAULT_RESOLUTION_PROBE_BYTES;
+  const byteLength = getMediaFingerprintProbeByteLength(options);
   const playbackTime = Math.max(0, options.playbackTime ?? 0);
-  const probeEndTime = playbackTime + DEFAULT_RESOLUTION_PROBE_WINDOW_SECONDS;
+  const probeEndTime =
+    playbackTime + DEFAULT_MEDIA_FINGERPRINT_PROBE_WINDOW_SECONDS;
   const probe = (segment: SegmentTimelineEntry) =>
-    probeSegmentResolution(segment.url, {
+    probeSegmentFingerprint(segment, {
       signal,
       byteLength,
-      cache: resolutionProbeCache,
+      cache: mediaFingerprintProbeCache,
     });
 
   const previousSegments = segments
@@ -1009,10 +1460,10 @@ async function inferResolutionSkipRanges(
     return [];
   }
 
-  const baseline = getModalResolution(
+  const baseline = buildFingerprintBaseline(
     await mapWithConcurrency(
       previousSegments,
-      RESOLUTION_PROBE_CONCURRENCY,
+      MEDIA_FINGERPRINT_PROBE_CONCURRENCY,
       probe,
     ),
   );
@@ -1020,26 +1471,39 @@ async function inferResolutionSkipRanges(
 
   const ranges: SkipRange[] = [];
   let checkedDiscontinuities = 0;
+  const checkedStartIndexes = new Set<number>();
 
   for (let index = 0; index < segments.length; index++) {
-    const segment = segments[index];
-    if (!segment.startsAfterDiscontinuity) continue;
+    const candidateStartIndex = segments[index].startsAfterDiscontinuity
+      ? index
+      : segments[index].start <= playbackTime &&
+          segments[index].end > playbackTime
+        ? findDiscontinuityCandidateIndex(segments, index)
+        : null;
+    if (candidateStartIndex === null) continue;
+    if (checkedStartIndexes.has(candidateStartIndex)) continue;
+    checkedStartIndexes.add(candidateStartIndex);
+
+    const segment = segments[candidateStartIndex];
     if (segment.start > probeEndTime) continue;
 
     const candidateEnd =
-      segments[Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS) - 1].end;
+      segments[
+        Math.min(segments.length, candidateStartIndex + MAX_ANOMALY_SEGMENTS) -
+          1
+      ].end;
     if (candidateEnd <= playbackTime) continue;
 
     checkedDiscontinuities += 1;
     if (checkedDiscontinuities > DISCONTINUITY_PROBE_LIMIT) break;
 
     const candidateSegments = segments.slice(
-      index,
-      Math.min(segments.length, index + MAX_ANOMALY_SEGMENTS),
+      candidateStartIndex,
+      Math.min(segments.length, candidateStartIndex + MAX_ANOMALY_SEGMENTS),
     );
-    const candidateResolutions = await mapWithConcurrency(
+    const candidateFingerprints = await mapWithConcurrency(
       candidateSegments,
-      RESOLUTION_PROBE_CONCURRENCY,
+      MEDIA_FINGERPRINT_PROBE_CONCURRENCY,
       probe,
     );
     if (signal?.aborted) {
@@ -1047,32 +1511,40 @@ async function inferResolutionSkipRanges(
     }
 
     const anomalySegments: SegmentTimelineEntry[] = [];
+    let hasStrongAnomaly = false;
     for (
       let probeIndex = 0;
       probeIndex < candidateSegments.length;
       probeIndex++
     ) {
       const currentSegment = candidateSegments[probeIndex];
-      const resolution = candidateResolutions[probeIndex];
+      const fingerprint = candidateFingerprints[probeIndex];
       if (signal?.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
 
-      if (!resolution) {
-        break;
-      }
-      if (sameResolution(resolution, baseline)) {
+      const evidence = getSegmentAnomalyEvidence(fingerprint, baseline);
+      if (!isAnomalousSegment(currentSegment, evidence)) {
         break;
       }
 
+      hasStrongAnomaly ||= evidence.strong > 0;
       anomalySegments.push(currentSegment);
     }
 
-    if (anomalySegments.length >= MIN_ANOMALY_SEGMENTS) {
+    const anomalyDuration =
+      anomalySegments[anomalySegments.length - 1]?.end && anomalySegments[0]
+        ? anomalySegments[anomalySegments.length - 1].end -
+          anomalySegments[0].start
+        : 0;
+    if (
+      anomalySegments.length >= MIN_ANOMALY_SEGMENTS ||
+      (hasStrongAnomaly && anomalyDuration >= MIN_STRONG_ANOMALY_SECONDS)
+    ) {
       const first = anomalySegments[0];
       const last = anomalySegments[anomalySegments.length - 1];
       ranges.push({ start: first.start, end: last.end });
-      index += anomalySegments.length - 1;
+      index = Math.max(index, candidateStartIndex + anomalySegments.length - 1);
     }
   }
 
@@ -1084,12 +1556,12 @@ async function buildSkipRangesFromPlaylistText(
   options: ParsePlaylistTextOptions = {},
 ): Promise<SkipRange[]> {
   const result = parsePlaylistText(text, options);
-  const resolutionRanges = await inferResolutionSkipRanges(
+  const mediaFingerprintRanges = await inferMediaFingerprintSkipRanges(
     result.segments,
     options,
   );
 
-  return mergeSkipRanges([...result.ranges, ...resolutionRanges]);
+  return mergeSkipRanges([...result.ranges, ...mediaFingerprintRanges]);
 }
 
 async function fetchManifestText(
@@ -1186,6 +1658,8 @@ export async function parseAdSkipRangesFromManifest(
       playlistUrl: url,
       signal,
       playbackTime: options.playbackTime,
+      enableMediaFingerprintProbe: options.enableMediaFingerprintProbe,
+      mediaFingerprintProbeByteLength: options.mediaFingerprintProbeByteLength,
       enableResolutionProbe: options.enableResolutionProbe,
       resolutionProbeByteLength: options.resolutionProbeByteLength,
     });
