@@ -429,29 +429,41 @@ export default function VideoPlayer({
     };
 
     const updateFragmentTimelineFromMedia = (
-      frag: HlsFragmentLike | null | undefined,
+      fragments: HlsFragmentLike | HlsFragmentLike[] | null | undefined,
     ) => {
-      if (!frag) return;
+      if (!fragments) return;
 
-      const mediaBounds = getMediaBoundsFromFragment(frag);
-      if (!mediaBounds) return;
+      const frags = Array.isArray(fragments) ? fragments : [fragments];
+      let changed = false;
+      let indexChanged = false;
 
-      const key = getFragmentTimelineKey(frag);
-      const existing = timelineSamplesRef.current.get(key);
-      if (!existing) return;
+      for (const frag of frags) {
+        const mediaBounds = getMediaBoundsFromFragment(frag);
+        if (!mediaBounds) continue;
 
-      const result = upsertFragmentTimelineSample(timelineSamplesRef.current, {
-        key,
-        cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
-        playlistStart: existing.playlistStart,
-        playlistEnd: existing.playlistEnd,
-        mediaStart: mediaBounds.mediaStart,
-        mediaEnd: mediaBounds.mediaEnd,
-      });
+        const key = getFragmentTimelineKey(frag);
+        const existing = timelineSamplesRef.current.get(key);
+        if (!existing) continue;
+
+        const result = upsertFragmentTimelineSample(
+          timelineSamplesRef.current,
+          {
+            key,
+            cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
+            playlistStart: existing.playlistStart,
+            playlistEnd: existing.playlistEnd,
+            mediaStart: mediaBounds.mediaStart,
+            mediaEnd: mediaBounds.mediaEnd,
+          },
+        );
+        changed = result.changed || changed;
+        indexChanged = result.indexChanged || indexChanged;
+      }
+
       const cleanupChanged = cleanupTimelineSamples(timelineSamplesRef.current);
-      if (result.changed || cleanupChanged) {
+      if (changed || cleanupChanged) {
         refreshMappedSkipRanges({
-          rebuildIndex: result.indexChanged || cleanupChanged,
+          rebuildIndex: indexChanged || cleanupChanged,
         });
       }
     };
@@ -516,15 +528,10 @@ export default function VideoPlayer({
       hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
         const fragments = Array.isArray(data.details?.fragments)
           ? data.details.fragments
-          : [];
-        if (fragments.length > 0) {
-          for (const frag of fragments) {
-            updateFragmentTimelineFromMedia(frag);
-          }
-          return;
-        }
-
-        updateFragmentTimelineFromMedia(data.frag);
+          : data.frag
+            ? [data.frag]
+            : [];
+        updateFragmentTimelineFromMedia(fragments);
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
