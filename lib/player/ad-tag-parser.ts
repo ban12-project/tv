@@ -507,7 +507,7 @@ function skipScalingList(reader: BitReader, size: number) {
 
 function parseH264SpsInfo(nal: Uint8Array): H264CodecInfo | null {
   try {
-    const data = removeEmulationPreventionBytes(nal.slice(1));
+    const data = removeEmulationPreventionBytes(nal.subarray(1));
     const reader = new BitReader(data);
     const profileIdc = reader.readBits(8);
     const constraintFlags = reader.readBits(8);
@@ -641,14 +641,14 @@ function parseNalInfo(
   const nalType = bytes[nalStart] & 0x1f;
   if (nalType === 7) {
     return {
-      h264: parseH264SpsInfo(bytes.slice(nalStart, nalEnd)),
+      h264: parseH264SpsInfo(bytes.subarray(nalStart, nalEnd)),
       ppsHash: null,
     };
   }
   if (nalType === 8) {
     return {
       h264: null,
-      ppsHash: hashBytes(bytes.slice(nalStart, nalEnd)),
+      ppsHash: hashBytes(bytes.subarray(nalStart, nalEnd)),
     };
   }
 
@@ -740,7 +740,7 @@ function readPsiSection(
   const sectionEnd = sectionOffset + 3 + sectionLength;
   if (sectionEnd > packetOffset + 188) return null;
 
-  return bytes.slice(sectionOffset, sectionEnd);
+  return bytes.subarray(sectionOffset, sectionEnd);
 }
 
 function parsePatProgram(section: Uint8Array): {
@@ -840,6 +840,7 @@ function getProgramLayoutKey(program: TsProgramInfo): string | null {
   if (program.streams.length === 0) return null;
 
   const streams = program.streams
+    .toSorted((a, b) => a.pid - b.pid)
     .map((stream) => `${stream.streamType.toString(16)}@${stream.pid}`)
     .join(",");
   return [
