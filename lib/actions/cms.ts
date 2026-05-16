@@ -2,6 +2,7 @@
 
 import { cacheTag, updateTag } from "next/cache";
 import * as z from "zod";
+import { requireRegisteredUser } from "@/lib/auth-utils";
 import {
   createApiSourceQuery,
   deleteApiSourceQuery,
@@ -22,8 +23,8 @@ export async function getApiSources() {
 
 const schema = z.object({
   id: z.uuid(),
-  name: z.string().min(1, "Name is required"),
-  url: z.url("Must be a valid URL"),
+  name: z.string().min(1),
+  url: z.url(),
   type: z.enum(["json", "xml", "csv"]),
 });
 
@@ -31,6 +32,12 @@ export async function createApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   const validatedFields = schema.omit({ id: true }).safeParse({
     name: formData.get("name") as string,
     url: formData.get("url") as string,
@@ -40,7 +47,7 @@ export async function createApiSource(
   if (!validatedFields.success) {
     return {
       success: false,
-      error: z.prettifyError(validatedFields.error),
+      error: "INVALID_SOURCE",
     };
   }
 
@@ -54,10 +61,10 @@ export async function createApiSource(
     });
     updateTag("api-sources");
     return { success: true };
-  } catch (error) {
+  } catch {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to create source",
+      error: "CREATE_FAILED",
     };
   }
 }
@@ -66,6 +73,12 @@ export async function updateApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   const validatedFields = schema.safeParse({
     name: formData.get("name") as string,
     url: formData.get("url") as string,
@@ -76,25 +89,35 @@ export async function updateApiSource(
   if (!validatedFields.success) {
     return {
       success: false,
-      error: z.prettifyError(validatedFields.error),
+      error: "INVALID_SOURCE",
     };
   }
 
   const { name, url, type, id } = validatedFields.data;
 
-  await updateApiSourceQuery(id, {
-    name,
-    url,
-    type,
-  });
-  updateTag("api-sources");
-  return { success: true };
+  try {
+    await updateApiSourceQuery(id, {
+      name,
+      url,
+      type,
+    });
+    updateTag("api-sources");
+    return { success: true };
+  } catch {
+    return { success: false, error: "UPDATE_FAILED" };
+  }
 }
 
 export async function deleteApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   const validatedFields = schema.pick({ id: true }).safeParse({
     id: formData.get("id") as string,
   });
@@ -102,13 +125,13 @@ export async function deleteApiSource(
   if (!validatedFields.success) {
     return {
       success: false,
-      error: z.prettifyError(validatedFields.error),
+      error: "INVALID_SOURCE",
     };
   }
 
   const { id } = validatedFields.data;
   if (!id) {
-    return { success: false, error: "ID is required" };
+    return { success: false, error: "INVALID_SOURCE" };
   }
 
   try {
@@ -116,10 +139,10 @@ export async function deleteApiSource(
     updateTag("api-sources");
     updateTag("recommendations");
     return { success: true };
-  } catch (error) {
+  } catch {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to delete source",
+      error: "DELETE_FAILED",
     };
   }
 }

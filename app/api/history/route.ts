@@ -1,22 +1,13 @@
-import { and, eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db/queries";
-import { watchHistory } from "@/lib/db/schema";
-
-const progressSchema = z.object({
-  videoId: z.string().min(1),
-  sourceId: z.string().min(1),
-  epIndex: z.number().int().min(0),
-  progress: z.number().min(0),
-  duration: z.number().min(0),
-});
+import { getCurrentSession } from "@/lib/auth-utils";
+import {
+  upsertWatchProgressForUser,
+  watchProgressSchema,
+} from "@/lib/watch-history";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const session = await getCurrentSession();
     if (!session?.user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
@@ -37,45 +28,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const validated = progressSchema.safeParse(payload);
+    const validated = watchProgressSchema.safeParse(payload);
     if (!validated.success) {
       return new NextResponse("Invalid payload", { status: 400 });
     }
 
-    const { videoId, sourceId, epIndex, progress, duration } = validated.data;
-
-    // Check if a record already exists
-    const existing = await db
-      .select({ id: watchHistory.id })
-      .from(watchHistory)
-      .where(
-        and(
-          eq(watchHistory.userId, session.user.id),
-          eq(watchHistory.videoId, videoId),
-          eq(watchHistory.sourceId, sourceId),
-        ),
-      )
-      .limit(1);
-
-    if (existing.length > 0) {
-      await db
-        .update(watchHistory)
-        .set({
-          epIndex,
-          progress: Math.floor(progress),
-          duration: Math.floor(duration),
-        })
-        .where(eq(watchHistory.id, existing[0].id));
-    } else {
-      await db.insert(watchHistory).values({
-        userId: session.user.id,
-        videoId,
-        sourceId,
-        epIndex,
-        progress: Math.floor(progress),
-        duration: Math.floor(duration),
-      });
-    }
+    await upsertWatchProgressForUser(session.user.id, validated.data);
 
     return new NextResponse("OK", { status: 200 });
   } catch (error) {

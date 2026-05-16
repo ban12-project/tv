@@ -69,15 +69,17 @@ export function SearchDialog({
         onClick={() => setOpen(true)}
       >
         <Search className="h-5 w-5" />
-        <span className="sr-only">Search</span>
+        <span className="sr-only">{dictionary.common.search}</span>
       </Button>
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
         shouldFilter={false}
+        title={dictionary.common.search}
+        description={dictionary.header["search-placeholder"]}
         className="bg-popover border-border **:data-[slot=command-input-wrapper]:border-border"
       >
-        <DialogTitle className="hidden">Search</DialogTitle>
+        <DialogTitle className="hidden">{dictionary.common.search}</DialogTitle>
 
         <CommandInput
           placeholder={dictionary.header["search-placeholder"]}

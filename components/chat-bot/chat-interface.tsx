@@ -57,10 +57,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { Messages } from "@/get-dictionary";
 import { useChatStore } from "@/lib/store/chat-store";
 import HoverPrefetchLink from "../hover-prefetch-link";
 
-export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
+export function ChatInterface({
+  isDesktop,
+  dictionary,
+}: {
+  isDesktop: boolean;
+  dictionary: Messages;
+}) {
   const [input, setInput] = React.useState("");
   const [webSearch, setWebSearch] = React.useState(false);
   const { messages, sendMessage, status, regenerate, setMessages } = useChat();
@@ -73,7 +80,7 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
     }
     sendMessage(
       {
-        text: message.text || "Sent with attachments",
+        text: message.text || dictionary.chat["sent-with-attachments"],
         files: message.files,
       },
       {
@@ -88,18 +95,22 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
   return (
     <div className="flex flex-col h-full w-full">
       <div className="flex items-center justify-between pl-3.5 pr-2 py-2 sticky top-0 bg-background-100 h-16 z-10">
-        <h2 className="font-semibold text-sm">Ask AI</h2>
+        <h2 className="font-semibold text-sm">{dictionary.chat.title}</h2>
         <div className="flex items-center gap-0.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" onClick={() => setMessages([])}>
                 <TrashIcon />
+                <span className="sr-only">{dictionary.chat.clear}</span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="z-100">Clear chat</TooltipContent>
+            <TooltipContent className="z-100">
+              {dictionary.chat.clear}
+            </TooltipContent>
           </Tooltip>
           <Button variant="ghost" onClick={toggle}>
             {isDesktop ? <ChevronsRightIcon /> : <XIcon />}
+            <span className="sr-only">{dictionary.common.close}</span>
           </Button>
         </div>
       </div>
@@ -117,7 +128,18 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                           (part) => part.type === "source-url",
                         ).length
                       }
-                    />
+                    >
+                      <span className="font-medium">
+                        {dictionary.chat["sources-used"].replace(
+                          "{count}",
+                          String(
+                            message.parts.filter(
+                              (part) => part.type === "source-url",
+                            ).length,
+                          ),
+                        )}
+                      </span>
+                    </SourcesTrigger>
                     {message.parts
                       .filter((part) => part.type === "source-url")
                       .map((part, i) => (
@@ -160,7 +182,7 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                             <MessageActions>
                               <MessageAction
                                 onClick={() => regenerate()}
-                                label="Retry"
+                                label={dictionary.common.retry}
                               >
                                 <RefreshCcwIcon className="size-3" />
                               </MessageAction>
@@ -168,7 +190,7 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                                 onClick={() =>
                                   navigator.clipboard.writeText(part.text)
                                 }
-                                label="Copy"
+                                label={dictionary.common.copy}
                               >
                                 <CopyIcon className="size-3" />
                               </MessageAction>
@@ -187,7 +209,20 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                           message.id === messages.at(-1)?.id
                         }
                       >
-                        <ReasoningTrigger />
+                        <ReasoningTrigger
+                          getThinkingMessage={(isStreaming, duration) => {
+                            if (isStreaming || duration === 0) {
+                              return dictionary.chat.thinking;
+                            }
+                            if (duration === undefined) {
+                              return dictionary.chat["thought-few"];
+                            }
+                            return dictionary.chat["thought-seconds"].replace(
+                              "{seconds}",
+                              String(duration),
+                            );
+                          }}
+                        />
                         <ReasoningContent>{part.text}</ReasoningContent>
                       </Reasoning>
                     );
@@ -202,17 +237,30 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
         <ConversationScrollButton />
       </Conversation>
       <div className="p-4 border-t border-border">
-        <PromptInput onSubmit={handleSubmit} className="" globalDrop multiple>
+        <PromptInput
+          onSubmit={handleSubmit}
+          className=""
+          globalDrop
+          multiple
+          uploadLabel={dictionary.common["upload-files"]}
+        >
           <PromptInputHeader>
             <PromptInputAttachments>
-              {(attachment) => <PromptInputAttachment data={attachment} />}
+              {(attachment) => (
+                <PromptInputAttachment
+                  data={attachment}
+                  attachmentLabel={dictionary.chat.attachment}
+                  imageLabel={dictionary.chat.image}
+                  removeLabel={dictionary.common.remove}
+                />
+              )}
             </PromptInputAttachments>
           </PromptInputHeader>
           <PromptInputBody>
             <PromptInputTextarea
               onChange={(e) => setInput(e.target.value)}
               value={input}
-              placeholder="Ask AI..."
+              placeholder={dictionary.chat.placeholder}
             />
           </PromptInputBody>
           <PromptInputFooter>
@@ -220,7 +268,9 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
               <PromptInputActionMenu>
                 <PromptInputActionMenuTrigger />
                 <PromptInputActionMenuContent>
-                  <PromptInputActionAddAttachments />
+                  <PromptInputActionAddAttachments
+                    label={dictionary.chat["add-attachments"]}
+                  />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
               <PromptInputButton
@@ -228,10 +278,14 @@ export function ChatInterface({ isDesktop }: { isDesktop: boolean }) {
                 onClick={() => setWebSearch(!webSearch)}
               >
                 <GlobeIcon size={16} />
-                <span>Search</span>
+                <span>{dictionary.chat["web-search"]}</span>
               </PromptInputButton>
             </PromptInputTools>
-            <PromptInputSubmit disabled={!input && !status} status={status} />
+            <PromptInputSubmit
+              aria-label={dictionary.common.submit}
+              disabled={!input && !status}
+              status={status}
+            />
           </PromptInputFooter>
         </PromptInput>
       </div>

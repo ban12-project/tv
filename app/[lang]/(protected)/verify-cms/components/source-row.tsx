@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
+import type { Messages } from "@/get-dictionary";
 import { deleteApiSource } from "@/lib/actions/cms";
 import type { SelectApiSource } from "@/lib/db/schema";
 
@@ -15,15 +16,32 @@ const initialState = {
   error: "",
 };
 
-export default function SourceRow({ source }: { source: SelectApiSource }) {
+export default function SourceRow({
+  source,
+  dictionary,
+}: {
+  source: SelectApiSource;
+  dictionary: Messages["verify-cms"];
+}) {
   const [state, dispatch, isPending] = useActionState(
     deleteApiSource,
     initialState,
   );
 
   useEffect(() => {
-    if (state.error) toast.error(state.error);
-  }, [state]);
+    if (!state.error) return;
+
+    const error =
+      state.error === "UNAUTHORIZED"
+        ? dictionary.unauthorized
+        : state.error === "INVALID_SOURCE"
+          ? dictionary["invalid-source"]
+          : state.error === "DELETE_FAILED"
+            ? dictionary["delete-failed"]
+            : state.error;
+
+    toast.error(error);
+  }, [state, dictionary]);
 
   return (
     <TableRow className="border-border hover:bg-muted data-[state=active]:bg-muted">
@@ -45,6 +63,8 @@ export default function SourceRow({ source }: { source: SelectApiSource }) {
             type="submit"
             disabled={isPending}
             className="text-destructive/50 hover:text-destructive hover:bg-destructive/10"
+            aria-label={dictionary["delete-source"]}
+            title={dictionary["delete-source"]}
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

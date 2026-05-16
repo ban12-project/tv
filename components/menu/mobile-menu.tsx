@@ -14,9 +14,11 @@ import type { MenuNode } from "./index";
 export function MobileMenu({
   nodes,
   children,
+  openLabel,
 }: {
   nodes: MenuNode[];
   children?: React.ReactNode;
+  openLabel: string;
 }) {
   return (
     <Popover>
@@ -25,7 +27,7 @@ export function MobileMenu({
           variant="ghost"
           size="icon"
           className="md:hidden text-foreground hover:bg-accent group"
-          aria-label="open menu"
+          aria-label={openLabel}
         >
           <div className="flex flex-col justify-center items-center w-full h-full pointer-events-none before:bg-current before:w-8.25 before:h-0.5 before:transition-transform before:duration-150 before:block before:scale-75 after:bg-current after:w-8.25 after:h-0.5 after:transition-transform after:duration-150 after:block after:scale-75 group-data-[state=closed]:before:-translate-y-1 group-data-[state=closed]:before:rotate-0 group-data-[state=open]:before:translate-y-px group-data-[state=open]:before:rotate-45 group-data-[state=closed]:after:translate-y-1 group-data-[state=closed]:after:rotate-0 group-data-[state=open]:after:-translate-y-px group-data-[state=open]:after:-rotate-45"></div>
         </Button>

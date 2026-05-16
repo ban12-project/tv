@@ -12,6 +12,7 @@ export async function generateMetadata({
 }: LayoutProps<"/[lang]">): Promise<Metadata> {
   const { lang } = await params;
   const messages = await getDictionary(lang as Locale);
+  const publicHostUrl = getPublicHostUrl();
 
   return {
     applicationName: messages["brand-name"],
@@ -28,7 +29,7 @@ export async function generateMetadata({
     formatDetection: {
       telephone: false,
     },
-    metadataBase: new URL(process.env.NEXT_PUBLIC_HOST_URL!),
+    metadataBase: new URL(publicHostUrl),
     alternates: {
       canonical: "/",
       languages: Object.fromEntries(
@@ -43,24 +44,24 @@ export async function generateMetadata({
         template: `%s | ${messages["brand-name"]}`,
       },
       description: messages["root-description"],
-      images: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?title=${messages["brand-name"]}`,
+      images: `${publicHostUrl}/api/og?title=${messages["brand-name"]}`,
     },
     icons: {
       icon: {
-        url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=48&h=48&bg=transparent&txt=black&txt=white`,
+        url: `${publicHostUrl}/api/og?w=48&h=48&bg=transparent&txt=black&txt=white`,
         type: "image/png",
       },
       shortcut: {
-        url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=192&h=192&bg=transparent&txt=black&txt=white`,
+        url: `${publicHostUrl}/api/og?w=192&h=192&bg=transparent&txt=black&txt=white`,
         type: "image/png",
       },
       apple: [
         {
-          url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=64&h=64&bg=transparent&txt=black&txt=white`,
+          url: `${publicHostUrl}/api/og?w=64&h=64&bg=transparent&txt=black&txt=white`,
           type: "image/png",
         },
         {
-          url: `${process.env.NEXT_PUBLIC_HOST_URL}/api/og?w=180&h=180&bg=transparent&txt=black&txt=white`,
+          url: `${publicHostUrl}/api/og?w=180&h=180&bg=transparent&txt=black&txt=white`,
           sizes: "180x180",
           type: "image/png",
         },
@@ -89,6 +90,10 @@ const geist = Geist({
   subsets: ["latin"],
   variable: "--font-geist",
 });
+
+function getPublicHostUrl() {
+  return process.env.NEXT_PUBLIC_HOST_URL ?? "http://localhost:3000";
+}
 
 export default async function RootLayout({
   params,

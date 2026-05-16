@@ -20,6 +20,7 @@ import {
   inferContentProfile,
   mergeContentProfiles,
 } from "@/lib/content-profile";
+import { MissingApiSourcesError } from "@/lib/source-provider";
 
 type Props = Readonly<{
   params: Promise<{
@@ -37,19 +38,31 @@ export default async function WatchPage({ params }: Props) {
   const decodedSourceId = decodeURIComponent(sourceId);
   const dictionaryPromise = getDictionary(lang);
 
-  const [dictionary, video, initialAspectRatio, cachedContentProfile] =
-    await Promise.all([
-      dictionaryPromise,
-      fetchVideoDetails(id, decodedSourceId),
-      getEpisodeAspectRatio({
-        sourceId: decodedSourceId,
-        videoId: id,
-      }),
-      getContentProfile({
-        sourceId: decodedSourceId,
-        videoId: id,
-      }),
-    ]);
+  let dictionary: Awaited<ReturnType<typeof getDictionary>>;
+  let video: Awaited<ReturnType<typeof fetchVideoDetails>>;
+  let initialAspectRatio: Awaited<ReturnType<typeof getEpisodeAspectRatio>>;
+  let cachedContentProfile: Awaited<ReturnType<typeof getContentProfile>>;
+
+  try {
+    [dictionary, video, initialAspectRatio, cachedContentProfile] =
+      await Promise.all([
+        dictionaryPromise,
+        fetchVideoDetails(id, decodedSourceId),
+        getEpisodeAspectRatio({
+          sourceId: decodedSourceId,
+          videoId: id,
+        }),
+        getContentProfile({
+          sourceId: decodedSourceId,
+          videoId: id,
+        }),
+      ]);
+  } catch (error) {
+    if (error instanceof MissingApiSourcesError) {
+      redirect(`/${lang}/verify-cms`);
+    }
+    throw error;
+  }
 
   if (!video) {
     const title = await getRecommendedVideoTitle(decodedSourceId, id);
@@ -154,7 +167,7 @@ export default async function WatchPage({ params }: Props) {
             {video.cast && video.cast.length > 0 && (
               <>
                 <h3 className="text-xl font-semibold mb-4 text-foreground/90">
-                  {dictionary.watch?.cast ?? "Cast"}
+                  {dictionary.watch.cast}
                 </h3>
                 <div className="flex flex-wrap gap-2 text-muted-foreground">
                   {video.cast.map((c) => (
@@ -174,7 +187,7 @@ export default async function WatchPage({ params }: Props) {
             {video.director && (
               <div>
                 <span className="block text-muted-foreground/60 mb-1">
-                  {dictionary.watch?.director ?? "Director"}
+                  {dictionary.watch.director}
                 </span>
                 <span className="text-foreground">{video.director}</span>
               </div>
@@ -182,7 +195,7 @@ export default async function WatchPage({ params }: Props) {
             {video.releaseDate && (
               <div>
                 <span className="block text-muted-foreground/60 mb-1">
-                  {dictionary.watch?.released ?? "Released"}
+                  {dictionary.watch.released}
                 </span>
                 <span className="text-foreground">{video.releaseDate}</span>
               </div>

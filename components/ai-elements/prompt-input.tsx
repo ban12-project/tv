@@ -279,11 +279,17 @@ export const usePromptInputAttachments = () => {
 export type PromptInputAttachmentProps = HTMLAttributes<HTMLDivElement> & {
   data: FileUIPart & { id: string };
   className?: string;
+  attachmentLabel?: string;
+  imageLabel?: string;
+  removeLabel?: string;
 };
 
 export function PromptInputAttachment({
   data,
   className,
+  attachmentLabel = "Attachment",
+  imageLabel = "Image",
+  removeLabel = "Remove",
   ...props
 }: PromptInputAttachmentProps) {
   const attachments = usePromptInputAttachments();
@@ -294,7 +300,7 @@ export function PromptInputAttachment({
     data.mediaType?.startsWith("image/") && data.url ? "image" : "file";
   const isImage = mediaType === "image";
 
-  const attachmentLabel = filename || (isImage ? "Image" : "Attachment");
+  const displayLabel = filename || (isImage ? imageLabel : attachmentLabel);
 
   return (
     <PromptInputHoverCard>
@@ -311,7 +317,7 @@ export function PromptInputAttachment({
             <div className="absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded bg-background transition-opacity group-hover:opacity-0">
               {isImage ? (
                 <img
-                  alt={filename || "attachment"}
+                  alt={displayLabel}
                   className="size-5 object-cover"
                   height={20}
                   src={data.url}
@@ -324,7 +330,7 @@ export function PromptInputAttachment({
               )}
             </div>
             <Button
-              aria-label="Remove attachment"
+              aria-label={removeLabel}
               className="absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5"
               onClick={(e) => {
                 e.stopPropagation();
@@ -334,11 +340,11 @@ export function PromptInputAttachment({
               variant="ghost"
             >
               <XIcon />
-              <span className="sr-only">Remove</span>
+              <span className="sr-only">{removeLabel}</span>
             </Button>
           </div>
 
-          <span className="flex-1 truncate">{attachmentLabel}</span>
+          <span className="flex-1 truncate">{displayLabel}</span>
         </div>
       </HoverCardTrigger>
       <PromptInputHoverCardContent className="w-auto p-2">
@@ -346,7 +352,7 @@ export function PromptInputAttachment({
           {isImage && (
             <div className="flex max-h-96 w-96 items-center justify-center overflow-hidden rounded-md border">
               <img
-                alt={filename || "attachment preview"}
+                alt={displayLabel}
                 className="max-h-full max-w-full object-contain"
                 height={384}
                 src={data.url}
@@ -357,7 +363,7 @@ export function PromptInputAttachment({
           <div className="flex items-center gap-2.5">
             <div className="min-w-0 flex-1 space-y-1 px-0.5">
               <h4 className="truncate font-semibold text-sm leading-none">
-                {filename || (isImage ? "Image" : "Attachment")}
+                {displayLabel}
               </h4>
               {data.mediaType && (
                 <p className="truncate font-mono text-muted-foreground text-xs">
@@ -445,6 +451,7 @@ export type PromptInputProps = Omit<
   // Minimal constraints
   maxFiles?: number;
   maxFileSize?: number; // bytes
+  uploadLabel?: string;
   onError?: (err: {
     code: "max_files" | "max_file_size" | "accept";
     message: string;
@@ -463,6 +470,7 @@ export const PromptInput = ({
   syncHiddenInput,
   maxFiles,
   maxFileSize,
+  uploadLabel = "Upload files",
   onError,
   onSubmit,
   children,
@@ -775,12 +783,12 @@ export const PromptInput = ({
     <>
       <input
         accept={accept}
-        aria-label="Upload files"
+        aria-label={uploadLabel}
         className="hidden"
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
-        title="Upload files"
+        title={uploadLabel}
         type="file"
       />
       <form

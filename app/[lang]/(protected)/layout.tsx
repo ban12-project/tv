@@ -32,7 +32,7 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
           </ViewTransition>
         </Suspense>
       </div>
-      <ChatWidget />
+      <ChatWidget dictionary={dict} />
     </section>
   );
 }

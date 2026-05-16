@@ -23,6 +23,7 @@ import {
   recommendations,
   resources,
   user,
+  watchHistory,
 } from "./schema";
 // -- CMS Queries --
 
@@ -95,7 +96,16 @@ export async function createRecommendationQuery(data: {
   epIndex: string | null;
   userId: string;
 }) {
-  return await db.insert(recommendations).values(data);
+  return await db
+    .insert(recommendations)
+    .values(data)
+    .onConflictDoNothing({
+      target: [
+        recommendations.userId,
+        recommendations.sourceId,
+        recommendations.videoId,
+      ],
+    });
 }
 
 export async function deleteRecommendationQuery(
@@ -208,6 +218,39 @@ export async function getEpisodeMetadataCacheQuery(
     .limit(1);
 }
 
+export async function upsertWatchProgressQuery(data: {
+  userId: string;
+  videoId: string;
+  sourceId: string;
+  epIndex: number;
+  progress: number;
+  duration: number;
+}) {
+  return await db
+    .insert(watchHistory)
+    .values({
+      userId: data.userId,
+      videoId: data.videoId,
+      sourceId: data.sourceId,
+      epIndex: data.epIndex,
+      progress: Math.floor(data.progress),
+      duration: Math.floor(data.duration),
+    })
+    .onConflictDoUpdate({
+      target: [
+        watchHistory.userId,
+        watchHistory.videoId,
+        watchHistory.sourceId,
+      ],
+      set: {
+        epIndex: data.epIndex,
+        progress: Math.floor(data.progress),
+        duration: Math.floor(data.duration),
+        updatedAt: new Date(),
+      },
+    });
+}
+
 export async function upsertEpisodeMetadataCacheQuery(data: {
   sourceId: string;
   videoId: string;
@@ -215,33 +258,25 @@ export async function upsertEpisodeMetadataCacheQuery(data: {
   resourceUrl?: string | null;
   metadata: Record<string, unknown>;
 }) {
-  const existing = await db
-    .select({ id: episodeMetadataCache.id })
-    .from(episodeMetadataCache)
-    .where(
-      and(
-        eq(episodeMetadataCache.sourceId, data.sourceId),
-        eq(episodeMetadataCache.videoId, data.videoId),
-        eq(episodeMetadataCache.metadataKey, data.metadataKey),
-      ),
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    return await db
-      .update(episodeMetadataCache)
-      .set({
+  return await db
+    .insert(episodeMetadataCache)
+    .values({
+      sourceId: data.sourceId,
+      videoId: data.videoId,
+      metadataKey: data.metadataKey,
+      resourceUrl: data.resourceUrl ?? null,
+      metadata: data.metadata,
+    })
+    .onConflictDoUpdate({
+      target: [
+        episodeMetadataCache.sourceId,
+        episodeMetadataCache.videoId,
+        episodeMetadataCache.metadataKey,
+      ],
+      set: {
         resourceUrl: data.resourceUrl ?? null,
         metadata: data.metadata,
-      })
-      .where(eq(episodeMetadataCache.id, existing[0].id));
-  }
-
-  return await db.insert(episodeMetadataCache).values({
-    sourceId: data.sourceId,
-    videoId: data.videoId,
-    metadataKey: data.metadataKey,
-    resourceUrl: data.resourceUrl ?? null,
-    metadata: data.metadata,
-  });
+        updatedAt: new Date(),
+      },
+    });
 }

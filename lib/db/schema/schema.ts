@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
@@ -45,7 +46,14 @@ export const recommendations = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (t) => [index("recommendations_source_video_idx").on(t.sourceId, t.videoId)],
+  (t) => [
+    index("recommendations_source_video_idx").on(t.sourceId, t.videoId),
+    uniqueIndex("recommendations_user_source_video_unique").on(
+      t.userId,
+      t.sourceId,
+      t.videoId,
+    ),
+  ],
 );
 
 export type SelectRecommendation = typeof recommendations.$inferSelect;
@@ -72,6 +80,11 @@ export const watchHistory = pgTable(
   },
   (t) => [
     index("watch_history_lookup_idx").on(t.userId, t.videoId, t.sourceId),
+    uniqueIndex("watch_history_user_video_source_unique").on(
+      t.userId,
+      t.videoId,
+      t.sourceId,
+    ),
   ],
 );
 
@@ -96,6 +109,11 @@ export const episodeMetadataCache = pgTable(
   },
   (t) => [
     index("episode_metadata_lookup_idx").on(
+      t.sourceId,
+      t.videoId,
+      t.metadataKey,
+    ),
+    uniqueIndex("episode_metadata_source_video_key_unique").on(
       t.sourceId,
       t.videoId,
       t.metadataKey,

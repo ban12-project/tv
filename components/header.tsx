@@ -48,8 +48,8 @@ export default async function Header({ messages }: { messages: Messages }) {
                 dictionary={messages}
                 recommendations={recommendations}
               />
-              <ChatToggle />
-              <ColorSchemeToggle />
+              <ChatToggle dictionary={messages.chat} />
+              <ColorSchemeToggle aria-label={messages.common["color-scheme"]} />
               <AuthButtons dictionary={messages.auth} />
             </div>
           </div>
