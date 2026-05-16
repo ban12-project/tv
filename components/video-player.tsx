@@ -13,7 +13,7 @@ import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
-const TIMELINE_SAMPLE_LIMIT = 500;
+const TIMELINE_SAMPLE_LIMIT = 2_000;
 const TIMELINE_BOUNDARY_EPSILON_SECONDS = 0.025;
 
 type VideoFrameCallback = (now: number, metadata: unknown) => void;
@@ -72,16 +72,22 @@ function upsertFragmentTimelineSample(
   if (sample.playlistEnd <= sample.playlistStart) return;
 
   const existing = samples.get(sample.key);
+  if (existing) {
+    samples.delete(sample.key);
+  }
+
   samples.set(sample.key, {
     ...existing,
     ...sample,
+    playlistStart: existing?.playlistStart ?? sample.playlistStart,
+    playlistEnd: existing?.playlistEnd ?? sample.playlistEnd,
     mediaStart: sample.mediaStart ?? existing?.mediaStart,
     mediaEnd: sample.mediaEnd ?? existing?.mediaEnd,
   });
 
   while (samples.size > TIMELINE_SAMPLE_LIMIT) {
     const oldestKey = samples.keys().next().value;
-    if (!oldestKey) break;
+    if (oldestKey === undefined) break;
     samples.delete(oldestKey);
   }
 }
@@ -108,18 +114,8 @@ function getPlaylistBoundsFromFragment(
 }
 
 function getMediaBoundsFromFragment(frag: HlsFragmentLike) {
-  const mediaStart = isFiniteNumber(frag.startPTS)
-    ? frag.startPTS
-    : isFiniteNumber(frag.start)
-      ? frag.start
-      : null;
-  const mediaEnd = isFiniteNumber(frag.minEndPTS)
-    ? frag.minEndPTS
-    : isFiniteNumber(frag.endPTS)
-      ? frag.endPTS
-      : isFiniteNumber(frag.end)
-        ? frag.end
-        : null;
+  const mediaStart = isFiniteNumber(frag.start) ? frag.start : null;
+  const mediaEnd = isFiniteNumber(frag.end) ? frag.end : null;
 
   if (mediaStart === null || mediaEnd === null || mediaEnd <= mediaStart) {
     return null;
