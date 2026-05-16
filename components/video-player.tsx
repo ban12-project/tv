@@ -53,6 +53,10 @@ interface TimelineMappedRange {
 }
 
 type TimelineSampleIndex = FragmentTimelineSample[];
+interface TimelineSampleUpsertResult {
+  changed: boolean;
+  indexChanged: boolean;
+}
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -72,14 +76,18 @@ function getFragmentTimelineKey(frag: HlsFragmentLike) {
 function upsertFragmentTimelineSample(
   samples: Map<string, FragmentTimelineSample>,
   sample: FragmentTimelineSample,
-) {
-  if (sample.playlistEnd <= sample.playlistStart) return false;
+): TimelineSampleUpsertResult {
+  const unchanged = { changed: false, indexChanged: false };
+  if (sample.playlistEnd <= sample.playlistStart) return unchanged;
 
   const existing = samples.get(sample.key);
   const playlistStart = existing?.playlistStart ?? sample.playlistStart;
   const playlistEnd = existing?.playlistEnd ?? sample.playlistEnd;
   const mediaStart = sample.mediaStart ?? existing?.mediaStart;
   const mediaEnd = sample.mediaEnd ?? existing?.mediaEnd;
+  const wasIndexed =
+    isFiniteNumber(existing?.mediaStart) && isFiniteNumber(existing?.mediaEnd);
+  const willBeIndexed = isFiniteNumber(mediaStart) && isFiniteNumber(mediaEnd);
 
   if (
     existing &&
@@ -90,7 +98,7 @@ function upsertFragmentTimelineSample(
   ) {
     samples.delete(sample.key);
     samples.set(sample.key, existing);
-    return false;
+    return unchanged;
   }
 
   if (existing) {
@@ -105,13 +113,26 @@ function upsertFragmentTimelineSample(
     mediaEnd,
   });
 
+  return {
+    changed: true,
+    indexChanged:
+      !existing ||
+      playlistStart !== existing.playlistStart ||
+      playlistEnd !== existing.playlistEnd ||
+      wasIndexed !== willBeIndexed,
+  };
+}
+
+function cleanupTimelineSamples(samples: Map<string, FragmentTimelineSample>) {
+  let changed = false;
   while (samples.size > TIMELINE_SAMPLE_LIMIT) {
     const oldestKey = samples.keys().next().value;
     if (oldestKey === undefined) break;
     samples.delete(oldestKey);
+    changed = true;
   }
 
-  return true;
+  return changed;
 }
 
 function getPlaylistBoundsFromFragment(
@@ -549,10 +570,16 @@ export default function VideoPlayer({
       }
     };
 
-    const refreshMappedSkipRanges = () => {
-      timelineSampleIndexRef.current = buildTimelineSampleIndex(
-        timelineSamplesRef.current,
-      );
+    const refreshMappedSkipRanges = (options?: { rebuildIndex?: boolean }) => {
+      if (options?.rebuildIndex ?? true) {
+        timelineSampleIndexRef.current = buildTimelineSampleIndex(
+          timelineSamplesRef.current,
+        );
+      } else {
+        timelineSampleIndexRef.current = timelineSampleIndexRef.current.flatMap(
+          (sample) => timelineSamplesRef.current.get(sample.key) ?? [],
+        );
+      }
       mappedSkipRangesRef.current = mapSkipRangesToMediaTime(
         timelineSampleIndexRef.current,
         skipRangesRef.current,
@@ -610,6 +637,7 @@ export default function VideoPlayer({
       playlistTimelineStart: number,
     ) => {
       let changed = false;
+      let indexChanged = false;
       for (const frag of fragments) {
         const bounds = getPlaylistBoundsFromFragment(
           frag,
@@ -617,17 +645,26 @@ export default function VideoPlayer({
         );
         if (!bounds) continue;
 
-        changed =
-          upsertFragmentTimelineSample(timelineSamplesRef.current, {
+        const result = upsertFragmentTimelineSample(
+          timelineSamplesRef.current,
+          {
             key: getFragmentTimelineKey(frag),
             cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
             playlistStart: bounds.playlistStart,
             playlistEnd: bounds.playlistEnd,
-          }) || changed;
+          },
+        );
+        changed = result.changed || changed;
+        indexChanged = result.indexChanged || indexChanged;
+      }
+
+      if (cleanupTimelineSamples(timelineSamplesRef.current)) {
+        changed = true;
+        indexChanged = true;
       }
 
       if (changed) {
-        refreshMappedSkipRanges();
+        refreshMappedSkipRanges({ rebuildIndex: indexChanged });
       }
     };
 
@@ -639,7 +676,7 @@ export default function VideoPlayer({
       const mediaBounds = getMediaBoundsFromFragment(frag);
       if (!bounds || !mediaBounds) return;
 
-      const changed = upsertFragmentTimelineSample(timelineSamplesRef.current, {
+      const result = upsertFragmentTimelineSample(timelineSamplesRef.current, {
         key: getFragmentTimelineKey(frag),
         cc: isFiniteNumber(frag.cc) ? frag.cc : 0,
         playlistStart: bounds.playlistStart,
@@ -647,8 +684,11 @@ export default function VideoPlayer({
         mediaStart: mediaBounds.mediaStart,
         mediaEnd: mediaBounds.mediaEnd,
       });
-      if (changed) {
-        refreshMappedSkipRanges();
+      const cleanupChanged = cleanupTimelineSamples(timelineSamplesRef.current);
+      if (result.changed || cleanupChanged) {
+        refreshMappedSkipRanges({
+          rebuildIndex: result.indexChanged || cleanupChanged,
+        });
       }
     };
 
