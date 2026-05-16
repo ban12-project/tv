@@ -234,7 +234,11 @@ export async function saveContentProfile(payload: {
   resourceUrl?: string | null;
   profile: ContentProfile;
 }) {
-  await requireRegisteredUser();
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
 
   const validatedFields = saveContentProfileSchema.safeParse(payload);
 
@@ -281,7 +285,11 @@ export async function saveVideoAspectRatio(payload: {
   height: number;
   resourceUrl?: string | null;
 }) {
-  await requireRegisteredUser();
+  try {
+    await requireRegisteredUser();
+  } catch {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
 
   const validatedFields = saveAspectRatioSchema.safeParse(payload);
 

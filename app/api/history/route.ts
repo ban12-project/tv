@@ -8,7 +8,7 @@ import {
 export async function POST(req: NextRequest) {
   try {
     const session = await getCurrentSession();
-    if (!session?.user) {
+    if (!session?.user || session.user.isAnonymous) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 

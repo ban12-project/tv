@@ -17,7 +17,9 @@ export async function saveWatchProgress(payload: {
   duration: number;
 }) {
   const session = await getCurrentSession();
-  if (!session?.user) return { success: false, error: "Unauthorized" };
+  if (!session?.user || session.user.isAnonymous) {
+    return { success: false, error: "Unauthorized" };
+  }
 
   const validated = watchProgressSchema.safeParse(payload);
   if (!validated.success) {
