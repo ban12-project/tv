@@ -61,8 +61,8 @@ export function upsertFragmentTimelineSample(
   if (sample.playlistEnd <= sample.playlistStart) return unchanged;
 
   const existing = samples.get(sample.key);
-  const playlistStart = existing?.playlistStart ?? sample.playlistStart;
-  const playlistEnd = existing?.playlistEnd ?? sample.playlistEnd;
+  const playlistStart = sample.playlistStart;
+  const playlistEnd = sample.playlistEnd;
   const mediaStart = sample.mediaStart ?? existing?.mediaStart;
   const mediaEnd = sample.mediaEnd ?? existing?.mediaEnd;
   const wasIndexed =

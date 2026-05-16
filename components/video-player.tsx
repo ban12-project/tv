@@ -432,7 +432,11 @@ export default function VideoPlayer({
       }
     };
 
-    const updateFragmentTimelineFromMedia = (frag: HlsFragmentLike) => {
+    const updateFragmentTimelineFromMedia = (
+      frag: HlsFragmentLike | null | undefined,
+    ) => {
+      if (!frag) return;
+
       const mediaBounds = getMediaBoundsFromFragment(frag);
       if (!mediaBounds) return;
 
