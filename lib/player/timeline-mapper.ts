@@ -119,7 +119,7 @@ export function cleanupTimelineSamples(
 
 export function getPlaylistBoundsFromFragment(
   frag: HlsFragmentLike,
-  playlistTimelineStart: number,
+  playlistAbsoluteStart: number,
 ) {
   const playlistOffset = isFiniteNumber(frag.playlistOffset)
     ? frag.playlistOffset
@@ -129,7 +129,7 @@ export function getPlaylistBoundsFromFragment(
     return null;
   }
 
-  const playlistStart = playlistTimelineStart + playlistOffset;
+  const playlistStart = playlistAbsoluteStart + playlistOffset;
   return {
     playlistStart,
     playlistEnd: playlistStart + duration,

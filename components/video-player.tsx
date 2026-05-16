@@ -398,14 +398,14 @@ export default function VideoPlayer({
 
     const updateFragmentTimelineFromPlaylist = (
       fragments: HlsFragmentLike[],
-      playlistTimelineStart: number,
+      playlistAbsoluteStart: number,
     ) => {
       let changed = false;
       let indexChanged = false;
       for (const frag of fragments) {
         const bounds = getPlaylistBoundsFromFragment(
           frag,
-          playlistTimelineStart,
+          playlistAbsoluteStart,
         );
         if (!bounds) continue;
 
