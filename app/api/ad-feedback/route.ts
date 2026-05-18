@@ -182,7 +182,7 @@ export async function POST(req: Request) {
     );
 
     const response = await fetch(
-      `https://api.github.com/repos/${githubOwner}/${githubRepo}/issues`,
+      `https://api.github.com/repos/${encodeURIComponent(githubOwner)}/${encodeURIComponent(githubRepo)}/issues`,
       {
         body: JSON.stringify({
           body: buildIssueBody(parsed.data, user),
@@ -202,7 +202,10 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("[api/ad-feedback] GitHub issue creation failed:", text);
+      console.error(
+        "[api/ad-feedback] GitHub issue creation failed:",
+        text.slice(0, 2000),
+      );
       return NextResponse.json(
         { error: "GitHub issue creation failed" },
         { status: 502 },
