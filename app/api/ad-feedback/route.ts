@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRegisteredUser } from "@/lib/auth-utils";
 
-const GITHUB_OWNER = "ban12-project";
-const GITHUB_REPO = "tv";
+const GITHUB_OWNER = process.env.GITHUB_OWNER ?? "ban12-project";
+const GITHUB_REPO = process.env.GITHUB_REPO ?? "tv";
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 const ISSUE_BODY_LIMIT = 60_000;
+const ISSUE_TITLE_LIMIT = 256;
+const ISSUE_VIDEO_TITLE_LIMIT = 150;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -90,9 +93,22 @@ function formatDebugJson(value: unknown) {
   return truncate(JSON.stringify(value, null, 2), ISSUE_BODY_LIMIT);
 }
 
+function truncateSingleLine(value: string, limit: number) {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, Math.max(0, limit - 3))}...`;
+}
+
 function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
   const episode = payload.context.episodeIndex + 1;
-  return `[AD Feedback] ${payload.context.videoTitle} ep ${episode} ${payload.snapshot.createdAt}`;
+  const videoTitle = truncateSingleLine(
+    payload.context.videoTitle,
+    ISSUE_VIDEO_TITLE_LIMIT,
+  );
+
+  return truncateSingleLine(
+    `[AD Feedback] ${videoTitle} ep ${episode} ${payload.snapshot.createdAt}`,
+    ISSUE_TITLE_LIMIT,
+  );
 }
 
 function buildIssueBody(
@@ -152,6 +168,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      GITHUB_REQUEST_TIMEOUT_MS,
+    );
+
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues`,
       {
@@ -166,8 +188,9 @@ export async function POST(req: Request) {
           "X-GitHub-Api-Version": "2022-11-28",
         },
         method: "POST",
+        signal: controller.signal,
       },
-    );
+    ).finally(() => clearTimeout(timeoutId));
 
     if (!response.ok) {
       const text = await response.text();
