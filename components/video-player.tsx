@@ -121,14 +121,9 @@ export default function VideoPlayer({
   );
 
   const getRecentTimelineSamples = React.useCallback(() => {
-    const samples: FragmentTimelineSample[] = [];
-    for (const sample of timelineSamplesRef.current.values()) {
-      samples.push(sample);
-      if (samples.length > AD_DEBUG_TIMELINE_SAMPLE_LIMIT) {
-        samples.shift();
-      }
-    }
-    return samples;
+    return Array.from(timelineSamplesRef.current.values()).slice(
+      -AD_DEBUG_TIMELINE_SAMPLE_LIMIT,
+    );
   }, []);
 
   // Stable event-handler refs via useEffectEvent (React 19).

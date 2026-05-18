@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireRegisteredUser } from "@/lib/auth-utils";
+import { requireRegisteredUser, UnauthorizedError } from "@/lib/auth-utils";
 
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 const ISSUE_BODY_LIMIT = 60_000;
@@ -84,7 +84,8 @@ const payloadSchema = z.object({
 
 function truncate(value: string, limit: number) {
   if (value.length <= limit) return value;
-  return `${value.slice(0, limit)}\n\n[truncated ${value.length - limit} chars]`;
+  const suffix = `\n\n[truncated ${value.length - limit} chars]`;
+  return `${value.slice(0, Math.max(0, limit - suffix.length))}${suffix}`;
 }
 
 function formatDebugJson(value: unknown) {
@@ -230,7 +231,7 @@ export async function POST(req: Request) {
       success: true,
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "Unauthorized") {
+    if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
