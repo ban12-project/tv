@@ -140,7 +140,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const parsed = payloadSchema.safeParse(await req.json());
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const parsed = payloadSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }

@@ -120,6 +120,17 @@ export default function VideoPlayer({
     [],
   );
 
+  const getRecentTimelineSamples = React.useCallback(() => {
+    const samples: FragmentTimelineSample[] = [];
+    for (const sample of timelineSamplesRef.current.values()) {
+      samples.push(sample);
+      if (samples.length > AD_DEBUG_TIMELINE_SAMPLE_LIMIT) {
+        samples.shift();
+      }
+    }
+    return samples;
+  }, []);
+
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
   // dependency arrays, so effects never re-subscribe on change.
@@ -179,9 +190,7 @@ export default function VideoPlayer({
               from: currentTime,
               to: nextTime,
             },
-            timelineSamples: Array.from(
-              timelineSamplesRef.current.values(),
-            ).slice(-AD_DEBUG_TIMELINE_SAMPLE_LIMIT),
+            timelineSamples: getRecentTimelineSamples(),
             userAgent: navigator.userAgent,
             video: {
               currentSrc: video.currentSrc,
