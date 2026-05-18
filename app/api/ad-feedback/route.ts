@@ -97,6 +97,16 @@ function truncateSingleLine(value: string, limit: number) {
   return `${value.slice(0, Math.max(0, limit - 3))}...`;
 }
 
+function sanitizeSingleLine(value: string) {
+  return Array.from(value)
+    .map((char) => {
+      const code = char.charCodeAt(0);
+      return code <= 31 || code === 127 ? " " : char;
+    })
+    .join("")
+    .trim();
+}
+
 function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
   const episode = payload.context.episodeIndex + 1;
   const videoTitle = truncateSingleLine(
@@ -105,7 +115,9 @@ function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
   );
 
   return truncateSingleLine(
-    `[AD Feedback] ${videoTitle} ep ${episode} ${payload.snapshot.createdAt}`,
+    sanitizeSingleLine(
+      `[AD Feedback] ${videoTitle} ep ${episode} ${payload.snapshot.createdAt}`,
+    ),
     ISSUE_TITLE_LIMIT,
   );
 }
@@ -213,7 +225,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const parsedIssue = issueSchema.safeParse(await response.json());
+    let responseData: unknown;
+    try {
+      responseData = await response.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON response from GitHub" },
+        { status: 502 },
+      );
+    }
+
+    const parsedIssue = issueSchema.safeParse(responseData);
     if (!parsedIssue.success) {
       console.error(
         "[api/ad-feedback] GitHub issue response parsing failed:",
