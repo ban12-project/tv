@@ -15,6 +15,26 @@ const rangeSchema = z.object({
   start: finiteNumber,
 });
 
+const runtimeEventSchema = z.object({
+  at: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  name: z.string(),
+});
+
+const timelineSampleSchema = z.object({
+  cc: finiteNumber,
+  key: z.string(),
+  mediaEnd: finiteNumber.optional(),
+  mediaStart: finiteNumber.optional(),
+  playlistEnd: finiteNumber,
+  playlistStart: finiteNumber,
+});
+
+const issueSchema = z.object({
+  html_url: z.string().url().optional(),
+  number: z.number().int().optional(),
+});
+
 const payloadSchema = z.object({
   context: z.object({
     episodeIndex: z.number().int().nonnegative(),
@@ -30,8 +50,8 @@ const payloadSchema = z.object({
       autoSkip: z.boolean(),
       createdAt: z.string(),
       duration: nullableFiniteNumber,
-      hlsErrors: z.array(z.unknown()).max(30),
-      hlsEvents: z.array(z.unknown()).max(80),
+      hlsErrors: z.array(runtimeEventSchema).max(30),
+      hlsEvents: z.array(runtimeEventSchema).max(80),
       latestPlaylistTextExcerpt: z.string().max(20_000).optional(),
       latestPlaylistUrl: z.string().optional(),
       mappedRange: rangeSchema,
@@ -48,7 +68,7 @@ const payloadSchema = z.object({
         from: finiteNumber,
         to: finiteNumber,
       }),
-      timelineSamples: z.array(z.unknown()).max(200),
+      timelineSamples: z.array(timelineSampleSchema).max(200),
       userAgent: z.string(),
       video: z.object({
         currentSrc: z.string(),
@@ -151,14 +171,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const issue = (await response.json()) as {
-      html_url?: string;
-      number?: number;
-    };
+    const parsedIssue = issueSchema.safeParse(await response.json());
+    if (!parsedIssue.success) {
+      console.error(
+        "[api/ad-feedback] GitHub issue response parsing failed:",
+        parsedIssue.error,
+      );
+      return NextResponse.json(
+        { error: "Could not parse GitHub API response" },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({
-      issueNumber: issue.number,
-      issueUrl: issue.html_url,
+      issueNumber: parsedIssue.data.number,
+      issueUrl: parsedIssue.data.html_url,
       success: true,
     });
   } catch (error) {

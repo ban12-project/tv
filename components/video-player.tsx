@@ -100,9 +100,7 @@ export default function VideoPlayer({
         name,
       });
       if (hlsEventsRef.current.length > AD_DEBUG_RECENT_EVENT_LIMIT) {
-        hlsEventsRef.current = hlsEventsRef.current.slice(
-          -AD_DEBUG_RECENT_EVENT_LIMIT,
-        );
+        hlsEventsRef.current.shift();
       }
     },
     [],
@@ -116,9 +114,7 @@ export default function VideoPlayer({
         name,
       });
       if (hlsErrorsRef.current.length > AD_DEBUG_RECENT_EVENT_LIMIT) {
-        hlsErrorsRef.current = hlsErrorsRef.current.slice(
-          -AD_DEBUG_RECENT_EVENT_LIMIT,
-        );
+        hlsErrorsRef.current.shift();
       }
     },
     [],
