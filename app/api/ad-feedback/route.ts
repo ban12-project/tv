@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRegisteredUser } from "@/lib/auth-utils";
 
-const GITHUB_OWNER = process.env.GITHUB_OWNER ?? "ban12-project";
-const GITHUB_REPO = process.env.GITHUB_REPO ?? "tv";
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 const ISSUE_BODY_LIMIT = 60_000;
 const ISSUE_TITLE_LIMIT = 256;
@@ -113,7 +111,7 @@ function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
 
 function buildIssueBody(
   payload: z.infer<typeof payloadSchema>,
-  reporter: { id: string; email?: string | null; name?: string | null },
+  reporter: { id: string },
 ) {
   const { context, note, snapshot } = payload;
   const summary = [
@@ -125,7 +123,7 @@ function buildIssueBody(
     `- Skip: ${snapshot.seek.from.toFixed(3)}s -> ${snapshot.seek.to.toFixed(3)}s`,
     `- Mapped range: ${snapshot.mappedRange.start.toFixed(3)}s - ${snapshot.mappedRange.end.toFixed(3)}s${snapshot.mappedRange.calibrated ? " (calibrated)" : ""}`,
     `- Page: ${snapshot.pageUrl}`,
-    `- Reporter: ${reporter.email ?? reporter.name ?? reporter.id}`,
+    `- Reporter ID: ${reporter.id}`,
   ];
 
   if (note?.trim()) {
@@ -148,10 +146,19 @@ export async function POST(req: Request) {
   try {
     const user = await requireRegisteredUser();
     const token = process.env.GITHUB_ISSUES_TOKEN;
+    const githubOwner = process.env.GITHUB_OWNER;
+    const githubRepo = process.env.GITHUB_REPO;
 
     if (!token) {
       return NextResponse.json(
         { error: "GITHUB_ISSUES_TOKEN is not configured" },
+        { status: 503 },
+      );
+    }
+
+    if (!githubOwner || !githubRepo) {
+      return NextResponse.json(
+        { error: "GITHUB_OWNER and GITHUB_REPO must be configured" },
         { status: 503 },
       );
     }
@@ -175,7 +182,7 @@ export async function POST(req: Request) {
     );
 
     const response = await fetch(
-      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues`,
+      `https://api.github.com/repos/${githubOwner}/${githubRepo}/issues`,
       {
         body: JSON.stringify({
           body: buildIssueBody(parsed.data, user),
