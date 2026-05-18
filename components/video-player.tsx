@@ -152,7 +152,7 @@ export default function VideoPlayer({
   const performSkip = React.useEffectEvent(
     (options?: { latestPlaylistText?: string; latestPlaylistUrl?: string }) => {
       const video = videoRef.current;
-      if (!video || isSeekingRef.current) return false;
+      if (!video || isSeekingRef.current || !autoSkip) return false;
 
       const currentTime = video.currentTime;
       for (const mappedRange of mappedSkipRangesRef.current) {

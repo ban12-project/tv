@@ -192,6 +192,7 @@ export async function POST(req: Request) {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "User-Agent": "Bullet-TV-Feedback",
           "X-GitHub-Api-Version": "2022-11-28",
         },
         method: "POST",
