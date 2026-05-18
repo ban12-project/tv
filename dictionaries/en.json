@@ -73,6 +73,18 @@
     "ad-skip-label": "Auto-Defrag (Skip Ads)",
     "ad-skip-description": "If playback lags, try disabling auto-skip to increase stability.",
     "ad-skip-info": "Auto-defrag briefing",
+    "ad-feedback": {
+      "title": "Auto-defrag field check",
+      "description": "The stream just jumped over a suspected ad block. Did the scanner hit the right target?",
+      "expected": "Clean hit",
+      "unexpected": "Bad jump",
+      "placeholder": "Optional intel: what went wrong after the jump?",
+      "back": "Back",
+      "submit": "Send debug packet",
+      "submitting": "Uploading packet...",
+      "success": "Debug packet filed. The scanner team has new evidence.",
+      "error": "Packet jammed. Try again after the smoke clears."
+    },
     "auto-next-label": "Chain next log",
     "previous-episode": "Previous log",
     "next-episode": "Next log",

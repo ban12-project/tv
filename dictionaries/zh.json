@@ -73,6 +73,18 @@
     "ad-skip-label": "自动解毒 (自动跳过广告)",
     "ad-skip-description": "如果出现播放器卡顿请尝试关闭自动跳过广告可能会缓解",
     "ad-skip-info": "自动解毒说明",
+    "ad-feedback": {
+      "title": "自动解毒验尸单",
+      "description": "刚才放映机越过了一段疑似广告。师爷问一句：这枪打得准不准？",
+      "expected": "打得准",
+      "unexpected": "打偏了",
+      "placeholder": "可选供词：跳完之后哪儿不对劲？",
+      "back": "回头",
+      "submit": "递交物证",
+      "submitting": "物证上堂中...",
+      "success": "物证递上去了，后面就按这个线索查。",
+      "error": "物证没送到，再来一回。"
+    },
     "auto-next-label": "一集接一集，别停",
     "previous-episode": "上一回",
     "next-episode": "下一回",

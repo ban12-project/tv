@@ -5,6 +5,10 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
 import type { ContentKind } from "@/lib/adapters/types";
+import type {
+  AdSkipDebugSnapshot,
+  AdSkipRuntimeEvent,
+} from "@/lib/player/ad-feedback";
 import {
   parseAdSkipRangesFromManifest,
   parseAdSkipRangesFromPlaylistTextWithSideChannel,
@@ -27,6 +31,9 @@ import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
+const AD_DEBUG_PLAYLIST_EXCERPT_LIMIT = 12_000;
+const AD_DEBUG_RECENT_EVENT_LIMIT = 50;
+const AD_DEBUG_TIMELINE_SAMPLE_LIMIT = 80;
 
 type VideoFrameCallback = (now: number, metadata: unknown) => void;
 type VideoWithFrameCallback = HTMLVideoElement & {
@@ -46,6 +53,7 @@ interface VideoPlayerProps extends React.ComponentProps<"div"> {
   playbackProfile?: ContentKind;
   nextVideoUrl?: string;
   onEndedAdvance?: () => void;
+  onAdSkip?: (snapshot: AdSkipDebugSnapshot) => void;
   dictionary: Messages;
 }
 
@@ -61,6 +69,7 @@ export default function VideoPlayer({
   playbackProfile = "standard",
   nextVideoUrl,
   onEndedAdvance,
+  onAdSkip,
   dictionary,
   ...props
 }: VideoPlayerProps) {
@@ -74,12 +83,46 @@ export default function VideoPlayer({
   );
   const timelineSampleIndexRef = React.useRef<TimelineSampleIndex>([]);
   const mappedSkipRangesRef = React.useRef<TimelineMappedRange[]>([]);
+  const hlsEventsRef = React.useRef<AdSkipRuntimeEvent[]>([]);
+  const hlsErrorsRef = React.useRef<AdSkipRuntimeEvent[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
   const lastSaveTimeRef = React.useRef<number>(0);
   const restoredProgressKeyRef = React.useRef<string | null>(null);
+
+  const recordHlsEvent = React.useCallback(
+    (name: string, details?: Record<string, unknown>) => {
+      hlsEventsRef.current.push({
+        at: new Date().toISOString(),
+        details,
+        name,
+      });
+      if (hlsEventsRef.current.length > AD_DEBUG_RECENT_EVENT_LIMIT) {
+        hlsEventsRef.current = hlsEventsRef.current.slice(
+          -AD_DEBUG_RECENT_EVENT_LIMIT,
+        );
+      }
+    },
+    [],
+  );
+
+  const recordHlsError = React.useCallback(
+    (name: string, details?: Record<string, unknown>) => {
+      hlsErrorsRef.current.push({
+        at: new Date().toISOString(),
+        details,
+        name,
+      });
+      if (hlsErrorsRef.current.length > AD_DEBUG_RECENT_EVENT_LIMIT) {
+        hlsErrorsRef.current = hlsErrorsRef.current.slice(
+          -AD_DEBUG_RECENT_EVENT_LIMIT,
+        );
+      }
+    },
+    [],
+  );
 
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
@@ -99,28 +142,66 @@ export default function VideoPlayer({
     }
   });
 
-  const performSkip = React.useEffectEvent(() => {
-    const video = videoRef.current;
-    if (!video || isSeekingRef.current) return false;
+  const performSkip = React.useEffectEvent(
+    (options?: { latestPlaylistText?: string; latestPlaylistUrl?: string }) => {
+      const video = videoRef.current;
+      if (!video || isSeekingRef.current) return false;
 
-    const currentTime = video.currentTime;
-    for (const mappedRange of mappedSkipRangesRef.current) {
-      const skipStart = video.paused
-        ? mappedRange.start
-        : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
-      if (currentTime >= skipStart && currentTime < mappedRange.end) {
-        console.log(
-          `[VideoPlayer] Skipping ad range: ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}${
-            mappedRange.calibrated ? " (calibrated)" : ""
-          }`,
-        );
-        isAutoSkippingRef.current = true;
-        video.currentTime = mappedRange.end;
-        return true;
+      const currentTime = video.currentTime;
+      for (const mappedRange of mappedSkipRangesRef.current) {
+        const skipStart = video.paused
+          ? mappedRange.start
+          : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
+        if (currentTime >= skipStart && currentTime < mappedRange.end) {
+          console.log(
+            `[VideoPlayer] Skipping ad range: ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}${
+              mappedRange.calibrated ? " (calibrated)" : ""
+            }`,
+          );
+          isAutoSkippingRef.current = true;
+          const nextTime = mappedRange.end;
+          onAdSkip?.({
+            autoSkip,
+            createdAt: new Date().toISOString(),
+            duration: Number.isFinite(video.duration) ? video.duration : null,
+            hlsErrors: hlsErrorsRef.current.slice(),
+            hlsEvents: hlsEventsRef.current.slice(),
+            latestPlaylistTextExcerpt: options?.latestPlaylistText?.slice(
+              0,
+              AD_DEBUG_PLAYLIST_EXCERPT_LIMIT,
+            ),
+            latestPlaylistUrl: options?.latestPlaylistUrl,
+            mappedRange,
+            mappedSkipRanges: mappedSkipRangesRef.current.slice(),
+            pageUrl: window.location.href,
+            paused: video.paused,
+            playbackProfile,
+            playbackRate: video.playbackRate,
+            rawSkipRanges: skipRangesRef.current.slice(),
+            readyState: video.readyState,
+            seek: {
+              from: currentTime,
+              to: nextTime,
+            },
+            timelineSamples: Array.from(
+              timelineSamplesRef.current.values(),
+            ).slice(-AD_DEBUG_TIMELINE_SAMPLE_LIMIT),
+            userAgent: navigator.userAgent,
+            video: {
+              currentSrc: video.currentSrc,
+              height: video.videoHeight,
+              src: video.src,
+              width: video.videoWidth,
+            },
+            videoUrl,
+          });
+          video.currentTime = nextTime;
+          return true;
+        }
       }
-    }
-    return false;
-  });
+      return false;
+    },
+  );
 
   const handleSeeking = React.useEffectEvent(() => {
     // If this seek was triggered by our auto-skip, don't block
@@ -281,6 +362,8 @@ export default function VideoPlayer({
     timelineSamplesRef.current.clear();
     timelineSampleIndexRef.current = [];
     mappedSkipRangesRef.current = [];
+    hlsEventsRef.current = [];
+    hlsErrorsRef.current = [];
 
     const getNativeTimelineStart = () => {
       const seekable = video.seekable;
@@ -321,7 +404,10 @@ export default function VideoPlayer({
       const tick = () => {
         skipWatchVideoFrameId = undefined;
         skipWatchRafId = undefined;
-        performSkip();
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
         queueSkipWatch();
       };
 
@@ -518,11 +604,30 @@ export default function VideoPlayer({
 
       hls.on(Hls.Events.FRAG_CHANGED, (_event, data) => {
         updateFragmentTimelineFromMedia(data.frag);
-        performSkip();
+        recordHlsEvent(Hls.Events.FRAG_CHANGED, {
+          cc: data.frag?.cc,
+          end: data.frag?.end,
+          level: data.frag?.level,
+          sn: data.frag?.sn,
+          start: data.frag?.start,
+          url: data.frag?.url,
+        });
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
       });
 
       hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
         updateFragmentTimelineFromMedia(data.frag);
+        recordHlsEvent(Hls.Events.FRAG_BUFFERED, {
+          cc: data.frag?.cc,
+          end: data.frag?.end,
+          level: data.frag?.level,
+          sn: data.frag?.sn,
+          start: data.frag?.start,
+          url: data.frag?.url,
+        });
       });
 
       hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
@@ -532,6 +637,9 @@ export default function VideoPlayer({
             ? [data.frag]
             : [];
         updateFragmentTimelineFromMedia(fragments);
+        recordHlsEvent(Hls.Events.LEVEL_PTS_UPDATED, {
+          fragmentCount: fragments.length,
+        });
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -543,6 +651,11 @@ export default function VideoPlayer({
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
+        recordHlsEvent(Hls.Events.LEVEL_LOADED, {
+          fragmentCount: data.details.fragments.length,
+          timelineStart: latestPlaylistTimelineStart,
+          url: latestPlaylistUrl,
+        });
         updateFragmentTimelineFromPlaylist(data.details.fragments);
         if (playbackProfile === "short-drama" && video.currentTime < 2) {
           return;
@@ -564,10 +677,17 @@ export default function VideoPlayer({
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        recordHlsEvent(Hls.Events.MANIFEST_PARSED);
         if (autoPlay) video.play().catch(() => {});
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
+        recordHlsError(Hls.Events.ERROR, {
+          details: data.details,
+          error: data.error?.message,
+          fatal: data.fatal,
+          type: data.type,
+        });
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -614,7 +734,10 @@ export default function VideoPlayer({
             timelineStart: latestPlaylistTimelineStart,
           });
         }
-        performSkip();
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
       }
 
       const now = Date.now();

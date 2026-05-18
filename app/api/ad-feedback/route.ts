@@ -1,0 +1,175 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { requireRegisteredUser } from "@/lib/auth-utils";
+
+const GITHUB_OWNER = "ban12-project";
+const GITHUB_REPO = "tv";
+const ISSUE_BODY_LIMIT = 60_000;
+
+const finiteNumber = z.number().finite();
+const nullableFiniteNumber = finiteNumber.nullable();
+
+const rangeSchema = z.object({
+  calibrated: z.boolean().optional(),
+  end: finiteNumber,
+  start: finiteNumber,
+});
+
+const payloadSchema = z.object({
+  context: z.object({
+    episodeIndex: z.number().int().nonnegative(),
+    episodeName: z.string().optional(),
+    sourceId: z.string().min(1),
+    sourceName: z.string().min(1),
+    videoId: z.string().min(1),
+    videoTitle: z.string().min(1),
+  }),
+  note: z.string().max(4000).optional(),
+  snapshot: z
+    .object({
+      autoSkip: z.boolean(),
+      createdAt: z.string(),
+      duration: nullableFiniteNumber,
+      hlsErrors: z.array(z.unknown()).max(30),
+      hlsEvents: z.array(z.unknown()).max(80),
+      latestPlaylistTextExcerpt: z.string().max(20_000).optional(),
+      latestPlaylistUrl: z.string().optional(),
+      mappedRange: rangeSchema,
+      mappedSkipRanges: z.array(rangeSchema).max(100),
+      pageUrl: z.string(),
+      paused: z.boolean(),
+      playbackProfile: z.enum(["standard", "short-drama"]),
+      playbackRate: finiteNumber,
+      rawSkipRanges: z
+        .array(z.object({ end: finiteNumber, start: finiteNumber }))
+        .max(100),
+      readyState: z.number().int(),
+      seek: z.object({
+        from: finiteNumber,
+        to: finiteNumber,
+      }),
+      timelineSamples: z.array(z.unknown()).max(200),
+      userAgent: z.string(),
+      video: z.object({
+        currentSrc: z.string(),
+        height: z.number().int().nonnegative(),
+        src: z.string(),
+        width: z.number().int().nonnegative(),
+      }),
+      videoUrl: z.string(),
+    })
+    .passthrough(),
+});
+
+function truncate(value: string, limit: number) {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, limit)}\n\n[truncated ${value.length - limit} chars]`;
+}
+
+function formatDebugJson(value: unknown) {
+  return truncate(JSON.stringify(value, null, 2), ISSUE_BODY_LIMIT);
+}
+
+function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
+  const episode = payload.context.episodeIndex + 1;
+  return `[AD Feedback] ${payload.context.videoTitle} ep ${episode} ${payload.snapshot.createdAt}`;
+}
+
+function buildIssueBody(
+  payload: z.infer<typeof payloadSchema>,
+  reporter: { id: string; email?: string | null; name?: string | null },
+) {
+  const { context, note, snapshot } = payload;
+  const summary = [
+    "## Summary",
+    "",
+    `- Video: ${context.videoTitle} (${context.videoId})`,
+    `- Source: ${context.sourceName} (${context.sourceId})`,
+    `- Episode: ${context.episodeIndex + 1}${context.episodeName ? ` - ${context.episodeName}` : ""}`,
+    `- Skip: ${snapshot.seek.from.toFixed(3)}s -> ${snapshot.seek.to.toFixed(3)}s`,
+    `- Mapped range: ${snapshot.mappedRange.start.toFixed(3)}s - ${snapshot.mappedRange.end.toFixed(3)}s${snapshot.mappedRange.calibrated ? " (calibrated)" : ""}`,
+    `- Page: ${snapshot.pageUrl}`,
+    `- Reporter: ${reporter.email ?? reporter.name ?? reporter.id}`,
+  ];
+
+  if (note?.trim()) {
+    summary.push("", "## User Note", "", note.trim());
+  }
+
+  summary.push(
+    "",
+    "## Debug Payload",
+    "",
+    "```json",
+    formatDebugJson(payload),
+    "```",
+  );
+
+  return summary.join("\n");
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = await requireRegisteredUser();
+    const token = process.env.GITHUB_ISSUES_TOKEN;
+
+    if (!token) {
+      return NextResponse.json(
+        { error: "GITHUB_ISSUES_TOKEN is not configured" },
+        { status: 503 },
+      );
+    }
+
+    const parsed = payloadSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/issues`,
+      {
+        body: JSON.stringify({
+          body: buildIssueBody(parsed.data, user),
+          title: buildIssueTitle(parsed.data),
+        }),
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method: "POST",
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("[api/ad-feedback] GitHub issue creation failed:", text);
+      return NextResponse.json(
+        { error: "GitHub issue creation failed" },
+        { status: 502 },
+      );
+    }
+
+    const issue = (await response.json()) as {
+      html_url?: string;
+      number?: number;
+    };
+
+    return NextResponse.json({
+      issueNumber: issue.number,
+      issueUrl: issue.html_url,
+      success: true,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    console.error("[api/ad-feedback] Error:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}
