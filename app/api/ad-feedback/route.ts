@@ -22,6 +22,7 @@ const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 let rateLimitSql: ReturnType<typeof neon> | null = null;
 let lastRateLimitCleanupAt = 0;
+let lastPersistentRateLimitCleanupAt = 0;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -106,7 +107,8 @@ function truncateJsonString(value: string, limit = DEBUG_DEFAULT_STRING_LIMIT) {
 function redactUrl(value: string) {
   try {
     const url = new URL(value);
-    return `${url.origin}${url.pathname}`;
+    const redacted = `${url.origin}${url.pathname}`;
+    return value.startsWith("blob:") ? `blob:${redacted}` : redacted;
   } catch {
     return "[redacted-url]";
   }
@@ -114,7 +116,11 @@ function redactUrl(value: string) {
 
 function sanitizeJsonValue(value: unknown, depth = 0): unknown {
   if (typeof value === "string") {
-    if (value.startsWith("http://") || value.startsWith("https://")) {
+    if (
+      value.startsWith("http://") ||
+      value.startsWith("https://") ||
+      value.startsWith("blob:")
+    ) {
       return redactUrl(value);
     }
     return truncateJsonString(value);
@@ -312,16 +318,32 @@ function getRateLimitSql() {
   return rateLimitSql;
 }
 
+async function cleanupPersistentRateLimit(client: ReturnType<typeof neon>) {
+  const now = Date.now();
+  if (now - lastPersistentRateLimitCleanupAt < RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+
+  lastPersistentRateLimitCleanupAt = now;
+
+  try {
+    await client`
+      delete from ad_feedback_rate_limit
+      where reset_at <= now()
+    `;
+  } catch (error) {
+    console.error("[api/ad-feedback] Rate limit cleanup failed:", error);
+  }
+}
+
 async function checkPersistentRateLimit(key: string) {
   const client = getRateLimitSql();
   if (!client) return checkRateLimit(key);
 
+  await cleanupPersistentRateLimit(client);
+
   try {
     const rows = await client`
-      with cleanup as (
-        delete from ad_feedback_rate_limit
-        where reset_at <= now()
-      )
       insert into ad_feedback_rate_limit (rate_limit_key, count, reset_at, updated_at)
       values (${key}, 1, now() + (${RATE_LIMIT_WINDOW_MINUTES} * interval '1 minute'), now())
       on conflict (rate_limit_key) do update set
