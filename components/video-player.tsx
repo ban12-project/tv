@@ -32,14 +32,76 @@ import { cn, formatTime } from "@/lib/utils";
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
 const AD_DEBUG_PLAYLIST_EXCERPT_LIMIT = 12_000;
+const AD_DEBUG_PLAYLIST_CONTEXT_MARGIN = 3000;
 const AD_DEBUG_RECENT_EVENT_LIMIT = 50;
 const AD_DEBUG_TIMELINE_SAMPLE_LIMIT = 80;
+const AD_DEBUG_PLAYLIST_MARKERS = [
+  "#EXT-X-ASSET",
+  "#EXT-X-CUE",
+  "#EXT-X-DATERANGE",
+  "#EXT-X-SPLICEPOINT-SCTE35",
+  "CUE-IN",
+  "CUE-OUT",
+  "SCTE35",
+];
 
 type VideoFrameCallback = (now: number, metadata: unknown) => void;
 type VideoWithFrameCallback = HTMLVideoElement & {
   requestVideoFrameCallback?: (callback: VideoFrameCallback) => number;
   cancelVideoFrameCallback?: (handle: number) => void;
 };
+
+function findPlaylistTimeIndex(playlistText: string, currentTime: number) {
+  if (!Number.isFinite(currentTime) || currentTime < 0) return null;
+
+  let elapsed = 0;
+  let currentLineStart = 0;
+  let pendingDuration: number | null = null;
+
+  for (const line of playlistText.split("\n")) {
+    if (line.startsWith("#EXTINF:")) {
+      const duration = Number.parseFloat(
+        line.slice("#EXTINF:".length).split(",", 1)[0] ?? "",
+      );
+      pendingDuration = Number.isFinite(duration) ? duration : null;
+    } else if (pendingDuration !== null && line && !line.startsWith("#")) {
+      const nextElapsed = elapsed + pendingDuration;
+      if (currentTime >= elapsed && currentTime <= nextElapsed) {
+        return currentLineStart;
+      }
+      elapsed = nextElapsed;
+      pendingDuration = null;
+    }
+
+    currentLineStart += line.length + 1;
+  }
+
+  return null;
+}
+
+function getPlaylistDebugExcerpt(
+  playlistText: string | undefined,
+  currentTime: number,
+) {
+  if (!playlistText || playlistText.length <= AD_DEBUG_PLAYLIST_EXCERPT_LIMIT) {
+    return playlistText;
+  }
+
+  const timeIndex = findPlaylistTimeIndex(playlistText, currentTime);
+  const markerIndex = AD_DEBUG_PLAYLIST_MARKERS.map((marker) =>
+    playlistText.indexOf(marker),
+  )
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0];
+
+  const centerIndex = timeIndex ?? markerIndex;
+  if (centerIndex === undefined) {
+    return playlistText.slice(0, AD_DEBUG_PLAYLIST_EXCERPT_LIMIT);
+  }
+
+  const start = Math.max(0, centerIndex - AD_DEBUG_PLAYLIST_CONTEXT_MARGIN);
+  return playlistText.slice(start, start + AD_DEBUG_PLAYLIST_EXCERPT_LIMIT);
+}
 
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
@@ -168,9 +230,9 @@ export default function VideoPlayer({
             duration: Number.isFinite(video.duration) ? video.duration : null,
             hlsErrors: hlsErrorsRef.current.slice(),
             hlsEvents: hlsEventsRef.current.slice(),
-            latestPlaylistTextExcerpt: options?.latestPlaylistText?.slice(
-              0,
-              AD_DEBUG_PLAYLIST_EXCERPT_LIMIT,
+            latestPlaylistTextExcerpt: getPlaylistDebugExcerpt(
+              options?.latestPlaylistText,
+              currentTime,
             ),
             latestPlaylistUrl: options?.latestPlaylistUrl,
             mappedRange,

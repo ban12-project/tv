@@ -13,6 +13,10 @@ const DEBUG_MAX_DEPTH = 6;
 const CONTEXT_NAME_LIMIT = 200;
 const CONTEXT_ID_LIMIT = 500;
 const SNAPSHOT_URL_LIMIT = 2000;
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 5;
+
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -39,8 +43,8 @@ const timelineSampleSchema = z.object({
 });
 
 const issueSchema = z.object({
-  html_url: z.string().url().optional(),
-  number: z.number().int().optional(),
+  html_url: z.string().url(),
+  number: z.number().int(),
 });
 
 const payloadSchema = z.object({
@@ -239,12 +243,39 @@ function buildIssueBody(payload: z.infer<typeof payloadSchema>) {
   return summary.join("\n");
 }
 
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  const current = rateLimitBuckets.get(key);
+
+  if (!current || current.resetAt <= now) {
+    rateLimitBuckets.set(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+    return true;
+  }
+
+  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  current.count += 1;
+  return true;
+}
+
 export async function POST(req: Request) {
   try {
-    await requireRegisteredUser();
+    const user = await requireRegisteredUser();
     const token = process.env.GITHUB_ISSUES_TOKEN;
     const githubOwner = process.env.GITHUB_OWNER;
     const githubRepo = process.env.GITHUB_REPO;
+
+    if (!checkRateLimit(user.id)) {
+      return NextResponse.json(
+        { error: "Too many feedback submissions" },
+        { status: 429 },
+      );
+    }
 
     if (!token) {
       return NextResponse.json(
