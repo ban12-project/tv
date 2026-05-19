@@ -259,6 +259,10 @@ export default function VideoPlayer({
               to: nextTime,
             },
             timelineSamples: getRecentTimelineSamples(),
+            userAgent:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent
+                : undefined,
             video: {
               currentSrc: video.currentSrc,
               height: video.videoHeight,

@@ -110,7 +110,12 @@ function redactUrl(value: string) {
 }
 
 function sanitizeJsonValue(value: unknown, depth = 0): unknown {
-  if (typeof value === "string") return truncateJsonString(value);
+  if (typeof value === "string") {
+    if (value.startsWith("http://") || value.startsWith("https://")) {
+      return redactUrl(value);
+    }
+    return truncateJsonString(value);
+  }
   if (typeof value !== "object" || value === null) return value;
   if (depth >= DEBUG_MAX_DEPTH) return "[max-depth]";
 
