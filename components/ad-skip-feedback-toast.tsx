@@ -42,7 +42,6 @@ export function showAdSkipFeedbackToast(
           },
           id: toastId,
           loading: t.submitting,
-          position: "bottom-right",
           success: t.success,
         });
       },
