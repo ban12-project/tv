@@ -51,6 +51,35 @@ type VideoWithFrameCallback = HTMLVideoElement & {
   cancelVideoFrameCallback?: (handle: number) => void;
 };
 
+function findUnquotedComma(value: string, start: number) {
+  let inQuote = false;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuote = !inQuote;
+      continue;
+    }
+
+    if (char === "," && !inQuote) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 function findPlaylistTimeIndex(playlistText: string, currentTime: number) {
   if (!Number.isFinite(currentTime) || currentTime < 0) return null;
 
@@ -67,7 +96,7 @@ function findPlaylistTimeIndex(playlistText: string, currentTime: number) {
 
     const line = playlistText.slice(lineStart, normalizedLineEnd);
     if (line.startsWith("#EXTINF:")) {
-      const durationEnd = line.indexOf(",", "#EXTINF:".length);
+      const durationEnd = findUnquotedComma(line, "#EXTINF:".length);
       const durationText = line.slice(
         "#EXTINF:".length,
         durationEnd === -1 ? undefined : durationEnd,

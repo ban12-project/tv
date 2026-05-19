@@ -16,9 +16,11 @@ const CONTEXT_ID_LIMIT = 500;
 const SNAPSHOT_URL_LIMIT = 2000;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 let rateLimitSql: ReturnType<typeof neon> | null = null;
+let lastRateLimitCleanupAt = 0;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -218,13 +220,14 @@ function truncateSingleLine(value: string, limit: number) {
 }
 
 function sanitizeSingleLine(value: string) {
-  return Array.from(value)
-    .map((char) => {
-      const code = char.charCodeAt(0);
-      return code <= 31 || code === 127 ? " " : char;
-    })
-    .join("")
-    .trim();
+  let sanitized = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index] ?? "";
+    const code = char.charCodeAt(0);
+    sanitized += code <= 31 || code === 127 ? " " : char;
+  }
+
+  return sanitized.trim();
 }
 
 function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
@@ -274,9 +277,13 @@ function buildIssueBody(payload: z.infer<typeof payloadSchema>) {
 
 function checkRateLimit(key: string) {
   const now = Date.now();
-  for (const [bucketKey, bucket] of rateLimitBuckets) {
-    if (bucket.resetAt <= now) {
-      rateLimitBuckets.delete(bucketKey);
+
+  if (now - lastRateLimitCleanupAt >= RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+    lastRateLimitCleanupAt = now;
+    for (const [bucketKey, bucket] of rateLimitBuckets) {
+      if (bucket.resetAt <= now) {
+        rateLimitBuckets.delete(bucketKey);
+      }
     }
   }
 
