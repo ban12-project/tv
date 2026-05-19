@@ -6,6 +6,10 @@ const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 const ISSUE_BODY_LIMIT = 60_000;
 const ISSUE_TITLE_LIMIT = 256;
 const ISSUE_VIDEO_TITLE_LIMIT = 150;
+const DEBUG_DEFAULT_STRING_LIMIT = 1000;
+const DEBUG_PLAYLIST_TEXT_LIMIT = 12_000;
+const DEBUG_MAX_OBJECT_KEYS = 30;
+const DEBUG_MAX_DEPTH = 6;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -82,14 +86,94 @@ const payloadSchema = z.object({
     .passthrough(),
 });
 
-function truncate(value: string, limit: number) {
+function truncateJsonString(value: string, limit = DEBUG_DEFAULT_STRING_LIMIT) {
   if (value.length <= limit) return value;
-  const suffix = `\n\n[truncated ${value.length - limit} chars]`;
-  return `${value.slice(0, Math.max(0, limit - suffix.length))}${suffix}`;
+  return `${value.slice(0, Math.max(0, limit - 3))}...`;
 }
 
-function formatDebugJson(value: unknown) {
-  return truncate(JSON.stringify(value, null, 2), ISSUE_BODY_LIMIT);
+function redactUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "[redacted-url]";
+  }
+}
+
+function sanitizeJsonValue(value: unknown, depth = 0): unknown {
+  if (typeof value === "string") return truncateJsonString(value);
+  if (typeof value !== "object" || value === null) return value;
+  if (depth >= DEBUG_MAX_DEPTH) return "[max-depth]";
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeJsonValue(item, depth + 1));
+  }
+
+  const entries = Object.entries(value).slice(0, DEBUG_MAX_OBJECT_KEYS);
+  const sanitized = Object.fromEntries(
+    entries.map(([key, item]) => [key, sanitizeJsonValue(item, depth + 1)]),
+  );
+
+  if (Object.keys(value).length > DEBUG_MAX_OBJECT_KEYS) {
+    sanitized.__truncatedKeys =
+      Object.keys(value).length - DEBUG_MAX_OBJECT_KEYS;
+  }
+
+  return sanitized;
+}
+
+function sanitizeDebugPayload(payload: z.infer<typeof payloadSchema>) {
+  return {
+    ...payload,
+    note: payload.note ? truncateJsonString(payload.note) : undefined,
+    snapshot: {
+      ...payload.snapshot,
+      hlsErrors: sanitizeJsonValue(payload.snapshot.hlsErrors),
+      hlsEvents: sanitizeJsonValue(payload.snapshot.hlsEvents),
+      latestPlaylistTextExcerpt: payload.snapshot.latestPlaylistTextExcerpt
+        ? truncateJsonString(
+            payload.snapshot.latestPlaylistTextExcerpt,
+            DEBUG_PLAYLIST_TEXT_LIMIT,
+          )
+        : undefined,
+      latestPlaylistUrl: payload.snapshot.latestPlaylistUrl
+        ? redactUrl(payload.snapshot.latestPlaylistUrl)
+        : undefined,
+      pageUrl: redactUrl(payload.snapshot.pageUrl),
+      timelineSamples: sanitizeJsonValue(payload.snapshot.timelineSamples),
+      userAgent: "[redacted]",
+      video: {
+        ...payload.snapshot.video,
+        currentSrc: redactUrl(payload.snapshot.video.currentSrc),
+        src: redactUrl(payload.snapshot.video.src),
+      },
+      videoUrl: redactUrl(payload.snapshot.videoUrl),
+    },
+  };
+}
+
+function formatDebugJson(payload: z.infer<typeof payloadSchema>) {
+  const sanitizedPayload = sanitizeDebugPayload(payload);
+  const json = JSON.stringify(sanitizedPayload, null, 2);
+
+  if (json.length <= ISSUE_BODY_LIMIT) return json;
+
+  return JSON.stringify(
+    {
+      context: sanitizedPayload.context,
+      note: sanitizedPayload.note,
+      snapshot: {
+        ...sanitizedPayload.snapshot,
+        hlsErrors: "[truncated]",
+        hlsEvents: "[truncated]",
+        latestPlaylistTextExcerpt: "[truncated]",
+        timelineSamples: "[truncated]",
+      },
+      warning: "Debug payload was compacted to keep the GitHub issue valid.",
+    },
+    null,
+    2,
+  );
 }
 
 function truncateSingleLine(value: string, limit: number) {
@@ -122,10 +206,7 @@ function buildIssueTitle(payload: z.infer<typeof payloadSchema>) {
   );
 }
 
-function buildIssueBody(
-  payload: z.infer<typeof payloadSchema>,
-  reporter: { id: string },
-) {
+function buildIssueBody(payload: z.infer<typeof payloadSchema>) {
   const { context, note, snapshot } = payload;
   const summary = [
     "## Summary",
@@ -135,8 +216,8 @@ function buildIssueBody(
     `- Episode: ${context.episodeIndex + 1}${context.episodeName ? ` - ${context.episodeName}` : ""}`,
     `- Skip: ${snapshot.seek.from.toFixed(3)}s -> ${snapshot.seek.to.toFixed(3)}s`,
     `- Mapped range: ${snapshot.mappedRange.start.toFixed(3)}s - ${snapshot.mappedRange.end.toFixed(3)}s${snapshot.mappedRange.calibrated ? " (calibrated)" : ""}`,
-    `- Page: ${snapshot.pageUrl}`,
-    `- Reporter ID: ${reporter.id}`,
+    `- Page: ${redactUrl(snapshot.pageUrl)}`,
+    "- Reporter: registered user (redacted)",
   ];
 
   if (note?.trim()) {
@@ -157,7 +238,7 @@ function buildIssueBody(
 
 export async function POST(req: Request) {
   try {
-    const user = await requireRegisteredUser();
+    await requireRegisteredUser();
     const token = process.env.GITHUB_ISSUES_TOKEN;
     const githubOwner = process.env.GITHUB_OWNER;
     const githubRepo = process.env.GITHUB_REPO;
@@ -198,7 +279,7 @@ export async function POST(req: Request) {
       `https://api.github.com/repos/${encodeURIComponent(githubOwner)}/${encodeURIComponent(githubRepo)}/issues`,
       {
         body: JSON.stringify({
-          body: buildIssueBody(parsed.data, user),
+          body: buildIssueBody(parsed.data),
           title: buildIssueTitle(parsed.data),
         }),
         headers: {
