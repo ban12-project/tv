@@ -106,9 +106,10 @@ function truncateJsonString(value: string, limit = DEBUG_DEFAULT_STRING_LIMIT) {
 
 function redactUrl(value: string) {
   try {
-    const url = new URL(value);
+    const isBlobUrl = value.startsWith("blob:");
+    const url = new URL(isBlobUrl ? value.slice("blob:".length) : value);
     const redacted = `${url.origin}${url.pathname}`;
-    return value.startsWith("blob:") ? `blob:${redacted}` : redacted;
+    return isBlobUrl ? `blob:${redacted}` : redacted;
   } catch {
     return "[redacted-url]";
   }
