@@ -116,14 +116,14 @@ function sanitizeJsonValue(value: unknown, depth = 0): unknown {
     return value.map((item) => sanitizeJsonValue(item, depth + 1));
   }
 
-  const entries = Object.entries(value).slice(0, DEBUG_MAX_OBJECT_KEYS);
+  const allEntries = Object.entries(value);
+  const entries = allEntries.slice(0, DEBUG_MAX_OBJECT_KEYS);
   const sanitized = Object.fromEntries(
     entries.map(([key, item]) => [key, sanitizeJsonValue(item, depth + 1)]),
   );
 
-  if (Object.keys(value).length > DEBUG_MAX_OBJECT_KEYS) {
-    sanitized.__truncatedKeys =
-      Object.keys(value).length - DEBUG_MAX_OBJECT_KEYS;
+  if (allEntries.length > DEBUG_MAX_OBJECT_KEYS) {
+    sanitized.__truncatedKeys = allEntries.length - DEBUG_MAX_OBJECT_KEYS;
   }
 
   return sanitized;
@@ -245,6 +245,12 @@ function buildIssueBody(payload: z.infer<typeof payloadSchema>) {
 
 function checkRateLimit(key: string) {
   const now = Date.now();
+  for (const [bucketKey, bucket] of rateLimitBuckets) {
+    if (bucket.resetAt <= now) {
+      rateLimitBuckets.delete(bucketKey);
+    }
+  }
+
   const current = rateLimitBuckets.get(key);
 
   if (!current || current.resetAt <= now) {
