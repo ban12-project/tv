@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Info, ListVideo } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
+import { AdSkipFeedbackDialog } from "@/components/ad-skip-feedback-dialog";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,10 @@ import {
   isPortraitAspectRatio,
   mergeContentProfiles,
 } from "@/lib/content-profile";
+import type {
+  AdSkipDebugSnapshot,
+  AdSkipFeedbackPayload,
+} from "@/lib/player/ad-feedback";
 import { cn } from "@/lib/utils";
 
 interface WatchProgress {
@@ -92,12 +97,16 @@ export default function WatchClient({
       ? initialContentProfile
       : inferContentProfile(video, { aspectRatio: initialAspectRatio }),
   );
+  const [adFeedbackPayload, setAdFeedbackPayload] =
+    React.useState<AdSkipFeedbackPayload | null>(null);
+  const [isAdFeedbackOpen, setIsAdFeedbackOpen] = React.useState(false);
 
   const lastSyncTimeRef = React.useRef<number>(0);
   const knownAspectRatioKeysRef = React.useRef(new Set<string>());
   const aspectRatioCacheRef = React.useRef(new Map<string, string>());
   const savedProfileKeysRef = React.useRef(new Set<string>());
   const activeEpisodeItemRef = React.useRef<HTMLLIElement | null>(null);
+  const promptedAdFeedbackKeysRef = React.useRef(new Set<string>());
 
   const pathname = usePathname();
   const router = useRouter();
@@ -392,6 +401,25 @@ export default function WatchClient({
     nextEpisodeIndex,
   ]);
 
+  const handleAdSkip = React.useEffectEvent((snapshot: AdSkipDebugSnapshot) => {
+    const feedbackKey = `${currentSource.sourceId}:${currentSource.videoId}:${activeEpisodeIndex}`;
+    if (promptedAdFeedbackKeysRef.current.has(feedbackKey)) return;
+
+    promptedAdFeedbackKeysRef.current.add(feedbackKey);
+    setAdFeedbackPayload({
+      context: {
+        episodeIndex: activeEpisodeIndex,
+        episodeName: currentEpisode?.name,
+        sourceId: currentSource.sourceId,
+        sourceName: currentSource.name,
+        videoId: currentSource.videoId,
+        videoTitle: video.title,
+      },
+      snapshot,
+    });
+    setIsAdFeedbackOpen(true);
+  });
+
   const handleVideoMetadata = React.useEffectEvent(
     ({ width, height }: { width: number; height: number }) => {
       if (width <= 0 || height <= 0) return;
@@ -508,6 +536,7 @@ export default function WatchClient({
               playbackProfile={playbackKind}
               nextVideoUrl={nextEpisode?.url}
               onEndedAdvance={handleAutoAdvance}
+              onAdSkip={handleAdSkip}
               dictionary={dictionary}
             />
           </div>
@@ -690,6 +719,13 @@ export default function WatchClient({
           </TabsContent>
         </Tabs>
       </div>
+
+      <AdSkipFeedbackDialog
+        dictionary={dictionary}
+        open={isAdFeedbackOpen}
+        onOpenChange={setIsAdFeedbackOpen}
+        payload={adFeedbackPayload}
+      />
     </>
   );
 }
