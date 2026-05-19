@@ -35,7 +35,7 @@ export function showAdSkipFeedbackToast(
           duration: AD_FEEDBACK_TOAST_DURATION_MS,
           error: (error) => {
             console.error(
-              "[AdSkipFeedbackDialog] Failed to submit feedback:",
+              "[AdSkipFeedbackToast] Failed to submit feedback:",
               error,
             );
             return t.error;
