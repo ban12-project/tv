@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Info, ListVideo } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
-import { showAdSkipFeedbackToast } from "@/components/ad-skip-feedback-dialog";
+import { showAdSkipFeedbackToast } from "@/components/ad-skip-feedback-toast";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
