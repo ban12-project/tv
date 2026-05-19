@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
 import type { AdSkipFeedbackPayload } from "@/lib/player/ad-feedback";
 
-const AD_FEEDBACK_TOAST_DURATION_MS = 3000;
+const AD_FEEDBACK_TOAST_DURATION_MS = 5000;
 
 async function submitAdSkipFeedback(payload: AdSkipFeedbackPayload) {
   const response = await fetch("/api/ad-feedback", {
