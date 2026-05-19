@@ -127,15 +127,15 @@ function getPlaylistDebugExcerpt(
     return playlistText;
   }
 
-  const timeIndex = findPlaylistTimeIndex(playlistText, currentTime);
-  const markerIndex = AD_DEBUG_PLAYLIST_MARKERS.map((marker) =>
-    playlistText.indexOf(marker),
-  )
-    .filter((index) => index >= 0)
-    .sort((a, b) => a - b)[0];
+  let centerIndex = findPlaylistTimeIndex(playlistText, currentTime);
+  if (centerIndex === null) {
+    centerIndex =
+      AD_DEBUG_PLAYLIST_MARKERS.map((marker) => playlistText.indexOf(marker))
+        .filter((index) => index >= 0)
+        .sort((a, b) => a - b)[0] ?? null;
+  }
 
-  const centerIndex = timeIndex ?? markerIndex;
-  if (centerIndex === undefined) {
+  if (centerIndex === null) {
     return playlistText.slice(0, AD_DEBUG_PLAYLIST_EXCERPT_LIMIT);
   }
 

@@ -14,7 +14,8 @@ const DEBUG_MAX_DEPTH = 6;
 const CONTEXT_NAME_LIMIT = 200;
 const CONTEXT_ID_LIMIT = 500;
 const SNAPSHOT_URL_LIMIT = 2000;
-const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_WINDOW_MINUTES = 10;
+const RATE_LIMIT_WINDOW_MS = RATE_LIMIT_WINDOW_MINUTES * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
 
@@ -315,8 +316,6 @@ async function checkPersistentRateLimit(key: string) {
   const client = getRateLimitSql();
   if (!client) return checkRateLimit(key);
 
-  const resetAt = new Date(Date.now() + RATE_LIMIT_WINDOW_MS);
-
   try {
     const rows = await client`
       with cleanup as (
@@ -324,14 +323,14 @@ async function checkPersistentRateLimit(key: string) {
         where reset_at <= now()
       )
       insert into ad_feedback_rate_limit (rate_limit_key, count, reset_at, updated_at)
-      values (${key}, 1, ${resetAt}, now())
+      values (${key}, 1, now() + (${RATE_LIMIT_WINDOW_MINUTES} * interval '1 minute'), now())
       on conflict (rate_limit_key) do update set
         count = case
           when ad_feedback_rate_limit.reset_at <= now() then 1
           else ad_feedback_rate_limit.count + 1
         end,
         reset_at = case
-          when ad_feedback_rate_limit.reset_at <= now() then ${resetAt}
+          when ad_feedback_rate_limit.reset_at <= now() then now() + (${RATE_LIMIT_WINDOW_MINUTES} * interval '1 minute')
           else ad_feedback_rate_limit.reset_at
         end,
         updated_at = now()
