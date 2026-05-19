@@ -10,6 +10,9 @@ const DEBUG_DEFAULT_STRING_LIMIT = 1000;
 const DEBUG_PLAYLIST_TEXT_LIMIT = 12_000;
 const DEBUG_MAX_OBJECT_KEYS = 30;
 const DEBUG_MAX_DEPTH = 6;
+const CONTEXT_NAME_LIMIT = 200;
+const CONTEXT_ID_LIMIT = 500;
+const SNAPSHOT_URL_LIMIT = 2000;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -43,11 +46,11 @@ const issueSchema = z.object({
 const payloadSchema = z.object({
   context: z.object({
     episodeIndex: z.number().int().nonnegative(),
-    episodeName: z.string().optional(),
-    sourceId: z.string().min(1),
-    sourceName: z.string().min(1),
-    videoId: z.string().min(1),
-    videoTitle: z.string().min(1),
+    episodeName: z.string().max(CONTEXT_NAME_LIMIT).optional(),
+    sourceId: z.string().min(1).max(CONTEXT_ID_LIMIT),
+    sourceName: z.string().min(1).max(CONTEXT_NAME_LIMIT),
+    videoId: z.string().min(1).max(CONTEXT_ID_LIMIT),
+    videoTitle: z.string().min(1).max(CONTEXT_NAME_LIMIT),
   }),
   note: z.string().max(4000).optional(),
   snapshot: z
@@ -58,10 +61,10 @@ const payloadSchema = z.object({
       hlsErrors: z.array(runtimeEventSchema).max(30),
       hlsEvents: z.array(runtimeEventSchema).max(80),
       latestPlaylistTextExcerpt: z.string().max(20_000).optional(),
-      latestPlaylistUrl: z.string().optional(),
+      latestPlaylistUrl: z.string().max(SNAPSHOT_URL_LIMIT).optional(),
       mappedRange: rangeSchema,
       mappedSkipRanges: z.array(rangeSchema).max(100),
-      pageUrl: z.string(),
+      pageUrl: z.string().max(SNAPSHOT_URL_LIMIT),
       paused: z.boolean(),
       playbackProfile: z.enum(["standard", "short-drama"]),
       playbackRate: finiteNumber,
@@ -74,16 +77,16 @@ const payloadSchema = z.object({
         to: finiteNumber,
       }),
       timelineSamples: z.array(timelineSampleSchema).max(200),
-      userAgent: z.string(),
+      userAgent: z.string().max(1000),
       video: z.object({
-        currentSrc: z.string(),
+        currentSrc: z.string().max(SNAPSHOT_URL_LIMIT),
         height: z.number().int().nonnegative(),
-        src: z.string(),
+        src: z.string().max(SNAPSHOT_URL_LIMIT),
         width: z.number().int().nonnegative(),
       }),
-      videoUrl: z.string(),
+      videoUrl: z.string().max(SNAPSHOT_URL_LIMIT),
     })
-    .passthrough(),
+    .strict(),
 });
 
 function truncateJsonString(value: string, limit = DEBUG_DEFAULT_STRING_LIMIT) {
