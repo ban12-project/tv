@@ -122,3 +122,14 @@ export const episodeMetadataCache = pgTable(
 
 export type SelectEpisodeMetadataCache =
   typeof episodeMetadataCache.$inferSelect;
+
+export const adFeedbackRateLimit = pgTable(
+  "ad_feedback_rate_limit",
+  {
+    rateLimitKey: text("rate_limit_key").primaryKey(),
+    count: integer("count").default(0).notNull(),
+    resetAt: timestamp("reset_at").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("ad_feedback_rate_limit_reset_at_idx").on(t.resetAt)],
+);

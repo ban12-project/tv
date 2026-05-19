@@ -1,3 +1,4 @@
+import { neon } from "@neondatabase/serverless";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireRegisteredUser, UnauthorizedError } from "@/lib/auth-utils";
@@ -17,6 +18,7 @@ const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+let rateLimitSql: ReturnType<typeof neon> | null = null;
 
 const finiteNumber = z.number().finite();
 const nullableFiniteNumber = finiteNumber.nullable();
@@ -62,8 +64,8 @@ const payloadSchema = z.object({
       autoSkip: z.boolean(),
       createdAt: z.string(),
       duration: nullableFiniteNumber,
-      hlsErrors: z.array(runtimeEventSchema).max(30),
-      hlsEvents: z.array(runtimeEventSchema).max(80),
+      hlsErrors: z.array(runtimeEventSchema).max(50),
+      hlsEvents: z.array(runtimeEventSchema).max(50),
       latestPlaylistTextExcerpt: z.string().max(20_000).optional(),
       latestPlaylistUrl: z.string().max(SNAPSHOT_URL_LIMIT).optional(),
       mappedRange: rangeSchema,
@@ -269,6 +271,49 @@ function checkRateLimit(key: string) {
   return true;
 }
 
+function getRateLimitSql() {
+  if (!process.env.DATABASE_URL) return null;
+  rateLimitSql ??= neon(process.env.DATABASE_URL);
+  return rateLimitSql;
+}
+
+async function checkPersistentRateLimit(key: string) {
+  const client = getRateLimitSql();
+  if (!client) return checkRateLimit(key);
+
+  const resetAt = new Date(Date.now() + RATE_LIMIT_WINDOW_MS);
+
+  try {
+    await client`
+      delete from ad_feedback_rate_limit
+      where reset_at <= now()
+    `;
+
+    const rows = await client`
+      insert into ad_feedback_rate_limit (rate_limit_key, count, reset_at, updated_at)
+      values (${key}, 1, ${resetAt}, now())
+      on conflict (rate_limit_key) do update set
+        count = case
+          when ad_feedback_rate_limit.reset_at <= now() then 1
+          else ad_feedback_rate_limit.count + 1
+        end,
+        reset_at = case
+          when ad_feedback_rate_limit.reset_at <= now() then ${resetAt}
+          else ad_feedback_rate_limit.reset_at
+        end,
+        updated_at = now()
+      where ad_feedback_rate_limit.reset_at <= now()
+        or ad_feedback_rate_limit.count < ${RATE_LIMIT_MAX_REQUESTS}
+      returning count
+    `;
+
+    return Array.isArray(rows) && rows.length > 0;
+  } catch (error) {
+    console.error("[api/ad-feedback] Persistent rate limit failed:", error);
+    return checkRateLimit(key);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const user = await requireRegisteredUser();
@@ -276,7 +321,7 @@ export async function POST(req: Request) {
     const githubOwner = process.env.GITHUB_OWNER;
     const githubRepo = process.env.GITHUB_REPO;
 
-    if (!checkRateLimit(user.id)) {
+    if (!(await checkPersistentRateLimit(user.id))) {
       return NextResponse.json(
         { error: "Too many feedback submissions" },
         { status: 429 },
