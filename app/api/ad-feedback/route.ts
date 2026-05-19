@@ -83,7 +83,7 @@ const payloadSchema = z.object({
         to: finiteNumber,
       }),
       timelineSamples: z.array(timelineSampleSchema).max(200),
-      userAgent: z.string().max(1000),
+      userAgent: z.string().max(1000).optional(),
       video: z.object({
         currentSrc: z.string().max(SNAPSHOT_URL_LIMIT),
         height: z.number().int().nonnegative(),
@@ -150,7 +150,9 @@ function sanitizeDebugPayload(payload: z.infer<typeof payloadSchema>) {
         : undefined,
       pageUrl: redactUrl(payload.snapshot.pageUrl),
       timelineSamples: sanitizeJsonValue(payload.snapshot.timelineSamples),
-      userAgent: "[redacted]",
+      userAgent: payload.snapshot.userAgent
+        ? truncateJsonString(payload.snapshot.userAgent, 500)
+        : undefined,
       video: {
         ...payload.snapshot.video,
         currentSrc: redactUrl(payload.snapshot.video.currentSrc),
@@ -167,18 +169,38 @@ function formatDebugJson(payload: z.infer<typeof payloadSchema>) {
 
   if (json.length <= ISSUE_BODY_LIMIT) return json;
 
+  const compactPayload = {
+    context: sanitizedPayload.context,
+    note: sanitizedPayload.note,
+    snapshot: {
+      ...sanitizedPayload.snapshot,
+      hlsEvents: Array.isArray(sanitizedPayload.snapshot.hlsEvents)
+        ? sanitizedPayload.snapshot.hlsEvents.slice(-20)
+        : sanitizedPayload.snapshot.hlsEvents,
+      latestPlaylistTextExcerpt: sanitizedPayload.snapshot
+        .latestPlaylistTextExcerpt
+        ? truncateJsonString(
+            sanitizedPayload.snapshot.latestPlaylistTextExcerpt,
+            2000,
+          )
+        : undefined,
+      timelineSamples: "[truncated]",
+    },
+    warning: "Debug payload was compacted to keep the GitHub issue valid.",
+  };
+  const compactJson = JSON.stringify(compactPayload, null, 2);
+
+  if (compactJson.length <= ISSUE_BODY_LIMIT) return compactJson;
+
   return JSON.stringify(
     {
       context: sanitizedPayload.context,
-      note: sanitizedPayload.note,
       snapshot: {
-        ...sanitizedPayload.snapshot,
-        hlsErrors: "[truncated]",
-        hlsEvents: "[truncated]",
-        latestPlaylistTextExcerpt: "[truncated]",
-        timelineSamples: "[truncated]",
+        hlsErrors: sanitizedPayload.snapshot.hlsErrors,
+        mappedRange: sanitizedPayload.snapshot.mappedRange,
+        seek: sanitizedPayload.snapshot.seek,
       },
-      warning: "Debug payload was compacted to keep the GitHub issue valid.",
+      warning: "Debug payload exceeded the GitHub issue budget.",
     },
     null,
     2,
@@ -284,12 +306,11 @@ async function checkPersistentRateLimit(key: string) {
   const resetAt = new Date(Date.now() + RATE_LIMIT_WINDOW_MS);
 
   try {
-    await client`
-      delete from ad_feedback_rate_limit
-      where reset_at <= now()
-    `;
-
     const rows = await client`
+      with cleanup as (
+        delete from ad_feedback_rate_limit
+        where reset_at <= now()
+      )
       insert into ad_feedback_rate_limit (rate_limit_key, count, reset_at, updated_at)
       values (${key}, 1, ${resetAt}, now())
       on conflict (rate_limit_key) do update set

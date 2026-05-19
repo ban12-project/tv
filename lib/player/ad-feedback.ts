@@ -31,7 +31,7 @@ export interface AdSkipDebugSnapshot {
     to: number;
   };
   timelineSamples: FragmentTimelineSample[];
-  userAgent: string;
+  userAgent?: string;
   video: {
     currentSrc: string;
     height: number;

@@ -57,12 +57,22 @@ function findPlaylistTimeIndex(playlistText: string, currentTime: number) {
   let elapsed = 0;
   let currentLineStart = 0;
   let pendingDuration: number | null = null;
+  let nextLineStart = 0;
 
-  for (const line of playlistText.split("\n")) {
+  while (nextLineStart <= playlistText.length) {
+    const lineStart = nextLineStart;
+    const lineEnd = playlistText.indexOf("\n", lineStart);
+    const normalizedLineEnd = lineEnd === -1 ? playlistText.length : lineEnd;
+    nextLineStart = normalizedLineEnd + 1;
+
+    const line = playlistText.slice(lineStart, normalizedLineEnd);
     if (line.startsWith("#EXTINF:")) {
-      const duration = Number.parseFloat(
-        line.slice("#EXTINF:".length).split(",", 1)[0] ?? "",
+      const durationEnd = line.indexOf(",", "#EXTINF:".length);
+      const durationText = line.slice(
+        "#EXTINF:".length,
+        durationEnd === -1 ? undefined : durationEnd,
       );
+      const duration = Number.parseFloat(durationText);
       pendingDuration = Number.isFinite(duration) ? duration : null;
     } else if (pendingDuration !== null && line && !line.startsWith("#")) {
       const nextElapsed = elapsed + pendingDuration;
@@ -73,7 +83,8 @@ function findPlaylistTimeIndex(playlistText: string, currentTime: number) {
       pendingDuration = null;
     }
 
-    currentLineStart += line.length + 1;
+    currentLineStart = nextLineStart;
+    if (lineEnd === -1) break;
   }
 
   return null;
@@ -248,7 +259,6 @@ export default function VideoPlayer({
               to: nextTime,
             },
             timelineSamples: getRecentTimelineSamples(),
-            userAgent: navigator.userAgent,
             video: {
               currentSrc: video.currentSrc,
               height: video.videoHeight,
