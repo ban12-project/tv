@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Info, ListVideo } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
-import { AdSkipFeedbackDialog } from "@/components/ad-skip-feedback-dialog";
+import { showAdSkipFeedbackToast } from "@/components/ad-skip-feedback-toast";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,10 +30,7 @@ import {
   isPortraitAspectRatio,
   mergeContentProfiles,
 } from "@/lib/content-profile";
-import type {
-  AdSkipDebugSnapshot,
-  AdSkipFeedbackPayload,
-} from "@/lib/player/ad-feedback";
+import type { AdSkipDebugSnapshot } from "@/lib/player/ad-feedback";
 import { cn } from "@/lib/utils";
 
 interface WatchProgress {
@@ -97,10 +94,6 @@ export default function WatchClient({
       ? initialContentProfile
       : inferContentProfile(video, { aspectRatio: initialAspectRatio }),
   );
-  const [adFeedbackPayload, setAdFeedbackPayload] =
-    React.useState<AdSkipFeedbackPayload | null>(null);
-  const [isAdFeedbackOpen, setIsAdFeedbackOpen] = React.useState(false);
-
   const lastSyncTimeRef = React.useRef<number>(0);
   const knownAspectRatioKeysRef = React.useRef(new Set<string>());
   const aspectRatioCacheRef = React.useRef(new Map<string, string>());
@@ -406,7 +399,7 @@ export default function WatchClient({
     if (promptedAdFeedbackKeysRef.current.has(feedbackKey)) return;
 
     promptedAdFeedbackKeysRef.current.add(feedbackKey);
-    setAdFeedbackPayload({
+    showAdSkipFeedbackToast(dictionary, {
       context: {
         episodeIndex: activeEpisodeIndex,
         episodeName: currentEpisode?.name,
@@ -417,7 +410,6 @@ export default function WatchClient({
       },
       snapshot,
     });
-    setIsAdFeedbackOpen(true);
   });
 
   const handleVideoMetadata = React.useEffectEvent(
@@ -719,13 +711,6 @@ export default function WatchClient({
           </TabsContent>
         </Tabs>
       </div>
-
-      <AdSkipFeedbackDialog
-        dictionary={dictionary}
-        open={isAdFeedbackOpen}
-        onOpenChange={setIsAdFeedbackOpen}
-        payload={adFeedbackPayload}
-      />
     </>
   );
 }
