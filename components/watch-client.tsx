@@ -395,6 +395,8 @@ export default function WatchClient({
   ]);
 
   const handleAdSkip = React.useEffectEvent((snapshot: AdSkipDebugSnapshot) => {
+    if (document.fullscreenElement) return;
+
     const feedbackKey = `${currentSource.sourceId}:${currentSource.videoId}:${activeEpisodeIndex}`;
     if (promptedAdFeedbackKeysRef.current.has(feedbackKey)) return;
 

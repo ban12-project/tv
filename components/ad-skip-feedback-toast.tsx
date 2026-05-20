@@ -25,25 +25,46 @@ export function showAdSkipFeedbackToast(
   payload: AdSkipFeedbackPayload,
 ) {
   const t = dictionary.watch["ad-feedback"];
+  let isSubmitting = false;
 
   const toastId = toast(t.title, {
     action: {
       label: t.unexpected,
-      onClick: (event) => {
+      onClick: async (event) => {
         event.preventDefault();
-        toast.promise(submitAdSkipFeedback(payload), {
+        if (isSubmitting) return;
+
+        isSubmitting = true;
+        toast.loading(t.submitting, {
+          action: undefined,
+          cancel: undefined,
+          description: undefined,
           duration: AD_FEEDBACK_TOAST_DURATION_MS,
-          error: (error) => {
-            console.error(
-              "[AdSkipFeedbackToast] Failed to submit feedback:",
-              error,
-            );
-            return t.error;
-          },
           id: toastId,
-          loading: t.submitting,
-          success: t.success,
         });
+
+        try {
+          await submitAdSkipFeedback(payload);
+          toast.success(t.success, {
+            action: undefined,
+            cancel: undefined,
+            description: undefined,
+            duration: AD_FEEDBACK_TOAST_DURATION_MS,
+            id: toastId,
+          });
+        } catch (error) {
+          console.error(
+            "[AdSkipFeedbackToast] Failed to submit feedback:",
+            error,
+          );
+          toast.error(t.error, {
+            action: undefined,
+            cancel: undefined,
+            description: undefined,
+            duration: AD_FEEDBACK_TOAST_DURATION_MS,
+            id: toastId,
+          });
+        }
       },
     },
     cancel: {
