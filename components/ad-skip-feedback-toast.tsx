@@ -39,16 +39,12 @@ export function showAdSkipFeedbackToast(
           action: undefined,
           cancel: undefined,
           description: undefined,
-          duration: AD_FEEDBACK_TOAST_DURATION_MS,
           id: toastId,
         });
 
         try {
           await submitAdSkipFeedback(payload);
           toast.success(t.success, {
-            action: undefined,
-            cancel: undefined,
-            description: undefined,
             duration: AD_FEEDBACK_TOAST_DURATION_MS,
             id: toastId,
           });
@@ -58,9 +54,6 @@ export function showAdSkipFeedbackToast(
             error,
           );
           toast.error(t.error, {
-            action: undefined,
-            cancel: undefined,
-            description: undefined,
             duration: AD_FEEDBACK_TOAST_DURATION_MS,
             id: toastId,
           });
