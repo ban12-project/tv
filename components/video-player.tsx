@@ -366,7 +366,8 @@ export default function VideoPlayer({
       );
       return true;
     } catch (err) {
-      const errorName = err instanceof DOMException ? err.name : undefined;
+      const errorName =
+        err && typeof err === "object" && "name" in err ? err.name : undefined;
       if (errorName === "NotAllowedError") {
         setPlayerStatus("autoplay-blocked");
       } else {
@@ -467,6 +468,7 @@ export default function VideoPlayer({
       // On initial load, check if already in a wireless session
       // (e.g. page reload during AirPlay)
       if (currentPlaybackTargetIsWireless) {
+        addM3u8FallbackSource();
         stopHlsJsAndMonitorWirelessPlayback();
       } else {
         attachHls();
@@ -900,7 +902,13 @@ export default function VideoPlayer({
         attachHls();
       }
     };
-    const handleMediaError = () => setPlayerStatus("fatal-error");
+    const handleMediaError = () => {
+      setPlayerStatus("fatal-error");
+      if (nativeSkipRefreshInterval) {
+        clearInterval(nativeSkipRefreshInterval);
+        nativeSkipRefreshInterval = undefined;
+      }
+    };
     const handlePlaying = () => {
       resetRecoveryAttempts();
       setPlayerStatus("ready");
