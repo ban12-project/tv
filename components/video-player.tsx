@@ -1,6 +1,7 @@
 "use client";
 
 import IntlMessageFormat from "intl-messageformat";
+import { Play, RotateCcw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import type { Messages } from "@/get-dictionary";
@@ -49,6 +50,16 @@ type VideoFrameCallback = (now: number, metadata: unknown) => void;
 type VideoWithFrameCallback = HTMLVideoElement & {
   requestVideoFrameCallback?: (callback: VideoFrameCallback) => number;
   cancelVideoFrameCallback?: (handle: number) => void;
+};
+type PlayerStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "autoplay-blocked"
+  | "fatal-error"
+  | "unsupported";
+type WebkitRemotePlaybackVideo = HTMLVideoElement & {
+  webkitCurrentPlaybackTargetIsWireless?: boolean;
 };
 
 function findUnquotedComma(value: string, start: number) {
@@ -193,6 +204,8 @@ export default function VideoPlayer({
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
   const lastSaveTimeRef = React.useRef<number>(0);
   const restoredProgressKeyRef = React.useRef<string | null>(null);
+  const [playerStatus, setPlayerStatus] = React.useState<PlayerStatus>("idle");
+  const [retryNonce, setRetryNonce] = React.useState(0);
 
   const recordHlsEvent = React.useCallback(
     (name: string, details?: Record<string, unknown>) => {
@@ -340,6 +353,30 @@ export default function VideoPlayer({
     onEndedAdvance?.();
   });
 
+  const attemptPlay = React.useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return false;
+
+    try {
+      await video.play();
+      setPlayerStatus((status) =>
+        status === "autoplay-blocked" || status === "loading"
+          ? "ready"
+          : status,
+      );
+      return true;
+    } catch (err) {
+      const errorName =
+        err && typeof err === "object" && "name" in err ? err.name : undefined;
+      if (errorName === "NotAllowedError") {
+        setPlayerStatus("autoplay-blocked");
+      } else {
+        console.warn("[VideoPlayer] Failed to start playback:", err);
+      }
+      return false;
+    }
+  }, []);
+
   React.useEffect(() => {
     if (playbackProfile !== "short-drama" || !nextVideoUrl) return;
 
@@ -371,14 +408,29 @@ export default function VideoPlayer({
 
     let hls: InstanceType<typeof Hls> | null = null;
 
-    // Attach HLS.js to the video element and add a fallback <source>
-    // for AirPlay/remote playback compatibility
-    const attachHlsAndAddM3u8FallbackSource = () => {
-      if (!hls) return;
-      // attachMedia will create the first ManagedMediaSource <source> child
-      hls.attachMedia(video);
+    const supportsWebkitRemotePlayback =
+      "webkitCurrentPlaybackTargetIsWireless" in video;
 
-      // Add the fallback <source> child to allow remote playback of the m3u8 source
+    const attachHls = () => {
+      if (!hls) return;
+      hls.attachMedia(video);
+    };
+
+    const addM3u8FallbackSource = () => {
+      let resolvedUrl = videoUrl;
+      try {
+        resolvedUrl = new URL(videoUrl, window.location.href).href;
+      } catch (err) {
+        console.warn("[VideoPlayer] Failed to resolve video URL:", err);
+      }
+      const existingFallback = Array.from(video.children).find(
+        (child) =>
+          child instanceof HTMLSourceElement &&
+          child.type === "application/x-mpegURL" &&
+          child.src === resolvedUrl,
+      );
+      if (existingFallback) return;
+
       const airPlaySrc = document.createElement("source");
       airPlaySrc.type = "application/x-mpegURL";
       airPlaySrc.src = videoUrl;
@@ -388,15 +440,12 @@ export default function VideoPlayer({
 
     // Set up wireless playback (AirPlay) session management
     const setupWirelessListeners = () => {
-      if (!hls) return;
+      if (!hls || !supportsWebkitRemotePlayback) return;
 
       let resumptionInterval: ReturnType<typeof setInterval> | undefined;
       let currentPlaybackTargetIsWireless =
-        (
-          video as HTMLVideoElement & {
-            webkitCurrentPlaybackTargetIsWireless?: boolean;
-          }
-        ).webkitCurrentPlaybackTargetIsWireless ?? false;
+        (video as WebkitRemotePlaybackVideo)
+          .webkitCurrentPlaybackTargetIsWireless ?? false;
 
       // Wireless (AirPlay) session: stop HLS.js streaming locally
       // and periodically sync the playback position for later resumption
@@ -416,27 +465,27 @@ export default function VideoPlayer({
         clearInterval(resumptionInterval);
         if (!hls) return;
         hls.detachMedia();
-        attachHlsAndAddM3u8FallbackSource();
+        attachHls();
+        addM3u8FallbackSource();
         hls.startLoad(hls.config.startPosition);
       };
 
       // On initial load, check if already in a wireless session
       // (e.g. page reload during AirPlay)
       if (currentPlaybackTargetIsWireless) {
+        addM3u8FallbackSource();
         stopHlsJsAndMonitorWirelessPlayback();
       } else {
-        attachHlsAndAddM3u8FallbackSource();
+        attachHls();
+        addM3u8FallbackSource();
       }
 
       // Handle remote playback session transitions
       const targetChanged = () => {
         const previousState = currentPlaybackTargetIsWireless;
         currentPlaybackTargetIsWireless =
-          (
-            video as HTMLVideoElement & {
-              webkitCurrentPlaybackTargetIsWireless?: boolean;
-            }
-          ).webkitCurrentPlaybackTargetIsWireless ?? false;
+          (video as WebkitRemotePlaybackVideo)
+            .webkitCurrentPlaybackTargetIsWireless ?? false;
 
         if (currentPlaybackTargetIsWireless) {
           stopHlsJsAndMonitorWirelessPlayback();
@@ -457,6 +506,7 @@ export default function VideoPlayer({
     let cleanupWirelessListeners: (() => void) | undefined;
     let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let hlsSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let nativeLoadedMetadataListener: (() => void) | undefined;
     let latestSkipRangeRequestId = 0;
     let latestPlaylistText: string | undefined;
     let latestPlaylistUrl: string | undefined;
@@ -469,6 +519,7 @@ export default function VideoPlayer({
     mappedSkipRangesRef.current = [];
     hlsEventsRef.current = [];
     hlsErrorsRef.current = [];
+    setPlayerStatus("loading");
 
     const getNativeTimelineStart = () => {
       const seekable = video.seekable;
@@ -480,6 +531,21 @@ export default function VideoPlayer({
 
     let skipWatchVideoFrameId: number | undefined;
     let skipWatchRafId: number | undefined;
+
+    const clearHlsSkipRefreshInterval = () => {
+      if (hlsSkipRefreshInterval) {
+        clearInterval(hlsSkipRefreshInterval);
+        hlsSkipRefreshInterval = undefined;
+      }
+    };
+
+    const deferDestroyHls = () => {
+      const currentHls = hls;
+      hls = null;
+      setTimeout(() => {
+        currentHls?.destroy();
+      }, 0);
+    };
 
     const cancelSkipWatch = () => {
       const videoWithFrameCallback = video as VideoWithFrameCallback;
@@ -659,45 +725,63 @@ export default function VideoPlayer({
       }
     };
 
+    let networkRecoveryAttempts = 0;
+    let mediaRecoveryAttempts = 0;
+    const resetRecoveryAttempts = () => {
+      networkRecoveryAttempts = 0;
+      mediaRecoveryAttempts = 0;
+    };
+
     const initHls = () => {
-      const useNative = !autoSkip || !Hls.isSupported();
+      const supportsNativeHls = Boolean(
+        video.canPlayType("application/vnd.apple.mpegurl"),
+      );
+      const supportsHlsJs = Hls.isSupported();
+      const useNative = supportsNativeHls && (!autoSkip || !supportsHlsJs);
 
       const initialTime = initialProgress;
 
       if (useNative) {
-        if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = videoUrl;
+        video.src = videoUrl;
 
-          const onLoadedMetadata = () => {
-            if (initialTime > 0) {
-              video.currentTime = initialTime;
-            }
-            if (autoSkip) {
+        const onLoadedMetadata = () => {
+          setPlayerStatus("ready");
+          if (initialTime > 0) {
+            video.currentTime = initialTime;
+          }
+          if (autoSkip) {
+            void updateSkipRanges({
+              timelineStart: getNativeTimelineStart(),
+            });
+            nativeSkipRefreshInterval = setInterval(() => {
               void updateSkipRanges({
                 timelineStart: getNativeTimelineStart(),
               });
-              nativeSkipRefreshInterval = setInterval(() => {
-                void updateSkipRanges({
-                  timelineStart: getNativeTimelineStart(),
-                });
-              }, SKIP_RANGE_REFRESH_INTERVAL_MS);
-            }
-            if (autoPlay) video.play().catch(() => {});
-          };
+            }, SKIP_RANGE_REFRESH_INTERVAL_MS);
+          }
+          if (autoPlay) void attemptPlay();
+        };
 
-          video.addEventListener("loadedmetadata", onLoadedMetadata, {
-            once: true,
-          });
-          video.load();
-        }
+        nativeLoadedMetadataListener = onLoadedMetadata;
+        video.addEventListener("loadedmetadata", onLoadedMetadata, {
+          once: true,
+        });
+        video.load();
+        return;
+      }
+
+      if (!supportsHlsJs) {
+        setPlayerStatus("unsupported");
         return;
       }
 
       hls = new Hls({
+        backBufferLength: playbackProfile === "short-drama" ? 15 : 60,
+        capLevelOnFPSDrop: true,
+        capLevelToPlayerSize: true,
         startPosition: initialTime,
         ...(playbackProfile === "short-drama"
           ? {
-              backBufferLength: 15,
               fragLoadingMaxRetry: 2,
               manifestLoadingMaxRetry: 2,
               maxBufferLength: 12,
@@ -706,8 +790,8 @@ export default function VideoPlayer({
             }
           : {}),
       });
-
       hls.on(Hls.Events.FRAG_CHANGED, (_event, data) => {
+        resetRecoveryAttempts();
         updateFragmentTimelineFromMedia(data.frag);
         recordHlsEvent(Hls.Events.FRAG_CHANGED, {
           cc: data.frag?.cc,
@@ -724,6 +808,7 @@ export default function VideoPlayer({
       });
 
       hls.on(Hls.Events.FRAG_BUFFERED, (_event, data) => {
+        resetRecoveryAttempts();
         updateFragmentTimelineFromMedia(data.frag);
         recordHlsEvent(Hls.Events.FRAG_BUFFERED, {
           cc: data.frag?.cc,
@@ -748,6 +833,7 @@ export default function VideoPlayer({
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        resetRecoveryAttempts();
         if (!autoSkip) return;
 
         const timelineStart = data.details.fragmentStart;
@@ -782,8 +868,10 @@ export default function VideoPlayer({
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        resetRecoveryAttempts();
         recordHlsEvent(Hls.Events.MANIFEST_PARSED);
-        if (autoPlay) video.play().catch(() => {});
+        setPlayerStatus("ready");
+        if (autoPlay) void attemptPlay();
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -796,13 +884,31 @@ export default function VideoPlayer({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              hls?.startLoad();
+              networkRecoveryAttempts += 1;
+              if (networkRecoveryAttempts <= 2) {
+                setPlayerStatus("loading");
+                hls?.startLoad();
+              } else {
+                setPlayerStatus("fatal-error");
+                hls?.stopLoad();
+                clearHlsSkipRefreshInterval();
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              hls?.recoverMediaError();
+              mediaRecoveryAttempts += 1;
+              if (mediaRecoveryAttempts <= 1) {
+                setPlayerStatus("loading");
+                hls?.recoverMediaError();
+              } else {
+                setPlayerStatus("fatal-error");
+                deferDestroyHls();
+                clearHlsSkipRefreshInterval();
+              }
               break;
             default:
-              hls?.destroy();
+              setPlayerStatus("fatal-error");
+              deferDestroyHls();
+              clearHlsSkipRefreshInterval();
               break;
           }
         }
@@ -811,14 +917,33 @@ export default function VideoPlayer({
       hls.loadSource(videoUrl);
 
       // Set up AirPlay wireless listeners (handles attachMedia + fallback source)
-      cleanupWirelessListeners = setupWirelessListeners();
+      if (supportsWebkitRemotePlayback) {
+        cleanupWirelessListeners = setupWirelessListeners();
+      } else {
+        attachHls();
+      }
+    };
+    const handleMediaError = () => {
+      setPlayerStatus("fatal-error");
+      if (nativeSkipRefreshInterval) {
+        clearInterval(nativeSkipRefreshInterval);
+        nativeSkipRefreshInterval = undefined;
+      }
+      clearHlsSkipRefreshInterval();
+      deferDestroyHls();
+    };
+    const handlePlaying = () => {
+      resetRecoveryAttempts();
+      setPlayerStatus("ready");
     };
 
     video.addEventListener("seeking", handleSeeking, { passive: true });
     video.addEventListener("loadedmetadata", reportVideoMetadata);
     video.addEventListener("play", queueSkipWatch, { passive: true });
+    video.addEventListener("playing", handlePlaying, { passive: true });
     video.addEventListener("pause", cancelSkipWatch);
     video.addEventListener("ended", cancelSkipWatch);
+    video.addEventListener("error", handleMediaError);
     initHls();
 
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
@@ -858,8 +983,16 @@ export default function VideoPlayer({
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("loadedmetadata", reportVideoMetadata);
       video.removeEventListener("play", queueSkipWatch);
+      video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("pause", cancelSkipWatch);
       video.removeEventListener("ended", cancelSkipWatch);
+      video.removeEventListener("error", handleMediaError);
+      if (nativeLoadedMetadataListener) {
+        video.removeEventListener(
+          "loadedmetadata",
+          nativeLoadedMetadataListener,
+        );
+      }
       cancelSkipWatch();
       cleanupWirelessListeners?.();
       clearInterval(nativeSkipRefreshInterval);
@@ -867,8 +1000,14 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       manifestParseController.abort();
       hls?.destroy();
+      hls = null;
+      for (const source of Array.from(video.querySelectorAll("source"))) {
+        source.remove();
+      }
+      video.removeAttribute("src");
+      video.load();
     };
-  }, [videoUrl, autoPlay, autoSkip, playbackProfile]);
+  }, [videoUrl, autoPlay, autoSkip, playbackProfile, retryNonce]);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -927,7 +1066,7 @@ export default function VideoPlayer({
         case "k": // Play/Pause
           e.preventDefault();
           if (video.paused) {
-            video.play().catch(() => {});
+            void attemptPlay();
           } else {
             video.pause();
           }
@@ -975,6 +1114,10 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
+  }, [attemptPlay]);
+
+  const handleRetryPlayback = React.useCallback(() => {
+    setRetryNonce((nonce) => nonce + 1);
   }, []);
 
   // ── Wake Lock & Visibility Changes ──────────────────────────────────────────────
@@ -1082,6 +1225,53 @@ export default function VideoPlayer({
           </a>
         </p>
       </video>
+      {playerStatus !== "idle" && playerStatus !== "ready" && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 p-4 text-center backdrop-blur-sm">
+          {playerStatus === "loading" && (
+            <div className="text-sm font-medium text-muted-foreground">
+              {dictionary.watch["player-loading"]}
+            </div>
+          )}
+          {playerStatus === "autoplay-blocked" && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => void attemptPlay()}
+            >
+              <Play className="size-4" />
+              {dictionary.watch["player-click-to-play"]}
+            </button>
+          )}
+          {(playerStatus === "fatal-error" ||
+            playerStatus === "unsupported") && (
+            <div className="flex max-w-sm flex-col items-center gap-3">
+              <p className="text-sm font-medium text-foreground">
+                {playerStatus === "unsupported"
+                  ? dictionary.watch["player-unsupported"]
+                  : dictionary.watch["player-error"]}
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {playerStatus === "fatal-error" && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={handleRetryPlayback}
+                  >
+                    <RotateCcw className="size-4" />
+                    {dictionary.watch["player-retry"]}
+                  </button>
+                )}
+                <a
+                  href={videoUrl}
+                  className="rounded-md border border-border bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {dictionary.watch["download-video"]}
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
