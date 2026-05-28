@@ -417,7 +417,12 @@ export default function VideoPlayer({
     };
 
     const addM3u8FallbackSource = () => {
-      const resolvedUrl = new URL(videoUrl, window.location.href).href;
+      let resolvedUrl = videoUrl;
+      try {
+        resolvedUrl = new URL(videoUrl, window.location.href).href;
+      } catch (err) {
+        console.warn("[VideoPlayer] Failed to resolve video URL:", err);
+      }
       const existingFallback = Array.from(video.children).find(
         (child) =>
           child instanceof HTMLSourceElement &&
@@ -924,6 +929,8 @@ export default function VideoPlayer({
         clearInterval(nativeSkipRefreshInterval);
         nativeSkipRefreshInterval = undefined;
       }
+      clearHlsSkipRefreshInterval();
+      deferDestroyHls();
     };
     const handlePlaying = () => {
       resetRecoveryAttempts();
