@@ -534,6 +534,14 @@ export default function VideoPlayer({
       }
     };
 
+    const deferDestroyHls = () => {
+      const currentHls = hls;
+      hls = null;
+      setTimeout(() => {
+        currentHls?.destroy();
+      }, 0);
+    };
+
     const cancelSkipWatch = () => {
       const videoWithFrameCallback = video as VideoWithFrameCallback;
       if (skipWatchVideoFrameId !== undefined) {
@@ -888,15 +896,13 @@ export default function VideoPlayer({
                 hls?.recoverMediaError();
               } else {
                 setPlayerStatus("fatal-error");
-                hls?.destroy();
-                hls = null;
+                deferDestroyHls();
                 clearHlsSkipRefreshInterval();
               }
               break;
             default:
               setPlayerStatus("fatal-error");
-              hls?.destroy();
-              hls = null;
+              deferDestroyHls();
               clearHlsSkipRefreshInterval();
               break;
           }
