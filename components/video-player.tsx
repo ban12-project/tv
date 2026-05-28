@@ -527,6 +527,13 @@ export default function VideoPlayer({
     let skipWatchVideoFrameId: number | undefined;
     let skipWatchRafId: number | undefined;
 
+    const clearHlsSkipRefreshInterval = () => {
+      if (hlsSkipRefreshInterval) {
+        clearInterval(hlsSkipRefreshInterval);
+        hlsSkipRefreshInterval = undefined;
+      }
+    };
+
     const cancelSkipWatch = () => {
       const videoWithFrameCallback = video as VideoWithFrameCallback;
       if (skipWatchVideoFrameId !== undefined) {
@@ -871,6 +878,7 @@ export default function VideoPlayer({
               } else {
                 setPlayerStatus("fatal-error");
                 hls?.stopLoad();
+                clearHlsSkipRefreshInterval();
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -882,12 +890,14 @@ export default function VideoPlayer({
                 setPlayerStatus("fatal-error");
                 hls?.destroy();
                 hls = null;
+                clearHlsSkipRefreshInterval();
               }
               break;
             default:
               setPlayerStatus("fatal-error");
               hls?.destroy();
               hls = null;
+              clearHlsSkipRefreshInterval();
               break;
           }
         }
