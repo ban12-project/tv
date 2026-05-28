@@ -499,6 +499,7 @@ export default function VideoPlayer({
     let cleanupWirelessListeners: (() => void) | undefined;
     let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let hlsSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let nativeLoadedMetadataListener: (() => void) | undefined;
     let latestSkipRangeRequestId = 0;
     let latestPlaylistText: string | undefined;
     let latestPlaylistUrl: string | undefined;
@@ -739,6 +740,7 @@ export default function VideoPlayer({
           if (autoPlay) void attemptPlay();
         };
 
+        nativeLoadedMetadataListener = onLoadedMetadata;
         video.addEventListener("loadedmetadata", onLoadedMetadata, {
           once: true,
         });
@@ -877,11 +879,13 @@ export default function VideoPlayer({
               } else {
                 setPlayerStatus("fatal-error");
                 hls?.destroy();
+                hls = null;
               }
               break;
             default:
               setPlayerStatus("fatal-error");
               hls?.destroy();
+              hls = null;
               break;
           }
         }
@@ -952,6 +956,12 @@ export default function VideoPlayer({
       video.removeEventListener("pause", cancelSkipWatch);
       video.removeEventListener("ended", cancelSkipWatch);
       video.removeEventListener("error", handleMediaError);
+      if (nativeLoadedMetadataListener) {
+        video.removeEventListener(
+          "loadedmetadata",
+          nativeLoadedMetadataListener,
+        );
+      }
       cancelSkipWatch();
       cleanupWirelessListeners?.();
       clearInterval(nativeSkipRefreshInterval);
@@ -959,6 +969,12 @@ export default function VideoPlayer({
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
       manifestParseController.abort();
       hls?.destroy();
+      hls = null;
+      for (const source of Array.from(video.querySelectorAll("source"))) {
+        source.remove();
+      }
+      video.removeAttribute("src");
+      video.load();
     };
   }, [videoUrl, autoPlay, autoSkip, playbackProfile, retryNonce]);
 
