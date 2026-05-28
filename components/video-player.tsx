@@ -353,7 +353,7 @@ export default function VideoPlayer({
     onEndedAdvance?.();
   });
 
-  const attemptPlay = React.useEffectEvent(async () => {
+  const attemptPlay = React.useCallback(async () => {
     const video = videoRef.current;
     if (!video) return false;
 
@@ -374,7 +374,7 @@ export default function VideoPlayer({
       }
       return false;
     }
-  });
+  }, []);
 
   React.useEffect(() => {
     if (playbackProfile !== "short-drama" || !nextVideoUrl) return;
@@ -416,11 +416,12 @@ export default function VideoPlayer({
     };
 
     const addM3u8FallbackSource = () => {
+      const resolvedUrl = new URL(videoUrl, window.location.href).href;
       const existingFallback = Array.from(video.children).find(
         (child) =>
           child instanceof HTMLSourceElement &&
           child.type === "application/x-mpegURL" &&
-          child.getAttribute("src") === videoUrl,
+          child.src === resolvedUrl,
       );
       if (existingFallback) return;
 
@@ -713,7 +714,7 @@ export default function VideoPlayer({
         video.canPlayType("application/vnd.apple.mpegurl"),
       );
       const supportsHlsJs = Hls.isSupported();
-      const useNative = supportsNativeHls && !supportsHlsJs;
+      const useNative = supportsNativeHls && (!autoSkip || !supportsHlsJs);
 
       const initialTime = initialProgress;
 
@@ -1066,7 +1067,7 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [attemptPlay]);
 
   const handleRetryPlayback = React.useCallback(() => {
     setRetryNonce((nonce) => nonce + 1);
