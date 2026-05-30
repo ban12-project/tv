@@ -8,7 +8,7 @@ import type { Locale } from "@/i18n-config";
 import {
   fetchVideoDetails,
   getContentProfile,
-  getEpisodeAspectRatio,
+  getEpisodeLayoutMetadata,
 } from "@/lib/actions/content";
 import { getWatchProgress } from "@/lib/actions/history";
 import {
@@ -40,15 +40,17 @@ export default async function WatchPage({ params }: Props) {
 
   let dictionary: Awaited<ReturnType<typeof getDictionary>>;
   let video: Awaited<ReturnType<typeof fetchVideoDetails>>;
-  let initialAspectRatio: Awaited<ReturnType<typeof getEpisodeAspectRatio>>;
+  let initialLayoutMetadata: Awaited<
+    ReturnType<typeof getEpisodeLayoutMetadata>
+  >;
   let cachedContentProfile: Awaited<ReturnType<typeof getContentProfile>>;
 
   try {
-    [dictionary, video, initialAspectRatio, cachedContentProfile] =
+    [dictionary, video, initialLayoutMetadata, cachedContentProfile] =
       await Promise.all([
         dictionaryPromise,
         fetchVideoDetails(id, decodedSourceId),
-        getEpisodeAspectRatio({
+        getEpisodeLayoutMetadata({
           sourceId: decodedSourceId,
           videoId: id,
         }),
@@ -74,6 +76,7 @@ export default async function WatchPage({ params }: Props) {
 
   // Promise for checking status (don't await here)
   const isRecommendedPromise = checkIsRecommended(decodedSourceId, id);
+  const initialAspectRatio = initialLayoutMetadata?.aspectRatio ?? null;
   const initialContentProfile = mergeContentProfiles(
     cachedContentProfile,
     inferContentProfile(video, { aspectRatio: initialAspectRatio }),

@@ -154,9 +154,23 @@ function getPlaylistDebugExcerpt(
   return playlistText.slice(start, start + AD_DEBUG_PLAYLIST_EXCERPT_LIMIT);
 }
 
+function parseAspectRatio(value?: string | null) {
+  if (!value) return null;
+
+  const [rawWidth, rawHeight] = value
+    .split("/")
+    .map((part) => Number.parseFloat(part.trim()));
+  if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) return null;
+  if (rawWidth <= 0 || rawHeight <= 0) return null;
+
+  return rawWidth / rawHeight;
+}
+
 interface VideoPlayerProps extends React.ComponentProps<"div"> {
   videoUrl: string;
   poster?: string;
+  layoutAspectRatio?: string | null;
+  mediaAspectRatio?: string | null;
   autoPlay?: boolean;
   autoSkip?: boolean;
   hlsResourcePromise: Promise<typeof import("hls.js").default>;
@@ -173,6 +187,8 @@ interface VideoPlayerProps extends React.ComponentProps<"div"> {
 export default function VideoPlayer({
   videoUrl,
   poster,
+  layoutAspectRatio,
+  mediaAspectRatio,
   autoPlay = false,
   autoSkip = true,
   hlsResourcePromise,
@@ -206,6 +222,28 @@ export default function VideoPlayer({
   const restoredProgressKeyRef = React.useRef<string | null>(null);
   const [playerStatus, setPlayerStatus] = React.useState<PlayerStatus>("idle");
   const [retryNonce, setRetryNonce] = React.useState(0);
+  const containerRatio = parseAspectRatio(layoutAspectRatio) ?? 16 / 9;
+  const mediaRatio = parseAspectRatio(mediaAspectRatio);
+  const mediaBoxStyle = React.useMemo<React.CSSProperties>(() => {
+    if (!mediaRatio) {
+      return {
+        height: "100%",
+        width: "100%",
+      };
+    }
+
+    if (mediaRatio > containerRatio) {
+      return {
+        height: `${(containerRatio / mediaRatio) * 100}%`,
+        width: "100%",
+      };
+    }
+
+    return {
+      height: "100%",
+      width: `${(mediaRatio / containerRatio) * 100}%`,
+    };
+  }, [containerRatio, mediaRatio]);
 
   const recordHlsEvent = React.useCallback(
     (name: string, details?: Record<string, unknown>) => {
@@ -1208,23 +1246,28 @@ export default function VideoPlayer({
       {...props}
       className={cn("relative rounded-lg overflow-hidden", props.className)}
     >
-      <video
-        ref={videoRef}
-        className="size-full transition-opacity duration-500"
-        poster={poster}
-        playsInline
-        preload="metadata"
-        controls
-        autoPlay={autoPlay}
+      <div
+        className="absolute inset-0 m-auto max-h-full max-w-full transition-[width,height] duration-300 ease-out"
+        style={mediaBoxStyle}
       >
-        <track kind="captions" srcLang="en" />
-        <p className="text-zinc-400 p-4">
-          {dictionary.watch["browser-no-video"]}
-          <a href={videoUrl} className="text-primary underline ml-1">
-            {dictionary.watch["download-video"]}
-          </a>
-        </p>
-      </video>
+        <video
+          ref={videoRef}
+          className="block size-full object-contain object-center transition-opacity duration-500"
+          poster={poster}
+          playsInline
+          preload="metadata"
+          controls
+          autoPlay={autoPlay}
+        >
+          <track kind="captions" srcLang="en" />
+          <p className="text-zinc-400 p-4">
+            {dictionary.watch["browser-no-video"]}
+            <a href={videoUrl} className="text-primary underline ml-1">
+              {dictionary.watch["download-video"]}
+            </a>
+          </p>
+        </video>
+      </div>
       {playerStatus !== "idle" && playerStatus !== "ready" && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 p-4 text-center backdrop-blur-sm">
           {playerStatus === "loading" && (

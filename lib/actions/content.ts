@@ -55,6 +55,12 @@ const saveContentProfileSchema = z.object({
 const PLAYER_LAYOUT_METADATA_KEY = "player-layout";
 const CONTENT_PROFILE_METADATA_KEY = "content-profile";
 
+export interface EpisodeLayoutMetadata {
+  aspectRatio: string;
+  width?: number;
+  height?: number;
+}
+
 function getEpisodeAspectRatioTag(sourceId: string, videoId: string) {
   return `episode-aspect-ratio:${sourceId}:${videoId}`;
 }
@@ -165,6 +171,14 @@ export async function getEpisodeAspectRatio(payload: {
   sourceId: string;
   videoId: string;
 }) {
+  const layoutMetadata = await getEpisodeLayoutMetadata(payload);
+  return layoutMetadata?.aspectRatio ?? null;
+}
+
+export async function getEpisodeLayoutMetadata(payload: {
+  sourceId: string;
+  videoId: string;
+}): Promise<EpisodeLayoutMetadata | null> {
   "use cache";
   cacheLife("days");
 
@@ -183,15 +197,25 @@ export async function getEpisodeAspectRatio(payload: {
       videoId,
       PLAYER_LAYOUT_METADATA_KEY,
     );
-    const cachedAspectRatio = cachedMetadata[0]?.metadata?.aspectRatio as
-      | string
+    const metadata = cachedMetadata[0]?.metadata as
+      | Record<string, unknown>
+      | null
       | undefined;
+    const cachedAspectRatio =
+      typeof metadata?.aspectRatio === "string"
+        ? metadata.aspectRatio
+        : undefined;
 
     if (cachedAspectRatio) {
-      return cachedAspectRatio;
+      return {
+        aspectRatio: cachedAspectRatio,
+        height:
+          typeof metadata?.height === "number" ? metadata.height : undefined,
+        width: typeof metadata?.width === "number" ? metadata.width : undefined,
+      };
     }
   } catch (error) {
-    console.error("[getEpisodeAspectRatio] DB read error:", error);
+    console.error("[getEpisodeLayoutMetadata] DB read error:", error);
     return null;
   }
 

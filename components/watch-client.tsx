@@ -96,7 +96,7 @@ export default function WatchClient({
   );
   const lastSyncTimeRef = React.useRef<number>(0);
   const knownAspectRatioKeysRef = React.useRef(new Set<string>());
-  const aspectRatioCacheRef = React.useRef(new Map<string, string>());
+  const mediaAspectRatioCacheRef = React.useRef(new Map<string, string>());
   const savedProfileKeysRef = React.useRef(new Set<string>());
   const activeEpisodeItemRef = React.useRef<HTMLLIElement | null>(null);
   const promptedAdFeedbackKeysRef = React.useRef(new Set<string>());
@@ -145,7 +145,7 @@ export default function WatchClient({
 
     if (initialAspectRatio) {
       knownAspectRatioKeysRef.current.add(initialKey);
-      aspectRatioCacheRef.current.set(initialKey, initialAspectRatio);
+      mediaAspectRatioCacheRef.current.set(initialKey, initialAspectRatio);
     }
   }, [initialAspectRatio, initialSourceId, video.id]);
 
@@ -241,16 +241,16 @@ export default function WatchClient({
   const currentEpisode = currentSource.episodes[activeEpisodeIndex];
   const showEpisodeList = currentSource.episodes.length > 1;
   const currentAspectRatioKey = `${currentSource.sourceId}:${currentSource.videoId}`;
-  const aspectRatio =
-    aspectRatioCacheRef.current.get(currentAspectRatioKey) ??
+  const mediaAspectRatio =
+    mediaAspectRatioCacheRef.current.get(currentAspectRatioKey) ??
     (currentAspectRatioKey === `${initialSourceId}:${video.id}`
       ? (initialAspectRatio ?? null)
       : null);
   const playbackKind = getPlaybackKind(contentProfile);
   const isShortDrama = playbackKind === "short-drama";
-  const isPortraitPlayer =
+  const isPortraitPlayerLayout =
     isShortDrama &&
-    (isPortraitAspectRatio(aspectRatio) ||
+    (isPortraitAspectRatio(mediaAspectRatio) ||
       contentProfile.signals.includes("portrait-video"));
   const previousEpisodeIndex = activeEpisodeIndex - 1;
   const nextEpisodeIndex = activeEpisodeIndex + 1;
@@ -261,9 +261,9 @@ export default function WatchClient({
     : undefined;
   const playerShellClassName = cn(
     "w-full mx-auto lg:px-6",
-    isPortraitPlayer ? "max-w-md sm:max-w-lg" : "max-w-7xl",
+    isPortraitPlayerLayout ? "max-w-md sm:max-w-lg" : "max-w-7xl",
   );
-  const playerAspectRatio = aspectRatio ?? (isPortraitPlayer ? "9 / 16" : null);
+  const playerAspectRatio = isPortraitPlayerLayout ? "9 / 16" : "16 / 9";
   const setActiveEpisodeItem = React.useCallback(
     (node: HTMLLIElement | null) => {
       activeEpisodeItemRef.current = node;
@@ -419,16 +419,17 @@ export default function WatchClient({
       if (width <= 0 || height <= 0) return;
 
       const nextAspectRatio = `${width} / ${height}`;
-      aspectRatioCacheRef.current.set(currentAspectRatioKey, nextAspectRatio);
+      mediaAspectRatioCacheRef.current.set(
+        currentAspectRatioKey,
+        nextAspectRatio,
+      );
+      const inferredProfile = inferContentProfile(video, {
+        aspectRatio: nextAspectRatio,
+        width,
+        height,
+      });
       setContentProfile((current) =>
-        mergeContentProfiles(
-          current,
-          inferContentProfile(video, {
-            aspectRatio: nextAspectRatio,
-            width,
-            height,
-          }),
-        ),
+        mergeContentProfiles(current, inferredProfile),
       );
 
       if (knownAspectRatioKeysRef.current.has(currentAspectRatioKey)) {
@@ -502,10 +503,10 @@ export default function WatchClient({
               <div
                 className={cn(
                   "bg-muted animate-pulse rounded-lg",
-                  isPortraitPlayer ? "aspect-[9/16]" : "aspect-video",
+                  isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
                 )}
                 style={{
-                  aspectRatio: playerAspectRatio ?? undefined,
+                  aspectRatio: playerAspectRatio,
                 }}
               />
             </div>
@@ -514,11 +515,13 @@ export default function WatchClient({
           <div className={playerShellClassName}>
             <VideoPlayer
               className={cn(
-                isPortraitPlayer ? "aspect-[9/16]" : "aspect-video",
+                isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
               )}
               style={{
-                aspectRatio: playerAspectRatio ?? undefined,
+                aspectRatio: playerAspectRatio,
               }}
+              layoutAspectRatio={playerAspectRatio}
+              mediaAspectRatio={mediaAspectRatio}
               videoUrl={currentEpisode.url}
               poster={video.backgroundImage || video.image}
               autoPlay={true}
