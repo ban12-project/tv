@@ -1247,7 +1247,7 @@ export default function VideoPlayer({
       className={cn("relative rounded-lg overflow-hidden", props.className)}
     >
       <div
-        className="absolute top-1/2 left-1/2 max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 transition-[width,height,transform] duration-300 ease-out will-change-transform"
+        className="absolute inset-0 m-auto max-h-full max-w-full transition-[width,height] duration-300 ease-out"
         style={mediaBoxStyle}
       >
         <video

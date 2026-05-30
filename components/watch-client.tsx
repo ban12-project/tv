@@ -253,7 +253,7 @@ export default function WatchClient({
   const isShortDrama = playbackKind === "short-drama";
   const isPortraitPlayerLayout =
     isShortDrama &&
-    (isPortraitAspectRatio(contentProfile.aspectRatio) ||
+    (isPortraitAspectRatio(mediaAspectRatio) ||
       contentProfile.signals.includes("portrait-video"));
   const previousEpisodeIndex = activeEpisodeIndex - 1;
   const nextEpisodeIndex = activeEpisodeIndex + 1;
