@@ -96,11 +96,6 @@ export default function WatchClient({
       ? initialContentProfile
       : inferContentProfile(video, { aspectRatio: initialAspectRatio }),
   );
-  const [layoutContentProfile, setLayoutContentProfile] = React.useState(() =>
-    initialContentProfile
-      ? initialContentProfile
-      : inferContentProfile(video, { aspectRatio: initialAspectRatio }),
-  );
   const lastSyncTimeRef = React.useRef<number>(0);
   const knownAspectRatioKeysRef = React.useRef(new Set<string>());
   const mediaAspectRatioCacheRef = React.useRef(new Map<string, string>());
@@ -255,12 +250,11 @@ export default function WatchClient({
       ? (initialMediaAspectRatio ?? initialAspectRatio ?? null)
       : null);
   const playbackKind = getPlaybackKind(contentProfile);
-  const layoutPlaybackKind = getPlaybackKind(layoutContentProfile);
   const isShortDrama = playbackKind === "short-drama";
   const isPortraitPlayerLayout =
-    layoutPlaybackKind === "short-drama" &&
-    (isPortraitAspectRatio(layoutContentProfile.aspectRatio) ||
-      layoutContentProfile.signals.includes("portrait-video"));
+    isShortDrama &&
+    (isPortraitAspectRatio(contentProfile.aspectRatio) ||
+      contentProfile.signals.includes("portrait-video"));
   const previousEpisodeIndex = activeEpisodeIndex - 1;
   const nextEpisodeIndex = activeEpisodeIndex + 1;
   const hasPreviousEpisode = previousEpisodeIndex >= 0;
@@ -291,9 +285,6 @@ export default function WatchClient({
     if (!sourceProfile) return;
 
     setContentProfile((current) =>
-      mergeContentProfiles(current, sourceProfile),
-    );
-    setLayoutContentProfile((current) =>
       mergeContentProfiles(current, sourceProfile),
     );
   }, [currentSource.contentProfile]);
@@ -359,9 +350,6 @@ export default function WatchClient({
     const sourceProfile = newSource?.contentProfile;
     if (sourceProfile) {
       setContentProfile((current) =>
-        mergeContentProfiles(current, sourceProfile),
-      );
-      setLayoutContentProfile((current) =>
         mergeContentProfiles(current, sourceProfile),
       );
     }
@@ -444,9 +432,6 @@ export default function WatchClient({
         height,
       });
       setContentProfile((current) =>
-        mergeContentProfiles(current, inferredProfile),
-      );
-      setLayoutContentProfile((current) =>
         mergeContentProfiles(current, inferredProfile),
       );
 
