@@ -55,7 +55,6 @@ interface WatchClientProps {
   initialSourceId: string;
   progressPromise?: Promise<WatchProgress | null>;
   initialAspectRatio?: string | null;
-  initialMediaAspectRatio?: string | null;
   initialContentProfile?: ContentProfile | null;
 }
 
@@ -70,7 +69,6 @@ export default function WatchClient({
   initialSourceId,
   progressPromise,
   initialAspectRatio,
-  initialMediaAspectRatio,
   initialContentProfile,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
@@ -144,13 +142,12 @@ export default function WatchClient({
 
   React.useEffect(() => {
     const initialKey = `${initialSourceId}:${video.id}`;
-    const initialMediaRatio = initialMediaAspectRatio ?? initialAspectRatio;
 
-    if (initialMediaRatio) {
+    if (initialAspectRatio) {
       knownAspectRatioKeysRef.current.add(initialKey);
-      mediaAspectRatioCacheRef.current.set(initialKey, initialMediaRatio);
+      mediaAspectRatioCacheRef.current.set(initialKey, initialAspectRatio);
     }
-  }, [initialAspectRatio, initialMediaAspectRatio, initialSourceId, video.id]);
+  }, [initialAspectRatio, initialSourceId, video.id]);
 
   // Sync state with URL changes (supports pushState and browser back/forward)
   React.useEffect(() => {
@@ -247,7 +244,7 @@ export default function WatchClient({
   const mediaAspectRatio =
     mediaAspectRatioCacheRef.current.get(currentAspectRatioKey) ??
     (currentAspectRatioKey === `${initialSourceId}:${video.id}`
-      ? (initialMediaAspectRatio ?? initialAspectRatio ?? null)
+      ? (initialAspectRatio ?? null)
       : null);
   const playbackKind = getPlaybackKind(contentProfile);
   const isShortDrama = playbackKind === "short-drama";

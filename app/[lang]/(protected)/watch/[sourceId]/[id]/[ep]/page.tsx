@@ -117,7 +117,6 @@ export default async function WatchPage({ params }: Props) {
         initialSourceId={decodedSourceId}
         progressPromise={progressPromise}
         initialAspectRatio={initialAspectRatio}
-        initialMediaAspectRatio={initialLayoutMetadata?.aspectRatio ?? null}
         initialContentProfile={initialContentProfile}
       />
 

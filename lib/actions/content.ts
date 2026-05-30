@@ -197,7 +197,10 @@ export async function getEpisodeLayoutMetadata(payload: {
       videoId,
       PLAYER_LAYOUT_METADATA_KEY,
     );
-    const metadata = cachedMetadata[0]?.metadata;
+    const metadata = cachedMetadata[0]?.metadata as
+      | Record<string, unknown>
+      | null
+      | undefined;
     const cachedAspectRatio =
       typeof metadata?.aspectRatio === "string"
         ? metadata.aspectRatio
