@@ -50,9 +50,14 @@ export function useVideoSearch(
 
   const currentSearchRef = React.useRef(0);
   const initialQueryRef = React.useRef(initialQuery);
+  const initialResultsRef = React.useRef(initialResults);
   const prevInitialQueryRef = React.useRef(initialQuery);
   const isComposingRef = React.useRef(false);
   const skipInitialRef = React.useRef(true);
+
+  React.useEffect(() => {
+    initialResultsRef.current = initialResults;
+  }, [initialResults]);
 
   React.useEffect(() => {
     initialQueryRef.current = initialQuery;
@@ -63,14 +68,16 @@ export function useVideoSearch(
     setQuery(initialQuery);
     setSearchTerm(initialQuery);
     setDebouncedSearchTerm(initialQuery);
-    setResults(sortVideos(initialResults, initialQuery));
+    setResults(sortVideos(initialResultsRef.current, initialQuery));
     setIsPending(false);
     setError(null);
     currentSearchRef.current += 1;
     skipInitialRef.current = true;
-  }, [initialQuery, initialResults]);
+  }, [initialQuery]);
 
   React.useEffect(() => {
+    if (searchTerm === debouncedSearchTerm) return;
+
     if (!searchTerm) {
       setDebouncedSearchTerm("");
       return;
@@ -81,7 +88,7 @@ export function useVideoSearch(
     }, debounceMs);
 
     return () => window.clearTimeout(timeoutId);
-  }, [searchTerm, debounceMs]);
+  }, [searchTerm, debounceMs, debouncedSearchTerm]);
 
   React.useEffect(() => {
     if (skipInitialRef.current) {
