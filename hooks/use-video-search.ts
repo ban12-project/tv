@@ -50,10 +50,15 @@ export function useVideoSearch(
   const [error, setError] = React.useState<string | null>(null);
 
   const currentSearchRef = React.useRef(0);
+  const initialQueryRef = React.useRef(initialQuery);
   const isComposingRef = React.useRef(false);
   const skipInitialRef = React.useRef(true);
 
-  if (initialQuery !== prevInitialQuery) {
+  React.useEffect(() => {
+    initialQueryRef.current = initialQuery;
+
+    if (initialQuery === prevInitialQuery) return;
+
     setQuery(initialQuery);
     setSearchTerm(initialQuery);
     setDebouncedSearchTerm(initialQuery);
@@ -63,9 +68,14 @@ export function useVideoSearch(
     setError(null);
     currentSearchRef.current += 1;
     skipInitialRef.current = true;
-  }
+  }, [initialQuery, prevInitialQuery, initialResults]);
 
   React.useEffect(() => {
+    if (!searchTerm) {
+      setDebouncedSearchTerm("");
+      return;
+    }
+
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, debounceMs);
@@ -76,7 +86,7 @@ export function useVideoSearch(
   React.useEffect(() => {
     if (skipInitialRef.current) {
       skipInitialRef.current = false;
-      if (debouncedSearchTerm === initialQuery) return;
+      if (debouncedSearchTerm === initialQueryRef.current) return;
     }
 
     const fetchVideos = async () => {
@@ -146,7 +156,7 @@ export function useVideoSearch(
     };
 
     fetchVideos();
-  }, [debouncedSearchTerm, initialQuery]);
+  }, [debouncedSearchTerm]);
 
   const onQueryChange = React.useCallback((value: string) => {
     setQuery(value);
