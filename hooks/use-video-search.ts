@@ -80,49 +80,49 @@ export function useVideoSearch(
   }, [query, searchTerm, debouncedSearchTerm]);
 
   React.useEffect(() => {
-    if (
-      initialResultsSignature === prevInitialResultsSignatureRef.current ||
-      initialQuery !== prevInitialQueryRef.current
-    ) {
+    initialQueryRef.current = initialQuery;
+
+    const queryChanged = initialQuery !== prevInitialQueryRef.current;
+    const resultsChanged =
+      initialResultsSignature !== prevInitialResultsSignatureRef.current;
+
+    if (!queryChanged && !resultsChanged) {
       return;
     }
+
+    if (queryChanged) {
+      prevInitialQueryRef.current = initialQuery;
+      prevInitialResultsSignatureRef.current = initialResultsSignature;
+
+      setQuery(initialQuery);
+      setSearchTerm(initialQuery);
+      setDebouncedSearchTerm(initialQuery);
+      setResults(sortVideos(initialResultsRef.current, initialQuery));
+      setIsPending(false);
+      setError(null);
+      currentSearchRef.current += 1;
+      skipInitialRef.current = true;
+      return;
+    }
+
     prevInitialResultsSignatureRef.current = initialResultsSignature;
 
     const localSearchState = localSearchStateRef.current;
     if (
-      localSearchState.query !== initialQuery ||
-      localSearchState.searchTerm !== initialQuery ||
-      localSearchState.debouncedSearchTerm !== initialQuery
+      localSearchState.query === initialQuery &&
+      localSearchState.searchTerm === initialQuery &&
+      localSearchState.debouncedSearchTerm === initialQuery
     ) {
-      return;
+      setResults(sortVideos(initialResultsRef.current, initialQuery));
+      setIsPending(false);
+      setError(null);
+      currentSearchRef.current += 1;
+      skipInitialRef.current = true;
     }
-
-    setResults(sortVideos(initialResultsRef.current, initialQuery));
-    setIsPending(false);
-    setError(null);
-    currentSearchRef.current += 1;
-    skipInitialRef.current = true;
   }, [initialQuery, initialResultsSignature]);
 
   React.useEffect(() => {
-    initialQueryRef.current = initialQuery;
-
-    if (initialQuery === prevInitialQueryRef.current) return;
-    prevInitialQueryRef.current = initialQuery;
-
-    setQuery(initialQuery);
-    setSearchTerm(initialQuery);
-    setDebouncedSearchTerm(initialQuery);
-    setResults(sortVideos(initialResultsRef.current, initialQuery));
-    prevInitialResultsSignatureRef.current = initialResultsSignature;
-    setIsPending(false);
-    setError(null);
-    currentSearchRef.current += 1;
-    skipInitialRef.current = true;
-  }, [initialQuery, initialResultsSignature]);
-
-  React.useEffect(() => {
-    if (searchTerm === debouncedSearchTerm) return;
+    if (searchTerm === localSearchStateRef.current.debouncedSearchTerm) return;
 
     if (!searchTerm) {
       setDebouncedSearchTerm("");
@@ -134,7 +134,7 @@ export function useVideoSearch(
     }, debounceMs);
 
     return () => window.clearTimeout(timeoutId);
-  }, [searchTerm, debounceMs, debouncedSearchTerm]);
+  }, [searchTerm, debounceMs]);
 
   React.useEffect(() => {
     if (skipInitialRef.current) {
