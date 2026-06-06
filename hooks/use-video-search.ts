@@ -1,8 +1,9 @@
 import * as React from "react";
-import { useDebounceValue } from "usehooks-ts";
 import { searchVideosStream } from "@/lib/actions/content";
 import type { Video } from "@/lib/adapters/types";
 import { getVideoUniqueKey } from "@/lib/adapters/util";
+
+const EMPTY_INITIAL_RESULTS: Video[] = [];
 
 /**
  * Helper to calculate relevance score
@@ -35,20 +36,15 @@ function sortVideos(videos: Video[], query: string) {
 export function useVideoSearch(
   debounceMs = 300,
   initialQuery = "",
-  initialResults: Video[] = [],
+  initialResults: Video[] = EMPTY_INITIAL_RESULTS,
 ) {
   const [query, setQuery] = React.useState(initialQuery);
   const [searchTerm, setSearchTerm] = React.useState(initialQuery);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] =
+    React.useState(initialQuery);
   const [prevInitialQuery, setPrevInitialQuery] = React.useState(initialQuery);
-
-  if (initialQuery !== prevInitialQuery) {
-    setQuery(initialQuery);
-    setSearchTerm(initialQuery);
-    setPrevInitialQuery(initialQuery);
-  }
-
-  const [debouncedSearchTerm] = useDebounceValue(searchTerm, debounceMs);
-
+  const [prevInitialResults, setPrevInitialResults] =
+    React.useState(initialResults);
   const [results, setResults] = React.useState<Video[]>(() =>
     sortVideos(initialResults, initialQuery),
   );
@@ -58,6 +54,30 @@ export function useVideoSearch(
   const currentSearchRef = React.useRef(0);
   const isComposingRef = React.useRef(false);
   const skipInitialRef = React.useRef(true);
+
+  if (
+    initialQuery !== prevInitialQuery ||
+    initialResults !== prevInitialResults
+  ) {
+    setQuery(initialQuery);
+    setSearchTerm(initialQuery);
+    setDebouncedSearchTerm(initialQuery);
+    setResults(sortVideos(initialResults, initialQuery));
+    setPrevInitialQuery(initialQuery);
+    setPrevInitialResults(initialResults);
+    setIsPending(false);
+    setError(null);
+    currentSearchRef.current += 1;
+    skipInitialRef.current = true;
+  }
+
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, debounceMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchTerm, debounceMs]);
 
   React.useEffect(() => {
     if (skipInitialRef.current) {
@@ -142,7 +162,7 @@ export function useVideoSearch(
       setSearchTerm("");
       setResults([]);
       setIsPending(false);
-      currentSearchRef.current = Date.now();
+      currentSearchRef.current += 1;
       return;
     }
 

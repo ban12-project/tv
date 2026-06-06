@@ -9,9 +9,11 @@ import { useVideoSearch } from "@/hooks/use-video-search";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
 
+const EMPTY_INITIAL_RESULTS: Video[] = [];
+
 export function HomeSearch({
   dictionary,
-  initialResults = [],
+  initialResults = EMPTY_INITIAL_RESULTS,
 }: {
   dictionary: Messages;
   initialResults?: Video[];
