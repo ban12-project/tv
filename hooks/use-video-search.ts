@@ -33,6 +33,12 @@ function sortVideos(videos: Video[], query: string) {
   });
 }
 
+function getResultsSignature(videos: Video[]) {
+  return JSON.stringify(
+    videos.map((video) => [video.id, video.sourceId, video.uniqueKey]),
+  );
+}
+
 export function useVideoSearch(
   debounceMs = 300,
   initialQuery = "",
@@ -45,19 +51,53 @@ export function useVideoSearch(
   const [results, setResults] = React.useState<Video[]>(() =>
     sortVideos(initialResults, initialQuery),
   );
+  const initialResultsSignature = React.useMemo(
+    () => getResultsSignature(initialResults),
+    [initialResults],
+  );
   const [isPending, setIsPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const currentSearchRef = React.useRef(0);
   const initialQueryRef = React.useRef(initialQuery);
   const initialResultsRef = React.useRef(initialResults);
+  const prevInitialResultsSignatureRef = React.useRef(initialResultsSignature);
   const prevInitialQueryRef = React.useRef(initialQuery);
   const isComposingRef = React.useRef(false);
   const skipInitialRef = React.useRef(true);
 
   React.useEffect(() => {
     initialResultsRef.current = initialResults;
-  }, [initialResults]);
+
+    if (
+      initialResultsSignature === prevInitialResultsSignatureRef.current ||
+      initialQuery !== prevInitialQueryRef.current
+    ) {
+      return;
+    }
+    prevInitialResultsSignatureRef.current = initialResultsSignature;
+
+    if (
+      query !== initialQuery ||
+      searchTerm !== initialQuery ||
+      debouncedSearchTerm !== initialQuery
+    ) {
+      return;
+    }
+
+    setResults(sortVideos(initialResults, initialQuery));
+    setIsPending(false);
+    setError(null);
+    currentSearchRef.current += 1;
+    skipInitialRef.current = true;
+  }, [
+    initialQuery,
+    initialResults,
+    initialResultsSignature,
+    query,
+    searchTerm,
+    debouncedSearchTerm,
+  ]);
 
   React.useEffect(() => {
     initialQueryRef.current = initialQuery;
