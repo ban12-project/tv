@@ -169,6 +169,7 @@ export function useVideoSearch(
 
   return {
     query,
+    debouncedQuery: debouncedSearchTerm,
     setQuery,
     results,
     setResults,

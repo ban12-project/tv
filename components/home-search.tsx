@@ -21,6 +21,7 @@ export function HomeSearch({
 
   const {
     query,
+    debouncedQuery,
     results,
     isPending,
     error,
@@ -30,17 +31,21 @@ export function HomeSearch({
   } = useVideoSearch(300, initialQuery, initialResults);
 
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const { pathname, search, hash } = window.location;
+    const params = new URLSearchParams(search);
     const currentQ = params.get("q") || "";
-    if (currentQ === query) return;
+    if (currentQ === debouncedQuery) return;
 
-    if (query) {
-      params.set("q", query);
+    if (debouncedQuery) {
+      params.set("q", debouncedQuery);
     } else {
       params.delete("q");
     }
-    window.history.replaceState(null, "", `?${params.toString()}`);
-  }, [query]);
+
+    const nextSearch = params.toString();
+    const nextUrl = `${pathname}${nextSearch ? `?${nextSearch}` : ""}${hash}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [debouncedQuery]);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [brandLead, ...brandRest] = dictionary["brand-name"].split(" ");
