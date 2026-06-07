@@ -1244,7 +1244,10 @@ export default function VideoPlayer({
   return (
     <div
       {...props}
-      className={cn("relative rounded-lg overflow-hidden", props.className)}
+      className={cn(
+        "relative rounded-lg overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        props.className,
+      )}
     >
       <div
         className="absolute inset-0 m-auto max-h-full max-w-full transition-[width,height] duration-300 ease-out"
@@ -1252,7 +1255,7 @@ export default function VideoPlayer({
       >
         <video
           ref={videoRef}
-          className="block size-full object-contain object-center transition-opacity duration-500"
+          className="block size-full object-contain object-center transition-opacity duration-500 [&:fullscreen]:outline-none"
           poster={poster}
           playsInline
           preload="metadata"
