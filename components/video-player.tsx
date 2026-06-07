@@ -1245,7 +1245,7 @@ export default function VideoPlayer({
     <div
       {...props}
       className={cn(
-        "relative rounded-lg overflow-hidden focus:outline-none",
+        "relative rounded-lg overflow-hidden focus-visible:outline-none",
         props.className,
       )}
     >
