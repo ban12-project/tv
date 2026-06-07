@@ -1255,7 +1255,7 @@ export default function VideoPlayer({
       >
         <video
           ref={videoRef}
-          className="block size-full object-contain object-center transition-opacity duration-500 fullscreen:outline-none"
+          className="block size-full object-contain object-center transition-opacity duration-500 [&:fullscreen]:outline-none"
           poster={poster}
           playsInline
           preload="metadata"
