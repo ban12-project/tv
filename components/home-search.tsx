@@ -1,7 +1,6 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import * as React from "react";
 import { VideoCard } from "@/components/video-card";
 import type { Messages } from "@/get-dictionary";
@@ -13,13 +12,13 @@ const EMPTY_INITIAL_RESULTS: Video[] = [];
 
 export function HomeSearch({
   dictionary,
+  initialQuery = "",
   initialResults = EMPTY_INITIAL_RESULTS,
 }: {
   dictionary: Messages;
+  initialQuery?: string;
   initialResults?: Video[];
 }) {
-  const searchParams = useSearchParams();
-  const [initialQuery] = React.useState(() => searchParams.get("q") || "");
   const syncSearchUrl = React.useCallback((nextQuery: string) => {
     const { pathname, search, hash } = window.location;
     const params = new URLSearchParams(search);
