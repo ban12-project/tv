@@ -29,7 +29,6 @@ import {
   upsertFragmentTimelineSample,
 } from "@/lib/player/timeline-mapper";
 import { cn, formatTime } from "@/lib/utils";
-import styles from "./video-player.module.css";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
@@ -1246,8 +1245,7 @@ export default function VideoPlayer({
     <div
       {...props}
       className={cn(
-        "relative rounded-lg overflow-hidden outline-none focus:outline-none focus-visible:outline-none",
-        styles.playerRoot,
+        "relative rounded-lg overflow-hidden focus:outline-none",
         props.className,
       )}
     >
@@ -1257,10 +1255,7 @@ export default function VideoPlayer({
       >
         <video
           ref={videoRef}
-          className={cn(
-            "block size-full object-contain object-center transition-opacity duration-500",
-            styles.video,
-          )}
+          className="block size-full object-contain object-center transition-opacity duration-500 fullscreen:outline-none"
           poster={poster}
           playsInline
           preload="metadata"
