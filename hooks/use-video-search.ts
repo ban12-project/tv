@@ -43,6 +43,7 @@ export function useVideoSearch(
   debounceMs = 300,
   initialQuery = "",
   initialResults: Video[] = EMPTY_INITIAL_RESULTS,
+  onBeforeSearch?: (query: string) => void,
 ) {
   const [query, setQuery] = React.useState(initialQuery);
   const [searchTerm, setSearchTerm] = React.useState(initialQuery);
@@ -156,6 +157,7 @@ export function useVideoSearch(
 
       let isFirstChunk = true;
       try {
+        onBeforeSearch?.(debouncedSearchTerm);
         const iterator = await searchVideosStream(debouncedSearchTerm);
 
         for await (const chunk of iterator) {
@@ -209,25 +211,29 @@ export function useVideoSearch(
     };
 
     fetchVideos();
-  }, [debouncedSearchTerm]);
+  }, [debouncedSearchTerm, onBeforeSearch]);
 
-  const onQueryChange = React.useCallback((value: string) => {
-    setQuery(value);
+  const onQueryChange = React.useCallback(
+    (value: string) => {
+      setQuery(value);
 
-    // Clear results immediately if empty
-    if (!value.trim()) {
-      setSearchTerm("");
-      setResults([]);
-      setIsPending(false);
-      currentSearchRef.current += 1;
-      return;
-    }
+      // Clear results immediately if empty
+      if (!value.trim()) {
+        onBeforeSearch?.("");
+        setSearchTerm("");
+        setResults([]);
+        setIsPending(false);
+        currentSearchRef.current += 1;
+        return;
+      }
 
-    // Only update search term if not composing
-    if (!isComposingRef.current) {
-      setSearchTerm(value);
-    }
-  }, []);
+      // Only update search term if not composing
+      if (!isComposingRef.current) {
+        setSearchTerm(value);
+      }
+    },
+    [onBeforeSearch],
+  );
 
   const onCompositionStart = React.useCallback(() => {
     isComposingRef.current = true;

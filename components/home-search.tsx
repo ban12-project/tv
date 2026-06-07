@@ -20,26 +20,14 @@ export function HomeSearch({
 }) {
   const searchParams = useSearchParams();
   const [initialQuery] = React.useState(() => searchParams.get("q") || "");
-
-  const {
-    query,
-    debouncedQuery,
-    results,
-    isPending,
-    error,
-    onQueryChange,
-    onCompositionStart,
-    onCompositionEnd,
-  } = useVideoSearch(300, initialQuery, initialResults);
-
-  React.useEffect(() => {
+  const syncSearchUrl = React.useCallback((nextQuery: string) => {
     const { pathname, search, hash } = window.location;
     const params = new URLSearchParams(search);
     const currentQ = params.get("q") || "";
-    if (currentQ === debouncedQuery) return;
+    if (currentQ === nextQuery) return;
 
-    if (debouncedQuery) {
-      params.set("q", debouncedQuery);
+    if (nextQuery) {
+      params.set("q", nextQuery);
     } else {
       params.delete("q");
     }
@@ -47,7 +35,17 @@ export function HomeSearch({
     const nextSearch = params.toString();
     const nextUrl = `${pathname}${nextSearch ? `?${nextSearch}` : ""}${hash}`;
     window.history.replaceState(null, "", nextUrl);
-  }, [debouncedQuery]);
+  }, []);
+
+  const {
+    query,
+    results,
+    isPending,
+    error,
+    onQueryChange,
+    onCompositionStart,
+    onCompositionEnd,
+  } = useVideoSearch(300, initialQuery, initialResults, syncSearchUrl);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [brandLead, ...brandRest] = dictionary["brand-name"].split(" ");
