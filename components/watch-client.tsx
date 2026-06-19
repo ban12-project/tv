@@ -1,10 +1,16 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Info, ListVideo } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  ListVideo,
+  MessageSquareWarning,
+} from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useLocalStorage } from "usehooks-ts";
-import { showAdSkipFeedbackToast } from "@/components/ad-skip-feedback-toast";
+import { showAdSkipFeedbackListToast } from "@/components/ad-skip-feedback-toast";
 import { EpisodeCard } from "@/components/episode-card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,7 +36,11 @@ import {
   isPortraitAspectRatio,
   mergeContentProfiles,
 } from "@/lib/content-profile";
-import type { AdSkipDebugSnapshot } from "@/lib/player/ad-feedback";
+import type {
+  AdSkipDebugSnapshot,
+  AdSkipFeedbackContext,
+  AdSkipFeedbackPayload,
+} from "@/lib/player/ad-feedback";
 import { cn } from "@/lib/utils";
 
 interface WatchProgress {
@@ -60,6 +70,7 @@ interface WatchClientProps {
 
 // Client-side cache for discovered sources to prevent resets during navigation
 const matchesCache = new Map<string, WatchSource[]>();
+const AD_SKIP_FEEDBACK_HISTORY_LIMIT = 10;
 
 export default function WatchClient({
   video,
@@ -86,6 +97,9 @@ export default function WatchClient({
     true,
     { initializeWithValue: false },
   );
+  const [adSkipFeedbackPayloads, setAdSkipFeedbackPayloads] = React.useState<
+    AdSkipFeedbackPayload[]
+  >([]);
   const [hlsResourcePromise] = React.useState(() =>
     import("hls.js").then((module) => module.default),
   );
@@ -99,7 +113,6 @@ export default function WatchClient({
   const mediaAspectRatioCacheRef = React.useRef(new Map<string, string>());
   const savedProfileKeysRef = React.useRef(new Set<string>());
   const activeEpisodeItemRef = React.useRef<HTMLLIElement | null>(null);
-  const promptedAdFeedbackKeysRef = React.useRef(new Set<string>());
 
   const pathname = usePathname();
   const router = useRouter();
@@ -394,25 +407,47 @@ export default function WatchClient({
     nextEpisodeIndex,
   ]);
 
+  const adSkipFeedbackContext = React.useMemo<AdSkipFeedbackContext>(
+    () => ({
+      episodeIndex: activeEpisodeIndex,
+      episodeName: currentEpisode?.name,
+      sourceId: currentSource.sourceId,
+      sourceName: currentSource.name,
+      videoId: currentSource.videoId,
+      videoTitle: video.title,
+    }),
+    [
+      activeEpisodeIndex,
+      currentEpisode?.name,
+      currentSource.name,
+      currentSource.sourceId,
+      currentSource.videoId,
+      video.title,
+    ],
+  );
+
   const handleAdSkip = React.useEffectEvent((snapshot: AdSkipDebugSnapshot) => {
-    if (document.fullscreenElement) return;
-
-    const feedbackKey = `${currentSource.sourceId}:${currentSource.videoId}:${activeEpisodeIndex}`;
-    if (promptedAdFeedbackKeysRef.current.has(feedbackKey)) return;
-
-    promptedAdFeedbackKeysRef.current.add(feedbackKey);
-    showAdSkipFeedbackToast(dictionary, {
-      context: {
-        episodeIndex: activeEpisodeIndex,
-        episodeName: currentEpisode?.name,
-        sourceId: currentSource.sourceId,
-        sourceName: currentSource.name,
-        videoId: currentSource.videoId,
-        videoTitle: video.title,
-      },
+    const payload: AdSkipFeedbackPayload = {
+      context: adSkipFeedbackContext,
+      note: dictionary.watch["ad-feedback"]["unexpected-note"],
       snapshot,
+    };
+
+    setAdSkipFeedbackPayloads((current) => {
+      const key = `${payload.context.sourceId}:${payload.context.videoId}:${payload.context.episodeIndex}:${snapshot.mappedRange.start}:${snapshot.mappedRange.end}`;
+      const next = current.filter(
+        (item) =>
+          `${item.context.sourceId}:${item.context.videoId}:${item.context.episodeIndex}:${item.snapshot.mappedRange.start}:${item.snapshot.mappedRange.end}` !==
+          key,
+      );
+      next.unshift(payload);
+      return next.slice(0, AD_SKIP_FEEDBACK_HISTORY_LIMIT);
     });
   });
+
+  const handleOpenAdSkipFeedback = React.useCallback(() => {
+    showAdSkipFeedbackListToast(dictionary, adSkipFeedbackPayloads);
+  }, [adSkipFeedbackPayloads, dictionary]);
 
   const handleVideoMetadata = React.useEffectEvent(
     ({ width, height }: { width: number; height: number }) => {
@@ -608,6 +643,18 @@ export default function WatchClient({
           >
             {dictionary.watch["ad-skip-label"]}
           </Label>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 rounded-full"
+            title={dictionary.watch["ad-feedback"].button}
+            onClick={handleOpenAdSkipFeedback}
+          >
+            <MessageSquareWarning className="h-4 w-4 text-muted-foreground" />
+            <span className="sr-only">
+              {dictionary.watch["ad-feedback"].button}
+            </span>
+          </Button>
           <Popover>
             <PopoverTrigger asChild>
               <Button

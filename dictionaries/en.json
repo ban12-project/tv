@@ -76,6 +76,12 @@
     "ad-feedback": {
       "title": "Auto-defrag field check",
       "description": "The stream just jumped over a suspected ad block. Did the scanner hit the right target?",
+      "button": "Report auto-defrag",
+      "empty": "No jumps logged",
+      "empty-description": "This log has no auto-skip record yet. Let the stream run first.",
+      "list-description": "Pick the jump that went wrong and the packet goes out.",
+      "range-label": "Jump {index}",
+      "unexpected-note": "User selected this record from the pinned feedback button: this jump was wrong.",
       "expected": "Clean hit",
       "unexpected": "Bad jump",
       "placeholder": "Optional intel: what went wrong after the jump?",
