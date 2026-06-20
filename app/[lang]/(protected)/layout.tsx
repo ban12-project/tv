@@ -8,12 +8,12 @@ import Header from "@/components/header";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getAuth } from "@/lib/auth";
-import { hasAuth, hasChatbot } from "@/lib/features";
+import { hasAuth, hasChatbot, isAuthRequired } from "@/lib/features";
 
 export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   const { lang } = await props.params;
   const dict = await getDictionary(lang as Locale);
-  const chatEnabled = hasChatbot();
+  const chatEnabled = hasChatbot() && (await hasRegisteredUser());
 
   return (
     <section className="flex min-w-0">
@@ -41,7 +41,7 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
 
 async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
-  if (!hasAuth()) {
+  if (!isAuthRequired()) {
     return children;
   }
 
@@ -64,4 +64,18 @@ async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   }
 
   return children;
+}
+
+async function hasRegisteredUser() {
+  if (!hasAuth()) return false;
+
+  try {
+    const session = await getAuth().api.getSession({
+      headers: await headers(),
+    });
+
+    return Boolean(session && !session.user.isAnonymous);
+  } catch {
+    return false;
+  }
 }

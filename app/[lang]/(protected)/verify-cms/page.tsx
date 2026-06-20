@@ -10,6 +10,7 @@ import {
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getApiSources } from "@/lib/actions/cms";
+import { getCurrentSession } from "@/lib/auth-utils";
 import type { SelectApiSource } from "@/lib/db/schema";
 import { hasCmsAdmin } from "@/lib/features";
 import SourceForm from "./components/source-form";
@@ -19,6 +20,10 @@ export default async function VerifyCmsPage({
   params,
 }: PageProps<"/[lang]/verify-cms">) {
   if (!hasCmsAdmin()) {
+    notFound();
+  }
+  const session = await getCurrentSession().catch(() => null);
+  if (!session || session.user.isAnonymous) {
     notFound();
   }
 

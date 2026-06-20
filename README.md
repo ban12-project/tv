@@ -21,8 +21,6 @@ Deploy your own instance of ECheng TV to your favorite platform.
 
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/ban12-project/tv)
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ban12-project/tv)
-
 ## Development
 
 1. **Clone the repository:**
@@ -53,6 +51,12 @@ Deploy your own instance of ECheng TV to your favorite platform.
    - `DATABASE_URL` (Neon PostgreSQL)
    - `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`
    - Enables passkey login, allowlist management, `/verify-cms`, recommendations, watch history, and DB-backed CMS sources.
+   - By default, auth-enabled deployments are private to preserve existing behavior.
+
+   **Public mode with optional login:**
+   - Configure full database/auth mode.
+   - Set `ACCESS_MODE=public`.
+   - Search and playback stay public. Logged-in registered users get watch history, recommendations, chatbot, and CMS admin controls.
 
    **Optional feature flags:**
    - Douban Top 250: `SUPABASE_ENDPOINT` and `SUPABASE_ANON_KEY`

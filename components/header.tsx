@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
 import { ChatToggle } from "@/components/chat-bot/chat-toggle";
 import { Menu } from "@/components/menu";
@@ -8,7 +7,7 @@ import type { Messages } from "@/get-dictionary";
 import { getAllowList } from "@/lib/actions";
 import { getDoubanTop250 } from "@/lib/actions/douban";
 import { getRecommendations } from "@/lib/actions/recommendations";
-import { getAuth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/auth-utils";
 import {
   hasAuth,
   hasChatbot,
@@ -22,8 +21,12 @@ import { EmojiLogo } from "./emoji-logo";
 
 export default async function Header({ messages }: { messages: Messages }) {
   const authEnabled = hasAuth();
-  const chatEnabled = hasChatbot();
-  const cmsAdminEnabled = hasCmsAdmin();
+  const session = authEnabled
+    ? await getCurrentSession().catch(() => null)
+    : null;
+  const isRealUser = Boolean(session && !session.user.isAnonymous);
+  const chatEnabled = hasChatbot() && isRealUser;
+  const cmsAdminEnabled = hasCmsAdmin() && isRealUser;
   const doubanEnabled = hasDoubanTop250();
   const [recommendations, doubanItems] = await Promise.all([
     getRecommendations(),
@@ -49,7 +52,10 @@ export default async function Header({ messages }: { messages: Messages }) {
                 {authEnabled ? (
                   <ViewTransition>
                     <Suspense>
-                      <SuspendedAllowlistDialog messages={messages} />
+                      <SuspendedAllowlistDialog
+                        messages={messages}
+                        isRealUser={isRealUser}
+                      />
                     </Suspense>
                   </ViewTransition>
                 ) : null}
@@ -73,15 +79,13 @@ export default async function Header({ messages }: { messages: Messages }) {
   );
 }
 
-async function SuspendedAllowlistDialog({ messages }: { messages: Messages }) {
-  if (!hasAuth()) return null;
-
-  const session = await getAuth().api.getSession({
-    headers: await headers(),
-  });
-
-  const isRealUser = session && !session.user.isAnonymous;
-
+async function SuspendedAllowlistDialog({
+  messages,
+  isRealUser,
+}: {
+  messages: Messages;
+  isRealUser: boolean;
+}) {
   if (!isRealUser) return null;
 
   const emailsPromise = getAllowList();

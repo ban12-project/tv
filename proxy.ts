@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { i18n } from "./i18n-config";
 import { getSessionCookie } from "better-auth/cookies";
-import { hasAuth } from "./lib/features";
+import { hasAuth, isAuthRequired } from "./lib/features";
 
 const locales = i18n.locales.join("|");
 
@@ -38,6 +38,7 @@ function getLocale(request: NextRequest): string | undefined {
 export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const authEnabled = hasAuth();
+  const authRequired = isAuthRequired();
 
   const sessionCookie = authEnabled ? getSessionCookie(request) : null;
 
@@ -45,19 +46,17 @@ export default async function proxy(request: NextRequest) {
     (locale) => pathname.split("/")[1] === locale,
   );
 
-  if (authEnabled && !sessionCookie && PROTECTED_PATTERN.test({ pathname })) {
-    const redirectUrl = encodeURIComponent(request.url);
-
+  if (authRequired && !sessionCookie && PROTECTED_PATTERN.test({ pathname })) {
     return NextResponse.redirect(
       new URL(
-        `${locale ? `/${locale}` : ""}/sign-in?redirectUrl=${redirectUrl}`,
+        `${locale ? `/${locale}` : ""}/sign-in?callbackUrl=${encodeURIComponent(request.url)}`,
         request.url,
       ),
     );
   }
 
   if (
-    authEnabled &&
+    authRequired &&
     sessionCookie &&
     WITH_TOKEN_CONFLICT_PATTERN.test({ pathname })
   ) {

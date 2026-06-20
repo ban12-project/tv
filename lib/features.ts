@@ -8,6 +8,7 @@ export type EnvCmsSource = {
 };
 
 const CMS_SOURCE_TYPES = new Set<CmsSourceType>(["json", "xml", "csv"]);
+const ACCESS_MODES = new Set(["private", "public"]);
 
 function hasValue(value: string | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -23,6 +24,16 @@ export function hasAuth() {
     hasValue(process.env.BETTER_AUTH_SECRET) &&
     hasValue(process.env.BETTER_AUTH_URL)
   );
+}
+
+export function getAccessMode() {
+  const mode = process.env.ACCESS_MODE?.trim().toLowerCase();
+  if (mode && ACCESS_MODES.has(mode)) return mode as "private" | "public";
+  return hasAuth() ? "private" : "public";
+}
+
+export function isAuthRequired() {
+  return hasAuth() && getAccessMode() === "private";
 }
 
 export function hasDoubanTop250() {

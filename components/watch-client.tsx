@@ -657,18 +657,20 @@ export default function WatchClient({
           >
             {dictionary.watch["ad-skip-label"]}
           </Label>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-full"
-            title={dictionary.watch["ad-feedback"].button}
-            onClick={handleOpenAdSkipFeedback}
-          >
-            <MessageSquareWarning className="h-4 w-4 text-muted-foreground" />
-            <span className="sr-only">
-              {dictionary.watch["ad-feedback"].button}
-            </span>
-          </Button>
+          {persistenceEnabled ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              title={dictionary.watch["ad-feedback"].button}
+              onClick={handleOpenAdSkipFeedback}
+            >
+              <MessageSquareWarning className="h-4 w-4 text-muted-foreground" />
+              <span className="sr-only">
+                {dictionary.watch["ad-feedback"].button}
+              </span>
+            </Button>
+          ) : null}
           <Popover>
             <PopoverTrigger asChild>
               <Button

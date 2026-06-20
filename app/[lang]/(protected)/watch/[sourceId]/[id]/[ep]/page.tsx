@@ -16,6 +16,7 @@ import {
   getRecommendedVideoTitle,
 } from "@/lib/actions/recommendations";
 import type { ContentProfile, Episode } from "@/lib/adapters/types";
+import { getCurrentSession } from "@/lib/auth-utils";
 import {
   inferContentProfile,
   mergeContentProfiles,
@@ -78,8 +79,14 @@ export default async function WatchPage({ params }: Props) {
     notFound();
   }
 
-  // Promise for checking status (don't await here)
-  const persistenceEnabled = hasDatabase() && hasAuth();
+  const authEnabled = hasAuth();
+  const session = authEnabled
+    ? await getCurrentSession().catch(() => null)
+    : null;
+  const persistenceEnabled =
+    hasDatabase() &&
+    authEnabled &&
+    Boolean(session && !session.user.isAnonymous);
   const isRecommendedPromise = persistenceEnabled
     ? checkIsRecommended(decodedSourceId, id)
     : Promise.resolve(false);
