@@ -21,12 +21,6 @@ import { EmojiLogo } from "./emoji-logo";
 
 export default async function Header({ messages }: { messages: Messages }) {
   const authEnabled = hasAuth();
-  const session = authEnabled
-    ? await getCurrentSession().catch(() => null)
-    : null;
-  const isRealUser = Boolean(session && !session.user.isAnonymous);
-  const chatEnabled = hasChatbot() && isRealUser;
-  const cmsAdminEnabled = hasCmsAdmin() && isRealUser;
   const doubanEnabled = hasDoubanTop250();
   const [recommendations, doubanItems] = await Promise.all([
     getRecommendations(),
@@ -42,24 +36,25 @@ export default async function Header({ messages }: { messages: Messages }) {
             <div className="flex items-center gap-4">
               <EmojiLogo />
 
-              <Menu
-                recommendations={recommendations}
-                doubanItems={doubanItems}
-                dictionary={messages}
-                doubanEnabled={doubanEnabled}
-                cmsAdminEnabled={cmsAdminEnabled}
+              <Suspense
+                fallback={
+                  <Menu
+                    recommendations={recommendations}
+                    doubanItems={doubanItems}
+                    dictionary={messages}
+                    doubanEnabled={doubanEnabled}
+                    cmsAdminEnabled={false}
+                  />
+                }
               >
-                {authEnabled ? (
-                  <ViewTransition>
-                    <Suspense>
-                      <SuspendedAllowlistDialog
-                        messages={messages}
-                        isRealUser={isRealUser}
-                      />
-                    </Suspense>
-                  </ViewTransition>
-                ) : null}
-              </Menu>
+                <SuspendedMenu
+                  recommendations={recommendations}
+                  doubanItems={doubanItems}
+                  dictionary={messages}
+                  doubanEnabled={doubanEnabled}
+                  authEnabled={authEnabled}
+                />
+              </Suspense>
             </div>
 
             {/* Search and Sign In */}
@@ -68,7 +63,9 @@ export default async function Header({ messages }: { messages: Messages }) {
                 dictionary={messages}
                 recommendations={recommendations}
               />
-              {chatEnabled ? <ChatToggle dictionary={messages.chat} /> : null}
+              <Suspense fallback={null}>
+                <SuspendedChatToggle dictionary={messages.chat} />
+              </Suspense>
               <ColorSchemeToggle aria-label={messages.common["color-scheme"]} />
               {authEnabled ? <AuthButtons dictionary={messages.auth} /> : null}
             </div>
@@ -79,18 +76,59 @@ export default async function Header({ messages }: { messages: Messages }) {
   );
 }
 
-async function SuspendedAllowlistDialog({
-  messages,
-  isRealUser,
+async function SuspendedMenu({
+  recommendations,
+  doubanItems,
+  dictionary,
+  doubanEnabled,
+  authEnabled,
 }: {
-  messages: Messages;
-  isRealUser: boolean;
+  recommendations: Awaited<ReturnType<typeof getRecommendations>>;
+  doubanItems: Awaited<ReturnType<typeof getDoubanTop250>>;
+  dictionary: Messages;
+  doubanEnabled: boolean;
+  authEnabled: boolean;
 }) {
-  if (!isRealUser) return null;
+  const isRealUser = await hasRegisteredUser();
 
+  return (
+    <Menu
+      recommendations={recommendations}
+      doubanItems={doubanItems}
+      dictionary={dictionary}
+      doubanEnabled={doubanEnabled}
+      cmsAdminEnabled={hasCmsAdmin() && isRealUser}
+    >
+      {authEnabled && isRealUser ? (
+        <ViewTransition>
+          <SuspendedAllowlistDialog messages={dictionary} />
+        </ViewTransition>
+      ) : null}
+    </Menu>
+  );
+}
+
+async function SuspendedAllowlistDialog({ messages }: { messages: Messages }) {
   const emailsPromise = getAllowList();
 
   return (
     <AllowlistDialog emailsPromise={emailsPromise} dictionary={messages} />
   );
+}
+
+async function SuspendedChatToggle({
+  dictionary,
+}: {
+  dictionary: Messages["chat"];
+}) {
+  if (!hasChatbot() || !(await hasRegisteredUser())) return null;
+
+  return <ChatToggle dictionary={dictionary} />;
+}
+
+async function hasRegisteredUser() {
+  if (!hasAuth()) return false;
+
+  const session = await getCurrentSession().catch(() => null);
+  return Boolean(session && !session.user.isAnonymous);
 }

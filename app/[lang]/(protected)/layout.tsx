@@ -13,7 +13,6 @@ import { hasAuth, hasChatbot, isAuthRequired } from "@/lib/features";
 export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   const { lang } = await props.params;
   const dict = await getDictionary(lang as Locale);
-  const chatEnabled = hasChatbot() && (await hasRegisteredUser());
 
   return (
     <section className="flex min-w-0">
@@ -34,7 +33,9 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
           </ViewTransition>
         </Suspense>
       </div>
-      {chatEnabled ? <ChatWidget dictionary={dict} /> : null}
+      <Suspense fallback={null}>
+        <RegisteredChatWidget dictionary={dict} />
+      </Suspense>
     </section>
   );
 }
@@ -66,9 +67,18 @@ async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   return children;
 }
 
+async function RegisteredChatWidget({
+  dictionary,
+}: {
+  dictionary: Awaited<ReturnType<typeof getDictionary>>;
+}) {
+  if (!hasChatbot() || !(await hasRegisteredUser())) return null;
+
+  return <ChatWidget dictionary={dictionary} />;
+}
+
 async function hasRegisteredUser() {
   if (!hasAuth()) return false;
-
   try {
     const session = await getAuth().api.getSession({
       headers: await headers(),

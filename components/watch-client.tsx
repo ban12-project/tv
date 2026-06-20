@@ -552,7 +552,7 @@ export default function WatchClient({
               <div
                 className={cn(
                   "bg-muted animate-pulse rounded-lg",
-                  isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
+                  isPortraitPlayerLayout ? "aspect-9/16" : "aspect-video",
                 )}
                 style={{
                   aspectRatio: playerAspectRatio,
@@ -564,7 +564,7 @@ export default function WatchClient({
           <div className={playerShellClassName}>
             <VideoPlayer
               className={cn(
-                isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
+                isPortraitPlayerLayout ? "aspect-9/16" : "aspect-video",
               )}
               style={{
                 aspectRatio: playerAspectRatio,
