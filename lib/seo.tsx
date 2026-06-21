@@ -1,10 +1,11 @@
 import { i18n, type Locale } from "@/i18n-config";
 
 export function getPublicHostUrl() {
-  return (process.env.NEXT_PUBLIC_HOST_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
+  return (
+    process.env.HOST_URL ??
+    process.env.NEXT_PUBLIC_HOST_URL ??
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
 }
 
 export function absoluteUrl(path = "/") {

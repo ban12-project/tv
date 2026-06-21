@@ -1,0 +1,15 @@
+.env*
+.git
+.github
+.next
+.vercel
+.netlify
+.agents
+.codex
+coverage
+node_modules
+out
+build
+*.log
+*.pem
+.DS_Store
