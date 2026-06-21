@@ -7,7 +7,8 @@ import { ChatWidget } from "@/components/chat-bot/chat-widget";
 import Header from "@/components/header";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+import { hasAuth, hasChatbot, isAuthRequired } from "@/lib/features";
 
 export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
   const { lang } = await props.params;
@@ -32,15 +33,21 @@ export default async function ProtectedLayout(props: LayoutProps<"/[lang]">) {
           </ViewTransition>
         </Suspense>
       </div>
-      <ChatWidget dictionary={dict} />
+      <Suspense fallback={null}>
+        <RegisteredChatWidget dictionary={dict} />
+      </Suspense>
     </section>
   );
 }
 
 async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
+  if (!isAuthRequired()) {
+    return children;
+  }
+
   try {
-    const session = await auth.api.getSession({
+    const session = await getAuth().api.getSession({
       headers: await headers(),
     });
 
@@ -58,4 +65,27 @@ async function Suspended({ children, params }: LayoutProps<"/[lang]">) {
   }
 
   return children;
+}
+
+async function RegisteredChatWidget({
+  dictionary,
+}: {
+  dictionary: Awaited<ReturnType<typeof getDictionary>>;
+}) {
+  if (!hasChatbot() || !(await hasRegisteredUser())) return null;
+
+  return <ChatWidget dictionary={dictionary} />;
+}
+
+async function hasRegisteredUser() {
+  if (!hasAuth()) return false;
+  try {
+    const session = await getAuth().api.getSession({
+      headers: await headers(),
+    });
+
+    return Boolean(session && !session.user.isAnonymous);
+  } catch {
+    return false;
+  }
 }

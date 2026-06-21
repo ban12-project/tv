@@ -6,12 +6,17 @@ import {
   findPasskeyRegistrationByName,
   findUserByEmail,
 } from "@/lib/db/queries";
+import { hasAuth } from "@/lib/features";
 
 const schema = z.object({
   email: z.email(),
 });
 
 export async function checkRegistrationStatus(email: string) {
+  if (!hasAuth()) {
+    return { allowed: false, registered: false };
+  }
+
   const validatedFields = schema.safeParse({ email });
   if (!validatedFields.success) {
     throw new Error("Invalid email address.");

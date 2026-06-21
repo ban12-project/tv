@@ -10,6 +10,7 @@ import {
   findRecommendationByVideoId,
   getRecommendationsQuery,
 } from "@/lib/db/queries";
+import { hasDatabase } from "@/lib/features";
 
 export type ActionState = {
   success: boolean;
@@ -130,6 +131,8 @@ export async function checkIsRecommended(
   sourceId: string,
   videoId: string,
 ): Promise<boolean> {
+  if (!hasDatabase()) return false;
+
   const session = await getCurrentSession();
 
   if (!session?.user?.id) {
@@ -145,6 +148,8 @@ export async function getRecommendations(limit = 6) {
   "use cache";
   cacheTag("recommendations");
 
+  if (!hasDatabase()) return [];
+
   return await getRecommendationsQuery(limit);
 }
 
@@ -152,6 +157,8 @@ export async function getRecommendedVideoTitle(
   sourceId: string,
   videoId: string,
 ) {
+  if (!hasDatabase()) return null;
+
   const recommendations = await findRecommendationByVideoId(sourceId, videoId);
   return recommendations.length > 0 ? recommendations[0].title : null;
 }

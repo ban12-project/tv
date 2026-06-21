@@ -9,6 +9,7 @@ import {
   getApiSourcesQuery,
   updateApiSourceQuery,
 } from "@/lib/db/queries";
+import { hasCmsAdmin, hasDatabase, parseEnvCmsSources } from "@/lib/features";
 
 type ActionState = {
   success: boolean;
@@ -18,6 +19,9 @@ type ActionState = {
 export async function getApiSources() {
   "use cache";
   cacheTag("api-sources");
+  if (!hasDatabase()) {
+    return parseEnvCmsSources();
+  }
   return await getApiSourcesQuery();
 }
 
@@ -32,6 +36,10 @@ export async function createApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!hasCmsAdmin()) {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   try {
     await requireRegisteredUser();
   } catch {
@@ -73,6 +81,10 @@ export async function updateApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!hasCmsAdmin()) {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   try {
     await requireRegisteredUser();
   } catch {
@@ -112,6 +124,10 @@ export async function deleteApiSource(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (!hasCmsAdmin()) {
+    return { success: false, error: "UNAUTHORIZED" };
+  }
+
   try {
     await requireRegisteredUser();
   } catch {

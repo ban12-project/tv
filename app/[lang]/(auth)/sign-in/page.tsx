@@ -1,13 +1,19 @@
+import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SignInForm } from "@/components/signin-form";
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
+import { hasAuth } from "@/lib/features";
 
 export default async function LoginPage({
   params,
 }: {
   params: Promise<{ lang: Locale }>;
 }) {
+  if (!hasAuth()) {
+    notFound();
+  }
+
   const { lang } = await params;
   const dictionary = await getDictionary(lang);
 

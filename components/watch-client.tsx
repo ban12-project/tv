@@ -66,6 +66,7 @@ interface WatchClientProps {
   progressPromise?: Promise<WatchProgress | null>;
   initialAspectRatio?: string | null;
   initialContentProfile?: ContentProfile | null;
+  persistenceEnabled: boolean;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -81,6 +82,7 @@ export default function WatchClient({
   progressPromise,
   initialAspectRatio,
   initialContentProfile,
+  persistenceEnabled,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -307,7 +309,7 @@ export default function WatchClient({
   }, [hasNextEpisode, isShortDrama, nextEpisodeIndex, router]);
 
   React.useEffect(() => {
-    if (contentProfile.confidence <= 0) return;
+    if (!persistenceEnabled || contentProfile.confidence <= 0) return;
 
     const profileKey = `${currentSource.sourceId}:${currentSource.videoId}:${contentProfile.kind}:${contentProfile.confidence}:${contentProfile.signals.join(",")}`;
     if (savedProfileKeysRef.current.has(profileKey)) return;
@@ -326,6 +328,7 @@ export default function WatchClient({
     currentEpisode?.url,
     currentSource.sourceId,
     currentSource.videoId,
+    persistenceEnabled,
   ]);
 
   // Logic to handle source change (tabs click)
@@ -467,7 +470,10 @@ export default function WatchClient({
         mergeContentProfiles(current, inferredProfile),
       );
 
-      if (knownAspectRatioKeysRef.current.has(currentAspectRatioKey)) {
+      if (
+        !persistenceEnabled ||
+        knownAspectRatioKeysRef.current.has(currentAspectRatioKey)
+      ) {
         return;
       }
 
@@ -502,6 +508,10 @@ export default function WatchClient({
           progress: time,
           duration,
         });
+        if (!persistenceEnabled) {
+          return;
+        }
+
         if (navigator.sendBeacon) {
           navigator.sendBeacon("/api/history", payload);
         } else {
@@ -514,7 +524,11 @@ export default function WatchClient({
       } else {
         // Throttled server action sync
         const now = Date.now();
-        if (now - lastSyncTimeRef.current > 15000 && time > 5) {
+        if (
+          persistenceEnabled &&
+          now - lastSyncTimeRef.current > 15000 &&
+          time > 5
+        ) {
           lastSyncTimeRef.current = now;
           saveWatchProgress({
             videoId: currentSource.videoId,
@@ -538,7 +552,7 @@ export default function WatchClient({
               <div
                 className={cn(
                   "bg-muted animate-pulse rounded-lg",
-                  isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
+                  isPortraitPlayerLayout ? "aspect-9/16" : "aspect-video",
                 )}
                 style={{
                   aspectRatio: playerAspectRatio,
@@ -550,7 +564,7 @@ export default function WatchClient({
           <div className={playerShellClassName}>
             <VideoPlayer
               className={cn(
-                isPortraitPlayerLayout ? "aspect-[9/16]" : "aspect-video",
+                isPortraitPlayerLayout ? "aspect-9/16" : "aspect-video",
               )}
               style={{
                 aspectRatio: playerAspectRatio,
@@ -643,18 +657,20 @@ export default function WatchClient({
           >
             {dictionary.watch["ad-skip-label"]}
           </Label>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-full"
-            title={dictionary.watch["ad-feedback"].button}
-            onClick={handleOpenAdSkipFeedback}
-          >
-            <MessageSquareWarning className="h-4 w-4 text-muted-foreground" />
-            <span className="sr-only">
-              {dictionary.watch["ad-feedback"].button}
-            </span>
-          </Button>
+          {persistenceEnabled ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full"
+              title={dictionary.watch["ad-feedback"].button}
+              onClick={handleOpenAdSkipFeedback}
+            >
+              <MessageSquareWarning className="h-4 w-4 text-muted-foreground" />
+              <span className="sr-only">
+                {dictionary.watch["ad-feedback"].button}
+              </span>
+            </Button>
+          ) : null}
           <Popover>
             <PopoverTrigger asChild>
               <Button

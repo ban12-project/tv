@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { Suspense, ViewTransition } from "react";
 import { ChatToggle } from "@/components/chat-bot/chat-toggle";
 import { Menu } from "@/components/menu";
@@ -8,16 +7,24 @@ import type { Messages } from "@/get-dictionary";
 import { getAllowList } from "@/lib/actions";
 import { getDoubanTop250 } from "@/lib/actions/douban";
 import { getRecommendations } from "@/lib/actions/recommendations";
-import { auth } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/auth-utils";
+import {
+  hasAuth,
+  hasChatbot,
+  hasCmsAdmin,
+  hasDoubanTop250,
+} from "@/lib/features";
 import { AllowlistDialog } from "./allowlist-dialog";
 import { AuthButtons } from "./auth-buttons";
 import ColorSchemeToggle from "./color-scheme-toggle-client";
 import { EmojiLogo } from "./emoji-logo";
 
 export default async function Header({ messages }: { messages: Messages }) {
+  const authEnabled = hasAuth();
+  const doubanEnabled = hasDoubanTop250();
   const [recommendations, doubanItems] = await Promise.all([
     getRecommendations(),
-    getDoubanTop250(0, 50),
+    doubanEnabled ? getDoubanTop250(0, 50) : [],
   ]);
 
   return (
@@ -29,17 +36,25 @@ export default async function Header({ messages }: { messages: Messages }) {
             <div className="flex items-center gap-4">
               <EmojiLogo />
 
-              <Menu
-                recommendations={recommendations}
-                doubanItems={doubanItems}
-                dictionary={messages}
+              <Suspense
+                fallback={
+                  <Menu
+                    recommendations={recommendations}
+                    doubanItems={doubanItems}
+                    dictionary={messages}
+                    doubanEnabled={doubanEnabled}
+                    cmsAdminEnabled={false}
+                  />
+                }
               >
-                <ViewTransition>
-                  <Suspense>
-                    <SuspendedAllowlistDialog messages={messages} />
-                  </Suspense>
-                </ViewTransition>
-              </Menu>
+                <SuspendedMenu
+                  recommendations={recommendations}
+                  doubanItems={doubanItems}
+                  dictionary={messages}
+                  doubanEnabled={doubanEnabled}
+                  authEnabled={authEnabled}
+                />
+              </Suspense>
             </div>
 
             {/* Search and Sign In */}
@@ -48,9 +63,11 @@ export default async function Header({ messages }: { messages: Messages }) {
                 dictionary={messages}
                 recommendations={recommendations}
               />
-              <ChatToggle dictionary={messages.chat} />
+              <Suspense fallback={null}>
+                <SuspendedChatToggle dictionary={messages.chat} />
+              </Suspense>
               <ColorSchemeToggle aria-label={messages.common["color-scheme"]} />
-              <AuthButtons dictionary={messages.auth} />
+              {authEnabled ? <AuthButtons dictionary={messages.auth} /> : null}
             </div>
           </div>
         </div>
@@ -59,18 +76,59 @@ export default async function Header({ messages }: { messages: Messages }) {
   );
 }
 
+async function SuspendedMenu({
+  recommendations,
+  doubanItems,
+  dictionary,
+  doubanEnabled,
+  authEnabled,
+}: {
+  recommendations: Awaited<ReturnType<typeof getRecommendations>>;
+  doubanItems: Awaited<ReturnType<typeof getDoubanTop250>>;
+  dictionary: Messages;
+  doubanEnabled: boolean;
+  authEnabled: boolean;
+}) {
+  const isRealUser = await hasRegisteredUser();
+
+  return (
+    <Menu
+      recommendations={recommendations}
+      doubanItems={doubanItems}
+      dictionary={dictionary}
+      doubanEnabled={doubanEnabled}
+      cmsAdminEnabled={hasCmsAdmin() && isRealUser}
+    >
+      {authEnabled && isRealUser ? (
+        <ViewTransition>
+          <SuspendedAllowlistDialog messages={dictionary} />
+        </ViewTransition>
+      ) : null}
+    </Menu>
+  );
+}
+
 async function SuspendedAllowlistDialog({ messages }: { messages: Messages }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const isRealUser = session && !session.user.isAnonymous;
-
-  if (!isRealUser) return null;
-
   const emailsPromise = getAllowList();
 
   return (
     <AllowlistDialog emailsPromise={emailsPromise} dictionary={messages} />
   );
+}
+
+async function SuspendedChatToggle({
+  dictionary,
+}: {
+  dictionary: Messages["chat"];
+}) {
+  if (!hasChatbot() || !(await hasRegisteredUser())) return null;
+
+  return <ChatToggle dictionary={dictionary} />;
+}
+
+async function hasRegisteredUser() {
+  if (!hasAuth()) return false;
+
+  const session = await getCurrentSession().catch(() => null);
+  return Boolean(session && !session.user.isAnonymous);
 }

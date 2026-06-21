@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -9,17 +10,29 @@ import {
 import { getDictionary } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getApiSources } from "@/lib/actions/cms";
+import { getCurrentSession } from "@/lib/auth-utils";
+import type { SelectApiSource } from "@/lib/db/schema";
+import { hasCmsAdmin } from "@/lib/features";
 import SourceForm from "./components/source-form";
 import SourceRow from "./components/source-row";
 
 export default async function VerifyCmsPage({
   params,
 }: PageProps<"/[lang]/verify-cms">) {
+  if (!hasCmsAdmin()) {
+    notFound();
+  }
+  const session = await getCurrentSession().catch(() => null);
+  if (!session || session.user.isAnonymous) {
+    notFound();
+  }
+
   const { lang } = await params;
   const [sources, dictionary] = await Promise.all([
     getApiSources(),
     getDictionary(lang as Locale),
   ]);
+  const editableSources = sources as SelectApiSource[];
   const messages = dictionary["verify-cms"];
 
   return (
@@ -44,7 +57,7 @@ export default async function VerifyCmsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sources.length === 0 ? (
+              {editableSources.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={5}
@@ -54,7 +67,7 @@ export default async function VerifyCmsPage({
                   </TableCell>
                 </TableRow>
               ) : (
-                sources.map((source) => (
+                editableSources.map((source) => (
                   <SourceRow
                     key={source.id}
                     source={source}

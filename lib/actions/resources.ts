@@ -1,7 +1,7 @@
 "use server";
 
 import { requireRegisteredUser } from "@/lib/auth-utils";
-import { db } from "@/lib/db/queries";
+import { getDb } from "@/lib/db/queries";
 import {
   insertResourceSchema,
   type NewResourceParams,
@@ -16,18 +16,20 @@ export const createResource = async (input: NewResourceParams) => {
 
     const { content } = insertResourceSchema.parse(input);
 
-    const [resource] = await db
+    const [resource] = await getDb()
       .insert(resources)
       .values({ content })
       .returning();
 
     const embeddings = await generateEmbeddings(content);
-    await db.insert(embeddingsTable).values(
-      embeddings.map((embedding) => ({
-        resourceId: resource.id,
-        ...embedding,
-      })),
-    );
+    await getDb()
+      .insert(embeddingsTable)
+      .values(
+        embeddings.map((embedding) => ({
+          resourceId: resource.id,
+          ...embedding,
+        })),
+      );
 
     return "Resource successfully created and embedded.";
   } catch (e) {

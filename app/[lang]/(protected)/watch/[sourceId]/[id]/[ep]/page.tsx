@@ -16,10 +16,12 @@ import {
   getRecommendedVideoTitle,
 } from "@/lib/actions/recommendations";
 import type { ContentProfile, Episode } from "@/lib/adapters/types";
+import { getCurrentSession } from "@/lib/auth-utils";
 import {
   inferContentProfile,
   mergeContentProfiles,
 } from "@/lib/content-profile";
+import { hasAuth, hasCmsAdmin, hasDatabase } from "@/lib/features";
 import { MissingApiSourcesError } from "@/lib/source-provider";
 
 type Props = Readonly<{
@@ -61,7 +63,10 @@ export default async function WatchPage({ params }: Props) {
       ]);
   } catch (error) {
     if (error instanceof MissingApiSourcesError) {
-      redirect(`/${lang}/verify-cms`);
+      if (hasCmsAdmin()) {
+        redirect(`/${lang}/verify-cms`);
+      }
+      notFound();
     }
     throw error;
   }
@@ -74,8 +79,17 @@ export default async function WatchPage({ params }: Props) {
     notFound();
   }
 
-  // Promise for checking status (don't await here)
-  const isRecommendedPromise = checkIsRecommended(decodedSourceId, id);
+  const authEnabled = hasAuth();
+  const session = authEnabled
+    ? await getCurrentSession().catch(() => null)
+    : null;
+  const persistenceEnabled =
+    hasDatabase() &&
+    authEnabled &&
+    Boolean(session && !session.user.isAnonymous);
+  const isRecommendedPromise = persistenceEnabled
+    ? checkIsRecommended(decodedSourceId, id)
+    : Promise.resolve(false);
   const initialAspectRatio = initialLayoutMetadata?.aspectRatio ?? null;
   const initialContentProfile = mergeContentProfiles(
     cachedContentProfile,
@@ -105,7 +119,9 @@ export default async function WatchPage({ params }: Props) {
   });
 
   // Fetch initial progress from the database (non-blocking)
-  const progressPromise = getWatchProgress(id, decodedSourceId);
+  const progressPromise = persistenceEnabled
+    ? getWatchProgress(id, decodedSourceId)
+    : Promise.resolve(null);
 
   return (
     <main className="space-y-8">
@@ -118,6 +134,7 @@ export default async function WatchPage({ params }: Props) {
         progressPromise={progressPromise}
         initialAspectRatio={initialAspectRatio}
         initialContentProfile={initialContentProfile}
+        persistenceEnabled={persistenceEnabled}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
@@ -128,18 +145,20 @@ export default async function WatchPage({ params }: Props) {
             </h1>
             <ViewTransition>
               <Suspense fallback={<Skeleton className="h-4 w-4" />}>
-                <RecommendationDialog
-                  video={{
-                    title: video.title,
-                    description: video.description,
-                    image: video.image,
-                    sourceId: decodedSourceId,
-                    id: id,
-                    ep: ep,
-                  }}
-                  dictionary={dictionary}
-                  isRecommended={isRecommendedPromise}
-                />
+                {persistenceEnabled ? (
+                  <RecommendationDialog
+                    video={{
+                      title: video.title,
+                      description: video.description,
+                      image: video.image,
+                      sourceId: decodedSourceId,
+                      id: id,
+                      ep: ep,
+                    }}
+                    dictionary={dictionary}
+                    isRecommended={isRecommendedPromise}
+                  />
+                ) : null}
               </Suspense>
             </ViewTransition>
           </div>

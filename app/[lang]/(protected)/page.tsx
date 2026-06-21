@@ -5,6 +5,7 @@ import { getDictionary, type Messages } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getInitialSearchResults } from "@/lib/actions/content";
 import type { Video } from "@/lib/adapters/types";
+import { hasCmsAdmin } from "@/lib/features";
 import { MissingApiSourcesError } from "@/lib/source-provider";
 
 export default async function Home(props: {
@@ -48,7 +49,10 @@ async function HomeSearchWithInitialResults({
       initialResults.push(...(await getInitialSearchResults(q)));
     } catch (error) {
       if (error instanceof MissingApiSourcesError) {
-        redirect(`/${lang}/verify-cms`);
+        if (hasCmsAdmin()) {
+          redirect(`/${lang}/verify-cms`);
+        }
+        console.error("No CMS sources configured.");
       }
       console.error("SSR search failed:", error);
     }

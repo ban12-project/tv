@@ -10,11 +10,16 @@ import { createResource } from "@/lib/actions/resources";
 import { findRelevantContent } from "@/lib/ai/embedding";
 import { openai } from "@/lib/ai/providers";
 import { requireRegisteredUser } from "@/lib/auth-utils";
+import { hasChatbot } from "@/lib/features";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  if (!hasChatbot()) {
+    return new Response("Not Found", { status: 404 });
+  }
+
   try {
     await requireRegisteredUser();
   } catch {

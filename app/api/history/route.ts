@@ -1,11 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth-utils";
+import { hasAuth, hasDatabase } from "@/lib/features";
 import {
   upsertWatchProgressForUser,
   watchProgressSchema,
 } from "@/lib/watch-history";
 
 export async function POST(req: NextRequest) {
+  if (!hasDatabase() || !hasAuth()) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
   try {
     const session = await getCurrentSession();
     if (!session?.user || session.user.isAnonymous) {

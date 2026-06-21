@@ -2,8 +2,9 @@
 
 import { and, eq } from "drizzle-orm";
 import { getCurrentSession } from "@/lib/auth-utils";
-import { db } from "@/lib/db/queries";
+import { getDb } from "@/lib/db/queries";
 import { watchHistory } from "@/lib/db/schema";
+import { hasDatabase } from "@/lib/features";
 import {
   upsertWatchProgressForUser,
   watchProgressSchema,
@@ -37,11 +38,13 @@ export async function saveWatchProgress(payload: {
 }
 
 export async function getWatchProgress(videoId: string, sourceId: string) {
+  if (!hasDatabase()) return null;
+
   const session = await getCurrentSession();
   if (!session?.user) return null;
 
   try {
-    const records = await db
+    const records = await getDb()
       .select({
         epIndex: watchHistory.epIndex,
         progress: watchHistory.progress,
