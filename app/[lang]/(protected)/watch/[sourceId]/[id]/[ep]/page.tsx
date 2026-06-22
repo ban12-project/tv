@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense, ViewTransition } from "react";
 import { RecommendationDialog } from "@/components/recommendation-dialog";
@@ -22,6 +23,12 @@ import {
   mergeContentProfiles,
 } from "@/lib/content-profile";
 import { hasAuth, hasCmsAdmin, hasDatabase } from "@/lib/features";
+import {
+  absoluteUrl,
+  getPublicHostUrl,
+  JsonLdScript,
+  localeAlternates,
+} from "@/lib/seo";
 import { MissingApiSourcesError } from "@/lib/source-provider";
 
 type Props = Readonly<{
@@ -32,6 +39,55 @@ type Props = Readonly<{
     ep: string;
   }>;
 }>;
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { lang, sourceId, id, ep } = await params;
+  const decodedSourceId = decodeURIComponent(sourceId);
+  const dictionary = await getDictionary(lang);
+  const video = await fetchVideoDetails(id, decodedSourceId).catch((error) => {
+    if (error instanceof MissingApiSourcesError) return null;
+    throw error;
+  });
+
+  if (!video) {
+    return {
+      metadataBase: new URL(getPublicHostUrl()),
+      title: dictionary["brand-name"],
+      description: dictionary["root-description"],
+    };
+  }
+
+  const path = `/watch/${sourceId}/${id}/${ep}`;
+  const title = video.title;
+  const description = video.description || dictionary["root-description"];
+  const images = video.image ? [absoluteUrl(video.image)] : undefined;
+  const openGraphType =
+    video.type === "movie" ? "video.movie" : "video.tv_show";
+
+  return {
+    metadataBase: new URL(getPublicHostUrl()),
+    title,
+    description,
+    alternates: {
+      canonical: `/${lang}${path}`,
+      languages: localeAlternates(path),
+    },
+    openGraph: {
+      type: openGraphType,
+      url: absoluteUrl(`/${lang}${path}`),
+      siteName: dictionary["brand-name"],
+      title,
+      description,
+      images,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images,
+    },
+  };
+}
 
 export default async function WatchPage({ params }: Props) {
   const { lang, sourceId, id, ep } = await params;
@@ -122,9 +178,57 @@ export default async function WatchPage({ params }: Props) {
   const progressPromise = persistenceEnabled
     ? getWatchProgress(id, decodedSourceId)
     : Promise.resolve(null);
+  const path = `/watch/${sourceId}/${id}/${ep}`;
+  const pageUrl = absoluteUrl(`/${lang}${path}`);
+  const contentType = video.type === "movie" ? "Movie" : "TVSeries";
 
   return (
     <main className="space-y-8">
+      <JsonLdScript
+        data={{
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "WebPage",
+              "@id": `${pageUrl}#webpage`,
+              url: pageUrl,
+              name: video.title,
+              description: video.description,
+              inLanguage: lang,
+              isPartOf: { "@id": absoluteUrl("/#website") },
+            },
+            {
+              "@type": "BreadcrumbList",
+              "@id": `${pageUrl}#breadcrumb`,
+              itemListElement: [
+                {
+                  "@type": "ListItem",
+                  position: 1,
+                  name: dictionary["brand-name"],
+                  item: absoluteUrl(`/${lang}`),
+                },
+                {
+                  "@type": "ListItem",
+                  position: 2,
+                  name: video.title,
+                  item: pageUrl,
+                },
+              ],
+            },
+            {
+              "@type": contentType,
+              "@id": `${pageUrl}#video`,
+              name: video.title,
+              description: video.description,
+              image: video.image ? absoluteUrl(video.image) : undefined,
+              datePublished: video.releaseDate || video.year || undefined,
+              genre: video.genre,
+              director: video.director,
+              actor: video.cast,
+            },
+          ],
+        }}
+      />
       <WatchClient
         video={video}
         sources={sourceGroups}

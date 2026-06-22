@@ -6,6 +6,7 @@ import type { Locale } from "@/i18n-config";
 import { getInitialSearchResults } from "@/lib/actions/content";
 import type { Video } from "@/lib/adapters/types";
 import { hasCmsAdmin } from "@/lib/features";
+import { absoluteUrl, JsonLdScript } from "@/lib/seo";
 import { MissingApiSourcesError } from "@/lib/source-provider";
 
 export default async function Home(props: {
@@ -17,6 +18,18 @@ export default async function Home(props: {
 
   return (
     <main className="min-h-[calc(100dvh-65px)]">
+      <JsonLdScript
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          "@id": absoluteUrl(`/${lang}#webpage`),
+          url: absoluteUrl(`/${lang}`),
+          name: dict["brand-name"],
+          description: dict["root-description"],
+          inLanguage: lang,
+          isPartOf: { "@id": absoluteUrl("/#website") },
+        }}
+      />
       <Suspense fallback={<HomeSearchLoading dictionary={dict} />}>
         <HomeSearchWithInitialResults
           dictionary={dict}

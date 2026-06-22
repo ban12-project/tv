@@ -116,6 +116,8 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Matcher ignoring `/_next/` and `/api/`
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // Matcher ignoring Next internals and metadata files.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|-/opengraph-image|(?:en|zh)/opengraph-image|icon|apple-icon).*)",
+  ],
 };

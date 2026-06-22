@@ -6,6 +6,13 @@ import { LocaleProvider } from "@/components/i18n";
 import { Toaster } from "@/components/ui/sonner";
 import { getDictionary } from "@/get-dictionary";
 import { i18n, type Locale } from "@/i18n-config";
+import {
+  absoluteUrl,
+  getPublicHostUrl,
+  JsonLdScript,
+  localeAlternates,
+  siteJsonLd,
+} from "@/lib/seo";
 
 export async function generateMetadata({
   params,
@@ -13,6 +20,7 @@ export async function generateMetadata({
   const { lang } = await params;
   const messages = await getDictionary(lang as Locale);
   const publicHostUrl = getPublicHostUrl();
+  const canonical = `/${lang}`;
 
   return {
     applicationName: messages["brand-name"],
@@ -31,41 +39,18 @@ export async function generateMetadata({
     },
     metadataBase: new URL(publicHostUrl),
     alternates: {
-      canonical: "/",
-      languages: Object.fromEntries(
-        i18n.locales.map((lang) => [lang, `/${lang}`]),
-      ),
+      canonical,
+      languages: localeAlternates(),
     },
     openGraph: {
       type: "website",
+      url: absoluteUrl(canonical),
       siteName: messages["brand-name"],
       title: {
         default: messages["brand-name"],
         template: `%s | ${messages["brand-name"]}`,
       },
       description: messages["root-description"],
-      images: `${publicHostUrl}/api/og?title=${messages["brand-name"]}`,
-    },
-    icons: {
-      icon: {
-        url: `${publicHostUrl}/api/og?w=48&h=48&bg=transparent&txt=black&txt=white`,
-        type: "image/png",
-      },
-      shortcut: {
-        url: `${publicHostUrl}/api/og?w=192&h=192&bg=transparent&txt=black&txt=white`,
-        type: "image/png",
-      },
-      apple: [
-        {
-          url: `${publicHostUrl}/api/og?w=64&h=64&bg=transparent&txt=black&txt=white`,
-          type: "image/png",
-        },
-        {
-          url: `${publicHostUrl}/api/og?w=180&h=180&bg=transparent&txt=black&txt=white`,
-          sizes: "180x180",
-          type: "image/png",
-        },
-      ],
     },
   };
 }
@@ -91,15 +76,12 @@ const geist = Geist({
   variable: "--font-geist",
 });
 
-function getPublicHostUrl() {
-  return process.env.NEXT_PUBLIC_HOST_URL ?? "http://localhost:3000";
-}
-
 export default async function RootLayout({
   params,
   children,
 }: LayoutProps<"/[lang]">) {
   const { lang } = await params;
+  const messages = await getDictionary(lang as Locale);
 
   return (
     <html lang={lang} suppressHydrationWarning>
@@ -113,6 +95,13 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <LocaleProvider locale={lang as Locale} i18n={i18n}>
+            <JsonLdScript
+              data={siteJsonLd({
+                lang: lang as Locale,
+                name: messages["brand-name"],
+                description: messages["root-description"],
+              })}
+            />
             {children}
           </LocaleProvider>
           <Toaster />
