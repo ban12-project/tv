@@ -1,9 +1,10 @@
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "next-themes";
 import { LocaleProvider } from "@/components/i18n";
 import { Toaster } from "@/components/ui/sonner";
+import { WebVitals } from "@/components/web-vitals";
 import { getDictionary } from "@/get-dictionary";
 import { i18n, type Locale } from "@/i18n-config";
 import {
@@ -71,10 +72,7 @@ export function generateStaticParams() {
   return i18n.locales.map((locale) => ({ lang: locale }));
 }
 
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist",
-});
+const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
 export default async function RootLayout({
   params,
@@ -85,9 +83,7 @@ export default async function RootLayout({
 
   return (
     <html lang={lang} suppressHydrationWarning>
-      <body
-        className={`${geist.variable} font-sans bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground`}
-      >
+      <body className="font-sans bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -95,6 +91,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <LocaleProvider locale={lang as Locale} i18n={i18n}>
+            {gaId ? <WebVitals /> : null}
             <JsonLdScript
               data={siteJsonLd({
                 lang: lang as Locale,
@@ -107,6 +104,7 @@ export default async function RootLayout({
           <Toaster />
         </ThemeProvider>
       </body>
+      {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
     </html>
   );
 }
