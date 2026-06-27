@@ -82,9 +82,24 @@ pnpm build
 ```
 
 ### Deploy
-You can host this application on any platform that supports Next.js (Vercel, Netlify, Docker, etc.). 
+You can host this application on any platform that supports Next.js, including Vercel, Netlify, and Docker.
 
-For Docker or self-hosting, ensure you set the environment variables in your deployment environment.
+### Docker deployment
+Build the standalone image with public variables for the client bundle:
+
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_HOST_URL=https://tv.example.com \
+  -t echeng-tv .
+```
+
+Run the container with runtime secrets and feature flags from `.env`:
+
+```bash
+docker run --env-file .env -p 3000:3000 echeng-tv
+```
+
+For minimal public search and playback, set `MAC_CMS_SOURCES` in `.env`. For auth, recommendations, watch history, and CMS admin controls, also set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL`.
 
 ## Acknowledgments
 
