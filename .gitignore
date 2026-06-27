@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -49,6 +52,3 @@ next-env.d.ts
 
 .gemini
 .pnpm-store/
-
-# test
-test-results/

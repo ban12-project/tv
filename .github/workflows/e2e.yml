@@ -1,0 +1,86 @@
+name: E2E
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  public:
+    name: Public
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: true
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run public e2e
+        run: pnpm test:e2e:public
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-public
+          path: playwright-report/
+          retention-days: 30
+
+  private:
+    name: Private
+    runs-on: ubuntu-latest
+    env:
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          cache: true
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Skip private e2e without secrets
+        if: ${{ env.DATABASE_URL == '' || env.BETTER_AUTH_SECRET == '' }}
+        run: echo "DATABASE_URL and BETTER_AUTH_SECRET are required for private e2e."
+
+      - name: Run private e2e
+        if: ${{ env.DATABASE_URL != '' && env.BETTER_AUTH_SECRET != '' }}
+        run: pnpm test:e2e:private
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() && env.DATABASE_URL != '' && env.BETTER_AUTH_SECRET != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-private
+          path: playwright-report/
+          retention-days: 30
