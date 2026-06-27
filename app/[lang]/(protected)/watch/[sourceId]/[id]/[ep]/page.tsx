@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { Suspense, ViewTransition } from "react";
+import { type ComponentProps, Suspense, ViewTransition } from "react";
 import { RecommendationDialog } from "@/components/recommendation-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import WatchClient from "@/components/watch-client";
@@ -11,7 +11,6 @@ import {
   getContentProfile,
   getEpisodeLayoutMetadata,
 } from "@/lib/actions/content";
-import { getWatchProgress } from "@/lib/actions/history";
 import {
   checkIsRecommended,
   getRecommendedVideoTitle,
@@ -22,7 +21,7 @@ import {
   inferContentProfile,
   mergeContentProfiles,
 } from "@/lib/content-profile";
-import { hasAuth, hasCmsAdmin, hasDatabase } from "@/lib/features";
+import { hasCmsAdmin } from "@/lib/features";
 import {
   absoluteUrl,
   getPublicHostUrl,
@@ -135,17 +134,6 @@ export default async function WatchPage({ params }: Props) {
     notFound();
   }
 
-  const authEnabled = hasAuth();
-  const session = authEnabled
-    ? await getCurrentSession().catch(() => null)
-    : null;
-  const persistenceEnabled =
-    hasDatabase() &&
-    authEnabled &&
-    Boolean(session && !session.user.isAnonymous);
-  const isRecommendedPromise = persistenceEnabled
-    ? checkIsRecommended(decodedSourceId, id)
-    : Promise.resolve(false);
   const initialAspectRatio = initialLayoutMetadata?.aspectRatio ?? null;
   const initialContentProfile = mergeContentProfiles(
     cachedContentProfile,
@@ -174,10 +162,6 @@ export default async function WatchPage({ params }: Props) {
     contentProfile: initialContentProfile,
   });
 
-  // Fetch initial progress from the database (non-blocking)
-  const progressPromise = persistenceEnabled
-    ? getWatchProgress(id, decodedSourceId)
-    : Promise.resolve(null);
   const path = `/watch/${sourceId}/${id}/${ep}`;
   const pageUrl = absoluteUrl(`/${lang}${path}`);
   const contentType = video.type === "movie" ? "Movie" : "TVSeries";
@@ -235,10 +219,8 @@ export default async function WatchPage({ params }: Props) {
         dictionary={dictionary}
         initialEpisodeIndex={validIndex}
         initialSourceId={decodedSourceId}
-        progressPromise={progressPromise}
         initialAspectRatio={initialAspectRatio}
         initialContentProfile={initialContentProfile}
-        persistenceEnabled={persistenceEnabled}
       />
 
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
@@ -249,20 +231,19 @@ export default async function WatchPage({ params }: Props) {
             </h1>
             <ViewTransition>
               <Suspense fallback={<Skeleton className="h-4 w-4" />}>
-                {persistenceEnabled ? (
-                  <RecommendationDialog
-                    video={{
-                      title: video.title,
-                      description: video.description,
-                      image: video.image,
-                      sourceId: decodedSourceId,
-                      id: id,
-                      ep: ep,
-                    }}
-                    dictionary={dictionary}
-                    isRecommended={isRecommendedPromise}
-                  />
-                ) : null}
+                <Recommendation
+                  video={{
+                    title: video.title,
+                    description: video.description,
+                    image: video.image,
+                    sourceId: decodedSourceId,
+                    id: id,
+                    ep: ep,
+                  }}
+                  dictionary={dictionary}
+                  sourceId={decodedSourceId}
+                  id={id}
+                />
               </Suspense>
             </ViewTransition>
           </div>
@@ -330,5 +311,39 @@ export default async function WatchPage({ params }: Props) {
         </div>
       </section>
     </main>
+  );
+}
+
+async function Recommendation({
+  video,
+  dictionary,
+  sourceId,
+  id,
+}: {
+  video: ComponentProps<typeof RecommendationDialog>["video"];
+  dictionary: Awaited<ReturnType<typeof getDictionary>>;
+  sourceId: string;
+  id: string;
+}) {
+  const session = await getCurrentSession().catch(() => null);
+  if (!session || session.user.isAnonymous) return null;
+
+  const isRecommended = await checkIsRecommended(sourceId, id);
+  if (!isRecommended) {
+    return (
+      <RecommendationDialog
+        video={video}
+        dictionary={dictionary}
+        isRecommended={Promise.resolve(false)}
+      />
+    );
+  }
+
+  return (
+    <RecommendationDialog
+      video={video}
+      dictionary={dictionary}
+      isRecommended={Promise.resolve(true)}
+    />
   );
 }

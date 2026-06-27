@@ -1,10 +1,27 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getWatchProgress } from "@/lib/actions/history";
 import { getCurrentSession } from "@/lib/auth-utils";
 import { hasAuth, hasDatabase } from "@/lib/features";
 import {
   upsertWatchProgressForUser,
   watchProgressSchema,
 } from "@/lib/watch-history";
+
+export async function GET(req: NextRequest) {
+  if (!hasDatabase() || !hasAuth()) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  const videoId = req.nextUrl.searchParams.get("videoId");
+  const sourceId = req.nextUrl.searchParams.get("sourceId");
+
+  if (!videoId || !sourceId) {
+    return new NextResponse("Invalid payload", { status: 400 });
+  }
+
+  const progress = await getWatchProgress(videoId, sourceId);
+  return NextResponse.json(progress);
+}
 
 export async function POST(req: NextRequest) {
   if (!hasDatabase() || !hasAuth()) {

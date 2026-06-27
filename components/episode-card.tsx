@@ -1,10 +1,10 @@
 "use client";
 
-import HoverPrefetchLink from "@/components/hover-prefetch-link";
+import Link from "@/components/link";
 import { cn } from "@/lib/utils";
 
 interface EpisodeCardProps
-  extends Omit<React.ComponentProps<typeof HoverPrefetchLink>, "onClick"> {
+  extends Omit<React.ComponentProps<typeof Link>, "onClick"> {
   index: number;
   isActive: boolean;
   dense?: boolean;
@@ -19,7 +19,7 @@ export function EpisodeCard({
   ...props
 }: EpisodeCardProps) {
   return (
-    <HoverPrefetchLink
+    <Link
       {...props}
       onClick={(e) => {
         if (onClick) {
@@ -36,6 +36,6 @@ export function EpisodeCard({
       )}
     >
       {index + 1}
-    </HoverPrefetchLink>
+    </Link>
   );
 }

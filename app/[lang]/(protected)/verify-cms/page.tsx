@@ -16,6 +16,8 @@ import { hasCmsAdmin } from "@/lib/features";
 import SourceForm from "./components/source-form";
 import SourceRow from "./components/source-row";
 
+export const instant = false;
+
 export default async function VerifyCmsPage({
   params,
 }: PageProps<"/[lang]/verify-cms">) {

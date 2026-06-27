@@ -1,5 +1,5 @@
 import { CMSImage } from "@/components/cms-image";
-import HoverPrefetchLink from "@/components/hover-prefetch-link";
+import Link from "@/components/link";
 import { Badge } from "@/components/ui/badge";
 import type { Video } from "@/lib/adapters/types";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,7 @@ export function VideoCard({
   aspectRatio = "16/9",
 }: VideoCardProps) {
   return (
-    <HoverPrefetchLink
+    <Link
       href={`/watch/${video.sourceId}/${video.id}/1`}
       className={cn(
         "group relative shrink-0 focus-visible:outline-none",
@@ -65,6 +65,6 @@ export function VideoCard({
           {video.year} • {video.genre.join(", ")}
         </p>
       </div>
-    </HoverPrefetchLink>
+    </Link>
   );
 }
