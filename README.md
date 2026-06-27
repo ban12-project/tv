@@ -2,7 +2,7 @@
 
 **ECheng TV** (English: **Bullet TV**) is a streaming web application built with **advanced web technologies**. It features a unified **Aggregated Search (聚合搜索)** across multiple MAC CMS sources with real-time stream processing, leveraging **Next.js [Cache Components](https://nextjs.org/docs/app/getting-started/cache-components)** for extreme performance.
 
-![Next.js 16](https://img.shields.io/badge/Next.js-16-black) ![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45-C5F74F) ![Better Auth](https://img.shields.io/badge/Better_Auth-1.0-orange)
+[![E2E](https://github.com/ban12-project/tv/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/ban12-project/tv/actions/workflows/e2e.yml) ![Next.js 16](https://img.shields.io/badge/Next.js-16-black) ![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45-C5F74F) ![Better Auth](https://img.shields.io/badge/Better_Auth-1.0-orange)
 
 ## Features
 

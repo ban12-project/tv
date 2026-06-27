@@ -20,7 +20,7 @@ Before any Next.js work, find and read the relevant doc in `node_modules/next/di
 
 To ensure correct API usage, please refer to these specific versions:
 
-- **Next.js**: `^16.0.10` (React 19, App Router)
+- **Next.js**: `16.3.0-preview.5` (React 19, App Router)
 - **React**: `^19.2.3`
 - **Better Auth**: `^1.4.7` (with `@better-auth/passkey`)
 - **Drizzle ORM**: `^0.45.1` (with `drizzle-kit ^0.31.8`)
@@ -34,7 +34,7 @@ To ensure correct API usage, please refer to these specific versions:
 
 - **Authentication**: Powered by Better Auth. Supports anonymous login and passkey upgrades.
 - **Database**: PostgreSQL with Drizzle ORM. Schema and migrations are located in `lib/db`.
-- **Internationalization**: Uses `i18n-config.ts` and `dictionaries/`. The `middleware.ts` handles locale detection.
+- **Internationalization**: Uses `i18n-config.ts` and `dictionaries/`. The `proxy.ts` handles locale detection.
 - **Video Playback**: Uses `hls.js` (`^1.6.15`) for streaming.
 - **Theme**: Supports light/dark modes via `next-themes`.
 

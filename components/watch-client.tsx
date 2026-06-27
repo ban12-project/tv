@@ -30,6 +30,7 @@ import {
 } from "@/lib/actions/content";
 import { saveWatchProgress } from "@/lib/actions/history";
 import type { ContentProfile, Episode, Video } from "@/lib/adapters/types";
+import { useSession } from "@/lib/auth-client";
 import {
   getPlaybackKind,
   inferContentProfile,
@@ -63,10 +64,8 @@ interface WatchClientProps {
   dictionary: Messages;
   initialEpisodeIndex: number;
   initialSourceId: string;
-  progressPromise?: Promise<WatchProgress | null>;
   initialAspectRatio?: string | null;
   initialContentProfile?: ContentProfile | null;
-  persistenceEnabled: boolean;
 }
 
 // Client-side cache for discovered sources to prevent resets during navigation
@@ -79,10 +78,8 @@ export default function WatchClient({
   dictionary,
   initialEpisodeIndex,
   initialSourceId,
-  progressPromise,
   initialAspectRatio,
   initialContentProfile,
-  persistenceEnabled,
 }: WatchClientProps) {
   // Local state for the currently ACTIVE playback (not necessarily the one in URL yet)
   const [activeSourceId, setActiveSourceId] = React.useState(initialSourceId);
@@ -118,6 +115,10 @@ export default function WatchClient({
 
   const pathname = usePathname();
   const router = useRouter();
+  const { data: session } = useSession();
+  const persistenceEnabled = Boolean(
+    session?.user && !session.user.isAnonymous,
+  );
 
   const setActivePlayback = React.useCallback(
     (sourceId: string, episodeIndex: number) => {
@@ -131,29 +132,40 @@ export default function WatchClient({
 
   React.useEffect(() => {
     let cancelled = false;
-    if (!progressPromise) return;
+    if (!persistenceEnabled) return;
 
-    progressPromise.then((history) => {
-      if (cancelled) return;
-
-      const progress = history?.progress ?? 0;
-      const stillOnInitialPlayback =
-        activeSourceIdRef.current === initialSourceId &&
-        activeEpisodeIndexRef.current === initialEpisodeIndex;
-
-      if (
-        stillOnInitialPlayback &&
-        history?.epIndex === initialEpisodeIndex &&
-        progress > 0
-      ) {
-        setInitialProgress(progress);
-      }
+    const searchParams = new URLSearchParams({
+      sourceId: initialSourceId,
+      videoId: video.id,
     });
+
+    fetch(`/api/history?${searchParams}`)
+      .then((response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<WatchProgress | null>;
+      })
+      .then((history) => {
+        if (cancelled) return;
+
+        const progress = history?.progress ?? 0;
+        const stillOnInitialPlayback =
+          activeSourceIdRef.current === initialSourceId &&
+          activeEpisodeIndexRef.current === initialEpisodeIndex;
+
+        if (
+          stillOnInitialPlayback &&
+          history?.epIndex === initialEpisodeIndex &&
+          progress > 0
+        ) {
+          setInitialProgress(progress);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
     };
-  }, [progressPromise, initialSourceId, initialEpisodeIndex]);
+  }, [persistenceEnabled, initialSourceId, initialEpisodeIndex, video.id]);
 
   React.useEffect(() => {
     const initialKey = `${initialSourceId}:${video.id}`;

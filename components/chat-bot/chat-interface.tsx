@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Messages } from "@/get-dictionary";
 import { useChatStore } from "@/lib/store/chat-store";
-import HoverPrefetchLink from "../hover-prefetch-link";
+import Link from "../link";
 
 export function ChatInterface({
   isDesktop,
@@ -165,12 +165,12 @@ export function ChatInterface({
                                 !href || href.startsWith("http") ? (
                                   <a {...props}>{children}</a>
                                 ) : (
-                                  <HoverPrefetchLink
+                                  <Link
                                     href={href}
                                     className="animated-underline"
                                   >
                                     {children}
-                                  </HoverPrefetchLink>
+                                  </Link>
                                 ),
                             }}
                           >
