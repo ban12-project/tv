@@ -3,13 +3,9 @@ import { expect, test } from "@playwright/test";
 
 const accessMode = process.env.ACCESS_MODE === "public" ? "public" : "private";
 const isPublic = accessMode === "public";
-const hasAuth = Boolean(
-  process.env.DATABASE_URL && process.env.BETTER_AUTH_SECRET,
-);
-const isAuthRequired = !isPublic && hasAuth;
 
 test("auth pages navigate instantly", async ({ page }) => {
-  test.skip(isPublic || !hasAuth, "auth pages require private Better Auth");
+  test.skip(isPublic, "auth pages require private Better Auth");
 
   await page.goto("/en/sign-in");
   await expect(page.locator('input[name="email"]')).toBeVisible();
@@ -27,12 +23,6 @@ test("home route matches access mode instantly", async ({ baseURL, page }) => {
       await page.goto("/en");
 
       if (isPublic) {
-        await expect(page).toHaveURL(/\/en$/);
-        await expect(page.locator('input[name="query"]')).toBeVisible();
-        return;
-      }
-
-      if (!isAuthRequired) {
         await expect(page).toHaveURL(/\/en$/);
         await expect(page.locator('input[name="query"]')).toBeVisible();
         return;

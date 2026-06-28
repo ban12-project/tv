@@ -19,11 +19,7 @@ export function hasDatabase() {
 }
 
 export function hasAuth() {
-  return (
-    hasDatabase() &&
-    hasValue(process.env.BETTER_AUTH_SECRET) &&
-    hasValue(process.env.BETTER_AUTH_URL)
-  );
+  return hasValue(process.env.NEXT_PUBLIC_AUTH_ENABLED);
 }
 
 export function getAccessMode() {

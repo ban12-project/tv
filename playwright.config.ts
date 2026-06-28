@@ -31,8 +31,11 @@ const appEnv = {
     ? {
         BETTER_AUTH_SECRET: "",
         DATABASE_URL: "",
+        NEXT_PUBLIC_AUTH_ENABLED: "",
       }
-    : {}),
+    : {
+        NEXT_PUBLIC_AUTH_ENABLED: "1",
+      }),
 };
 
 export default defineConfig({

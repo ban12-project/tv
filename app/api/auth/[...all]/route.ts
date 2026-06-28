@@ -4,7 +4,18 @@ import { hasAuth } from "@/lib/features";
 
 const notFound = () => new Response("Not Found", { status: 404 });
 
-const handlers = hasAuth() ? toNextJsHandler(getAuth()) : null;
+let handlers: ReturnType<typeof toNextJsHandler> | null = null;
 
-export const GET = handlers?.GET ?? notFound;
-export const POST = handlers?.POST ?? notFound;
+function getHandlers() {
+  if (!hasAuth()) return null;
+  handlers ??= toNextJsHandler(getAuth());
+  return handlers;
+}
+
+export function GET(request: Request) {
+  return getHandlers()?.GET(request) ?? notFound();
+}
+
+export function POST(request: Request) {
+  return getHandlers()?.POST(request) ?? notFound();
+}

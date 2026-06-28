@@ -48,6 +48,7 @@ Deploy your own instance of ECheng TV to your favorite platform.
    - In this mode, search and playback are public. Login, allowlist, recommendations, watch history, chatbot, and `/verify-cms` are hidden or return 404.
 
    **Full database/auth mode:**
+   - `NEXT_PUBLIC_AUTH_ENABLED` set to any non-empty value at build time
    - `DATABASE_URL` (Neon PostgreSQL)
    - `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`
    - Enables passkey login, allowlist management, `/verify-cms`, recommendations, watch history, and DB-backed CMS sources.
@@ -90,6 +91,7 @@ Build the standalone image with public variables for the client bundle:
 ```bash
 docker build \
   --build-arg NEXT_PUBLIC_HOST_URL=https://tv.example.com \
+  --build-arg NEXT_PUBLIC_AUTH_ENABLED=1 \
   -t echeng-tv .
 ```
 
@@ -99,7 +101,7 @@ Run the container with runtime secrets and feature flags from `.env`:
 docker run --env-file .env -p 3000:3000 echeng-tv
 ```
 
-For minimal public search and playback, set `MAC_CMS_SOURCES` in `.env`. For auth, recommendations, watch history, and CMS admin controls, also set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL`.
+For minimal public search and playback, set `MAC_CMS_SOURCES` in `.env`. For auth, recommendations, watch history, and CMS admin controls, build with `NEXT_PUBLIC_AUTH_ENABLED` set and also set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL`.
 
 ## Acknowledgments
 
