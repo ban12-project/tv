@@ -30,8 +30,8 @@ export default async function Header({ messages }: { messages: Messages }) {
   return (
     <ScrollAwareHeader>
       <header className="sticky top-0 w-full z-50 transition-colors duration-300 border-b border-transparent bg-transparent data-[scrolled=true]:bg-background/80 data-[scrolled=true]:backdrop-blur-md data-[scrolled=true]:border-border">
-        <div className="px-6 md:px-8 lg:px-10">
-          <div className="flex items-center justify-between h-16">
+        <div className="px-4 sm:px-6 md:px-8 lg:px-10">
+          <div className="flex flex-wrap items-center justify-between min-h-16 gap-x-4 gap-y-2 py-2">
             {/* Logo and Navigation */}
             <div className="flex items-center gap-4">
               <EmojiLogo />

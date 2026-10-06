@@ -14,6 +14,7 @@ import {
   parseAdSkipRangesFromManifest,
   parseAdSkipRangesFromPlaylistTextWithSideChannel,
 } from "@/lib/player/ad-tag-parser";
+import { isRemotePlaybackActive } from "@/lib/player/remote-playback";
 import {
   buildTimelineSampleIndex,
   cleanupTimelineSamples,
@@ -58,9 +59,6 @@ type PlayerStatus =
   | "autoplay-blocked"
   | "fatal-error"
   | "unsupported";
-type WebkitRemotePlaybackVideo = HTMLVideoElement & {
-  webkitCurrentPlaybackTargetIsWireless?: boolean;
-};
 
 function findUnquotedComma(value: string, start: number) {
   let inQuote = false;
@@ -220,6 +218,7 @@ export default function VideoPlayer({
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
   const lastSaveTimeRef = React.useRef<number>(0);
   const restoredProgressKeyRef = React.useRef<string | null>(null);
+  const refreshSkipPlaybackRef = React.useRef<(() => void) | null>(null);
   const [playerStatus, setPlayerStatus] = React.useState<PlayerStatus>("idle");
   const [retryNonce, setRetryNonce] = React.useState(0);
   const containerRatio = parseAspectRatio(layoutAspectRatio) ?? 16 / 9;
@@ -282,6 +281,13 @@ export default function VideoPlayer({
   // Stable event-handler refs via useEffectEvent (React 19).
   // These always call the latest closure without appearing in
   // dependency arrays, so effects never re-subscribe on change.
+  const isAutoSkipEnabled = React.useEffectEvent(() => autoSkip);
+  const getPlaybackSettings = React.useEffectEvent(() => ({
+    autoPlay,
+    initialProgress,
+    playbackProfile,
+  }));
+
   const saveProgress = React.useEffectEvent(() => {
     const video = videoRef.current;
     if (!video || !onProgressSync) return;
@@ -300,7 +306,14 @@ export default function VideoPlayer({
   const performSkip = React.useEffectEvent(
     (options?: { latestPlaylistText?: string; latestPlaylistUrl?: string }) => {
       const video = videoRef.current;
-      if (!video || isSeekingRef.current || !autoSkip) return false;
+      if (
+        !video ||
+        isSeekingRef.current ||
+        !autoSkip ||
+        isRemotePlaybackActive(video)
+      ) {
+        return false;
+      }
 
       const currentTime = video.currentTime;
       for (const mappedRange of mappedSkipRangesRef.current) {
@@ -436,112 +449,31 @@ export default function VideoPlayer({
   }, [nextVideoUrl, playbackProfile]);
 
   // ── HLS setup ──────────────────────────────────────────────────────
-  // Deps: videoUrl, autoPlay, autoSkip, and playbackProfile. Hls is a stable module
-  // constructor, performSkip / handleSeeking are useEffectEvent
-  // (excluded from deps by design).
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Hls is a stable module constructor; performSkip/handleSeeking are useEffectEvent
+  // Only a source change or explicit retry starts a new playback session.
+  // Preferences and inferred metadata must not tear down an AirPlay route.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retryNonce intentionally restarts playback after an explicit retry.
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     let hls: InstanceType<typeof Hls> | null = null;
 
-    const supportsWebkitRemotePlayback =
-      "webkitCurrentPlaybackTargetIsWireless" in video;
+    const {
+      autoPlay: autoplayRequested,
+      initialProgress: startingProgress,
+      playbackProfile: sessionProfile,
+    } = getPlaybackSettings();
+    // Native HLS provides a receiver-accessible URL without a MediaSource
+    // handoff, and keeps Safari in charge of background AirPlay playback.
+    const useNative = Boolean(
+      video.canPlayType("application/vnd.apple.mpegurl"),
+    );
 
     const attachHls = () => {
       if (!hls) return;
       hls.attachMedia(video);
     };
 
-    const addM3u8FallbackSource = () => {
-      let resolvedUrl = videoUrl;
-      try {
-        resolvedUrl = new URL(videoUrl, window.location.href).href;
-      } catch (err) {
-        console.warn("[VideoPlayer] Failed to resolve video URL:", err);
-      }
-      const existingFallback = Array.from(video.children).find(
-        (child) =>
-          child instanceof HTMLSourceElement &&
-          child.type === "application/x-mpegURL" &&
-          child.src === resolvedUrl,
-      );
-      if (existingFallback) return;
-
-      const airPlaySrc = document.createElement("source");
-      airPlaySrc.type = "application/x-mpegURL";
-      airPlaySrc.src = videoUrl;
-      video.appendChild(airPlaySrc);
-      video.disableRemotePlayback = false;
-    };
-
-    // Set up wireless playback (AirPlay) session management
-    const setupWirelessListeners = () => {
-      if (!hls || !supportsWebkitRemotePlayback) return;
-
-      let resumptionInterval: ReturnType<typeof setInterval> | undefined;
-      let currentPlaybackTargetIsWireless =
-        (video as WebkitRemotePlaybackVideo)
-          .webkitCurrentPlaybackTargetIsWireless ?? false;
-
-      // Wireless (AirPlay) session: stop HLS.js streaming locally
-      // and periodically sync the playback position for later resumption
-      const stopHlsJsAndMonitorWirelessPlayback = () => {
-        clearInterval(resumptionInterval);
-        resumptionInterval = setInterval(() => {
-          if (hls) {
-            hls.config.startPosition = video.currentTime || -1;
-          }
-        }, 1000);
-        // Stop streaming in web app when controlling remote playback
-        hls?.stopLoad();
-      };
-
-      // Local session: detach then re-attach HLS.js to resume local playback
-      const resumeLocalHlsJsPlayback = () => {
-        clearInterval(resumptionInterval);
-        if (!hls) return;
-        hls.detachMedia();
-        attachHls();
-        addM3u8FallbackSource();
-        hls.startLoad(hls.config.startPosition);
-      };
-
-      // On initial load, check if already in a wireless session
-      // (e.g. page reload during AirPlay)
-      if (currentPlaybackTargetIsWireless) {
-        addM3u8FallbackSource();
-        stopHlsJsAndMonitorWirelessPlayback();
-      } else {
-        attachHls();
-        addM3u8FallbackSource();
-      }
-
-      // Handle remote playback session transitions
-      const targetChanged = () => {
-        const previousState = currentPlaybackTargetIsWireless;
-        currentPlaybackTargetIsWireless =
-          (video as WebkitRemotePlaybackVideo)
-            .webkitCurrentPlaybackTargetIsWireless ?? false;
-
-        if (currentPlaybackTargetIsWireless) {
-          stopHlsJsAndMonitorWirelessPlayback();
-        } else if (previousState) {
-          resumeLocalHlsJsPlayback();
-        }
-      };
-
-      const wirelessEventName = "webkitcurrentplaybacktargetiswirelesschanged";
-      video.addEventListener(wirelessEventName, targetChanged);
-
-      return () => {
-        clearInterval(resumptionInterval);
-        video.removeEventListener(wirelessEventName, targetChanged);
-      };
-    };
-
-    let cleanupWirelessListeners: (() => void) | undefined;
     let nativeSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let hlsSkipRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let nativeLoadedMetadataListener: (() => void) | undefined;
@@ -557,6 +489,8 @@ export default function VideoPlayer({
     mappedSkipRangesRef.current = [];
     hlsEventsRef.current = [];
     hlsErrorsRef.current = [];
+    isSeekingRef.current = false;
+    isAutoSkippingRef.current = false;
     setPlayerStatus("loading");
 
     const getNativeTimelineStart = () => {
@@ -601,7 +535,8 @@ export default function VideoPlayer({
 
     const queueSkipWatch = () => {
       if (
-        !autoSkip ||
+        !isAutoSkipEnabled() ||
+        isRemotePlaybackActive(video) ||
         video.paused ||
         video.ended ||
         skipWatchVideoFrameId !== undefined ||
@@ -650,6 +585,7 @@ export default function VideoPlayer({
       playlistUrl?: string;
       timelineStart?: number;
     }) => {
+      if (!isAutoSkipEnabled() || isRemotePlaybackActive(video)) return;
       const requestId = ++latestSkipRangeRequestId;
       try {
         const timelineStart = options?.timelineStart;
@@ -771,33 +707,25 @@ export default function VideoPlayer({
     };
 
     const initHls = () => {
-      const supportsNativeHls = Boolean(
-        video.canPlayType("application/vnd.apple.mpegurl"),
-      );
-      const supportsHlsJs = Hls.isSupported();
-      const useNative = supportsNativeHls && (!autoSkip || !supportsHlsJs);
-
-      const initialTime = initialProgress;
+      const initialTime = startingProgress;
 
       if (useNative) {
         video.src = videoUrl;
 
         const onLoadedMetadata = () => {
           setPlayerStatus("ready");
-          if (initialTime > 0) {
+          if (initialTime > 0 && !isRemotePlaybackActive(video)) {
             video.currentTime = initialTime;
           }
-          if (autoSkip) {
+          void updateSkipRanges({
+            timelineStart: getNativeTimelineStart(),
+          });
+          nativeSkipRefreshInterval = setInterval(() => {
             void updateSkipRanges({
               timelineStart: getNativeTimelineStart(),
             });
-            nativeSkipRefreshInterval = setInterval(() => {
-              void updateSkipRanges({
-                timelineStart: getNativeTimelineStart(),
-              });
-            }, SKIP_RANGE_REFRESH_INTERVAL_MS);
-          }
-          if (autoPlay) void attemptPlay();
+          }, SKIP_RANGE_REFRESH_INTERVAL_MS);
+          if (autoplayRequested) void attemptPlay();
         };
 
         nativeLoadedMetadataListener = onLoadedMetadata;
@@ -808,17 +736,17 @@ export default function VideoPlayer({
         return;
       }
 
-      if (!supportsHlsJs) {
+      if (!Hls.isSupported()) {
         setPlayerStatus("unsupported");
         return;
       }
 
       hls = new Hls({
-        backBufferLength: playbackProfile === "short-drama" ? 15 : 60,
+        backBufferLength: sessionProfile === "short-drama" ? 15 : 60,
         capLevelOnFPSDrop: true,
         capLevelToPlayerSize: true,
         startPosition: initialTime,
-        ...(playbackProfile === "short-drama"
+        ...(sessionProfile === "short-drama"
           ? {
               fragLoadingMaxRetry: 2,
               manifestLoadingMaxRetry: 2,
@@ -872,7 +800,6 @@ export default function VideoPlayer({
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
         resetRecoveryAttempts();
-        if (!autoSkip) return;
 
         const timelineStart = data.details.fragmentStart;
         latestPlaylistText = data.details.m3u8;
@@ -886,7 +813,16 @@ export default function VideoPlayer({
           url: latestPlaylistUrl,
         });
         updateFragmentTimelineFromPlaylist(data.details.fragments);
-        if (playbackProfile === "short-drama" && video.currentTime < 2) {
+        hlsSkipRefreshInterval ??= setInterval(() => {
+          if (!latestPlaylistText || !isAutoSkipEnabled()) return;
+          void updateSkipRanges({
+            playlistText: latestPlaylistText,
+            playlistUrl: latestPlaylistUrl,
+            timelineStart: latestPlaylistTimelineStart,
+          });
+        }, SKIP_RANGE_REFRESH_INTERVAL_MS);
+        if (!isAutoSkipEnabled() || isRemotePlaybackActive(video)) return;
+        if (sessionProfile === "short-drama" && video.currentTime < 2) {
           return;
         }
         void updateSkipRanges({
@@ -894,22 +830,13 @@ export default function VideoPlayer({
           playlistUrl: latestPlaylistUrl,
           timelineStart: latestPlaylistTimelineStart,
         });
-
-        hlsSkipRefreshInterval ??= setInterval(() => {
-          if (!latestPlaylistText) return;
-          void updateSkipRanges({
-            playlistText: latestPlaylistText,
-            playlistUrl: latestPlaylistUrl,
-            timelineStart: latestPlaylistTimelineStart,
-          });
-        }, SKIP_RANGE_REFRESH_INTERVAL_MS);
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         resetRecoveryAttempts();
         recordHlsEvent(Hls.Events.MANIFEST_PARSED);
         setPlayerStatus("ready");
-        if (autoPlay) void attemptPlay();
+        if (autoplayRequested) void attemptPlay();
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -919,6 +846,7 @@ export default function VideoPlayer({
           fatal: data.fatal,
           type: data.type,
         });
+        if (isRemotePlaybackActive(video)) return;
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -954,12 +882,32 @@ export default function VideoPlayer({
 
       hls.loadSource(videoUrl);
 
-      // Set up AirPlay wireless listeners (handles attachMedia + fallback source)
-      if (supportsWebkitRemotePlayback) {
-        cleanupWirelessListeners = setupWirelessListeners();
-      } else {
-        attachHls();
+      attachHls();
+    };
+
+    const refreshSkipPlayback = () => {
+      cancelSkipWatch();
+      if (!isAutoSkipEnabled() || isRemotePlaybackActive(video)) return;
+
+      if (useNative && video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+        void updateSkipRanges({ timelineStart: getNativeTimelineStart() });
+      } else if (latestPlaylistText) {
+        void updateSkipRanges({
+          playlistText: latestPlaylistText,
+          playlistUrl: latestPlaylistUrl,
+          timelineStart: latestPlaylistTimelineStart,
+        });
       }
+      queueSkipWatch();
+    };
+    refreshSkipPlaybackRef.current = refreshSkipPlayback;
+
+    const handleRemotePlaybackChange = () => {
+      recordHlsEvent("remote-playback-change", {
+        remote: isRemotePlaybackActive(video),
+        state: video.remote?.state,
+      });
+      refreshSkipPlayback();
     };
     const handleMediaError = () => {
       setPlayerStatus("fatal-error");
@@ -982,14 +930,21 @@ export default function VideoPlayer({
     video.addEventListener("pause", cancelSkipWatch);
     video.addEventListener("ended", cancelSkipWatch);
     video.addEventListener("error", handleMediaError);
+    video.addEventListener(
+      "webkitcurrentplaybacktargetiswirelesschanged",
+      handleRemotePlaybackChange,
+    );
+    video.remote?.addEventListener("connecting", handleRemotePlaybackChange);
+    video.remote?.addEventListener("connect", handleRemotePlaybackChange);
+    video.remote?.addEventListener("disconnect", handleRemotePlaybackChange);
     initHls();
 
     // Use timeupdate event (~4 fires/sec) instead of requestVideoFrameCallback
     // for significantly reduced CPU usage while maintaining skip accuracy
     const handleTimeUpdate = () => {
-      if (autoSkip) {
+      if (isAutoSkipEnabled() && !isRemotePlaybackActive(video)) {
         if (
-          playbackProfile === "short-drama" &&
+          sessionProfile === "short-drama" &&
           !deferredShortDramaSkipLoadStarted &&
           skipRangesRef.current.length === 0 &&
           latestPlaylistText &&
@@ -1025,6 +980,19 @@ export default function VideoPlayer({
       video.removeEventListener("pause", cancelSkipWatch);
       video.removeEventListener("ended", cancelSkipWatch);
       video.removeEventListener("error", handleMediaError);
+      video.removeEventListener(
+        "webkitcurrentplaybacktargetiswirelesschanged",
+        handleRemotePlaybackChange,
+      );
+      video.remote?.removeEventListener(
+        "connecting",
+        handleRemotePlaybackChange,
+      );
+      video.remote?.removeEventListener("connect", handleRemotePlaybackChange);
+      video.remote?.removeEventListener(
+        "disconnect",
+        handleRemotePlaybackChange,
+      );
       if (nativeLoadedMetadataListener) {
         video.removeEventListener(
           "loadedmetadata",
@@ -1032,7 +1000,7 @@ export default function VideoPlayer({
         );
       }
       cancelSkipWatch();
-      cleanupWirelessListeners?.();
+      refreshSkipPlaybackRef.current = null;
       clearInterval(nativeSkipRefreshInterval);
       clearInterval(hlsSkipRefreshInterval);
       if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
@@ -1045,7 +1013,12 @@ export default function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [videoUrl, autoPlay, autoSkip, playbackProfile, retryNonce]);
+  }, [Hls, videoUrl, retryNonce, attemptPlay, recordHlsEvent, recordHlsError]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: autoSkip updates the skip watcher without rebuilding the media source.
+  React.useEffect(() => {
+    refreshSkipPlaybackRef.current?.();
+  }, [autoSkip]);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -1058,6 +1031,7 @@ export default function VideoPlayer({
     if (restoredProgressKeyRef.current === restoreKey) return;
 
     const restorePlaybackPosition = () => {
+      if (isRemotePlaybackActive(video)) return;
       video.currentTime = initialProgress;
     };
 
@@ -1163,23 +1137,59 @@ export default function VideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
+    let disposed = false;
+    let wakeLockPending = false;
     const requestWakeLock = async () => {
+      if (
+        disposed ||
+        wakeLockPending ||
+        document.visibilityState !== "visible" ||
+        video.paused ||
+        video.ended ||
+        isRemotePlaybackActive(video)
+      ) {
+        return;
+      }
       if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
         try {
           if (!wakeLockRef.current) {
-            wakeLockRef.current = await navigator.wakeLock.request("screen");
+            wakeLockPending = true;
+            const wakeLock = await navigator.wakeLock.request("screen");
+            if (
+              disposed ||
+              document.visibilityState !== "visible" ||
+              video.paused ||
+              video.ended ||
+              isRemotePlaybackActive(video)
+            ) {
+              await wakeLock.release();
+              return;
+            }
+            wakeLockRef.current = wakeLock;
+            wakeLock.addEventListener(
+              "release",
+              () => {
+                if (wakeLockRef.current === wakeLock) {
+                  wakeLockRef.current = null;
+                }
+              },
+              { once: true },
+            );
           }
         } catch (err) {
           console.warn("Failed to request Wake Lock:", err);
+        } finally {
+          wakeLockPending = false;
         }
       }
     };
 
     const releaseWakeLock = async () => {
-      if (wakeLockRef.current) {
+      const wakeLock = wakeLockRef.current;
+      wakeLockRef.current = null;
+      if (wakeLock) {
         try {
-          await wakeLockRef.current.release();
-          wakeLockRef.current = null;
+          await wakeLock.release();
         } catch (err) {
           console.warn("Failed to release Wake Lock:", err);
         }
@@ -1225,16 +1235,45 @@ export default function VideoPlayer({
       beaconProgress();
     };
 
+    const handleRemotePlaybackChange = () => {
+      if (isRemotePlaybackActive(video)) {
+        void releaseWakeLock();
+      } else {
+        void requestWakeLock();
+      }
+    };
+
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("ended", handleEnded);
+    video.addEventListener(
+      "webkitcurrentplaybacktargetiswirelesschanged",
+      handleRemotePlaybackChange,
+    );
+    video.remote?.addEventListener("connecting", handleRemotePlaybackChange);
+    video.remote?.addEventListener("connect", handleRemotePlaybackChange);
+    video.remote?.addEventListener("disconnect", handleRemotePlaybackChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageHide);
 
     return () => {
+      disposed = true;
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener(
+        "webkitcurrentplaybacktargetiswirelesschanged",
+        handleRemotePlaybackChange,
+      );
+      video.remote?.removeEventListener(
+        "connecting",
+        handleRemotePlaybackChange,
+      );
+      video.remote?.removeEventListener("connect", handleRemotePlaybackChange);
+      video.remote?.removeEventListener(
+        "disconnect",
+        handleRemotePlaybackChange,
+      );
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
       releaseWakeLock();
@@ -1258,6 +1297,8 @@ export default function VideoPlayer({
           className="block size-full object-contain object-center transition-opacity duration-500 [&:fullscreen]:outline-none"
           poster={poster}
           playsInline
+          disableRemotePlayback={false}
+          x-webkit-airplay="allow"
           preload="metadata"
           controls
           autoPlay={autoPlay}

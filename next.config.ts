@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     instantInsights: {
       validationLevel: "warning",
     },
-    viewTransition: true,
   },
   logging: {
     browserToTerminal: true,

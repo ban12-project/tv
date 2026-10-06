@@ -40,7 +40,9 @@ export default async function VerifyCmsPage({
   return (
     <div className="container py-8 max-w-7xl space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">{messages.title}</h1>
+        <h1 className="typography-heading text-3xl font-bold tracking-tight">
+          {messages.title}
+        </h1>
         <p className="text-muted-foreground">{messages.description}</p>
       </div>
 
