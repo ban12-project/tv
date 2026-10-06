@@ -18,7 +18,7 @@ export default async function Home(props: {
   const dict = await getDictionary(lang);
 
   return (
-    <main className="min-h-[calc(100dvh-65px)]">
+    <main className="flex flex-1 flex-col">
       <JsonLdScript
         data={{
           "@context": "https://schema.org",

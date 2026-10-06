@@ -34,6 +34,16 @@ jobs:
       - name: Run public e2e
         run: pnpm test:e2e:public
 
+      - name: Build production app without runtime services
+        run: pnpm build
+        env:
+          ACCESS_MODE: public
+          NEXT_PUBLIC_AUTH_ENABLED: ''
+          NEXT_PUBLIC_HOST_URL: http://localhost:3102
+
+      - name: Verify production hydration with runtime services
+        run: pnpm test:e2e:production
+
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
