@@ -23,7 +23,7 @@ export default function Bailiff({
       </div>
 
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight bg-linear-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
+        <h2 className="typography-heading text-2xl font-bold tracking-tight bg-linear-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
           {messages.title}
         </h2>
         <p className="text-muted-foreground text-lg italic font-medium">

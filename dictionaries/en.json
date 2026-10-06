@@ -21,6 +21,11 @@
     "search-view-all-results": "Decrypt all {count} records →",
     "search-no-results-found": "Void returned for \"{query}\". System silent.",
     "search-try-searching": "Re-calibrate sensors. Try codenames or genres.",
+    "search-tagline": {
+      "opening": "Re-calibrate sensors.",
+      "ending": "Try codenames or genres",
+      "punctuation": "."
+    },
     "verify-cms": "Outposts",
     "recommended": "Priority Intel",
     "douban-top250": "Global Intel (Douban 250)"
@@ -71,7 +76,7 @@
     "sources-list": "Frequency List",
     "no-source": "Static. No signal detected in this sector.",
     "ad-skip-label": "Auto-Defrag (Skip Ads)",
-    "ad-skip-description": "If playback lags, try disabling auto-skip to increase stability.",
+    "ad-skip-description": "If playback lags, try disabling auto-skip. Auto-skip takes a break during AirPlay or remote playback.",
     "ad-skip-info": "Auto-defrag briefing",
     "ad-feedback": {
       "title": "Auto-defrag field check",

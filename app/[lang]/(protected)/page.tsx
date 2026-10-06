@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { HomeSearch } from "@/components/home-search";
+import { SearchTagline } from "@/components/search-tagline";
 import { getDictionary, type Messages } from "@/get-dictionary";
 import type { Locale } from "@/i18n-config";
 import { getInitialSearchResults } from "@/lib/actions/content";
@@ -90,7 +91,7 @@ function HomeSearchLoading({ dictionary }: { dictionary: Messages }) {
       <div className="transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col items-center justify-center h-[70vh]">
         <div className="w-full max-w-2xl space-y-8">
           <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground">
+            <h1 className="typography-heading whitespace-nowrap text-[clamp(2rem,12vw,4.5rem)] font-black tracking-tighter text-foreground">
               {brandLead}
               {brandTail && (
                 <>
@@ -99,9 +100,7 @@ function HomeSearchLoading({ dictionary }: { dictionary: Messages }) {
                 </>
               )}
             </h1>
-            <p className="text-neutral-400 text-lg md:text-xl max-w-md mx-auto">
-              {dictionary.header["search-try-searching"]}
-            </p>
+            <SearchTagline dictionary={dictionary} />
           </div>
 
           <div className="group relative">

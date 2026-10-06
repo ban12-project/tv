@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import * as React from "react";
+import { SearchTagline } from "@/components/search-tagline";
 import { VideoCard } from "@/components/video-card";
 import type { Messages } from "@/get-dictionary";
 import { useVideoSearch } from "@/hooks/use-video-search";
@@ -72,7 +73,7 @@ export function HomeSearch({
         <div className="w-full max-w-2xl space-y-8">
           {!hasResults && !isPending && !query && (
             <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-              <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-foreground">
+              <h1 className="typography-heading whitespace-nowrap text-[clamp(2rem,12vw,4.5rem)] font-black tracking-tighter text-foreground">
                 {brandLead}
                 {brandTail && (
                   <>
@@ -81,9 +82,7 @@ export function HomeSearch({
                   </>
                 )}
               </h1>
-              <p className="text-neutral-400 text-lg md:text-xl max-w-md mx-auto">
-                {dictionary.header["search-try-searching"]}
-              </p>
+              <SearchTagline dictionary={dictionary} />
             </div>
           )}
 
