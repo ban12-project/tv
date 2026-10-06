@@ -11,6 +11,7 @@
     "test:e2e": "pnpm test:e2e:private && pnpm test:e2e:public",
     "test:e2e:private": "ACCESS_MODE=private E2E_PORT=3100 playwright test",
     "test:e2e:public": "ACCESS_MODE=public E2E_PORT=3101 playwright test",
+    "test:e2e:production": "ACCESS_MODE=public E2E_PORT=3102 E2E_SERVER_MODE=production E2E_RUNTIME_SERVICES=fixture playwright test e2e/home-layout.spec.ts",
     "prepare": "husky",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file .env lib/db/migrate.ts",

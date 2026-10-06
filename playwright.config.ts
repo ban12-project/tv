@@ -5,6 +5,7 @@ const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
 
 const accessMode = process.env.ACCESS_MODE === "public" ? "public" : "private";
+const production = process.env.E2E_SERVER_MODE === "production";
 const port = Number.parseInt(
   process.env.E2E_PORT ?? (accessMode === "public" ? "3101" : "3100"),
   10,
@@ -27,6 +28,12 @@ const appEnv = {
     },
   ]),
   NEXT_PUBLIC_HOST_URL: baseURL,
+  ...(process.env.E2E_RUNTIME_SERVICES === "fixture"
+    ? {
+        SUPABASE_ENDPOINT: fixtureBaseURL,
+        SUPABASE_ANON_KEY: "fixture-key",
+      }
+    : {}),
   ...(accessMode === "public"
     ? {
         BETTER_AUTH_SECRET: "",
@@ -52,7 +59,9 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `pnpm exec next dev -p ${port}`,
+      command: production
+        ? "node scripts/start-e2e-production.mjs"
+        : `pnpm exec next dev -p ${port}`,
       env: appEnv,
       url: baseURL,
       reuseExistingServer: false,
