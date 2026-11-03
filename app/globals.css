@@ -7,6 +7,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -123,6 +127,27 @@
 
   body {
     @apply bg-background text-foreground;
+    font-kerning: normal;
+  }
+
+  :root:lang(zh) {
+    text-autospace: normal;
+    line-break: strict;
+  }
+
+  :where(pre, code, kbd, samp) {
+    text-autospace: no-autospace;
+  }
+}
+
+@utility typography-heading {
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+
+  &:lang(zh) {
+    letter-spacing: normal;
+    line-height: 1.3;
+    text-spacing-trim: trim-both;
   }
 }
 

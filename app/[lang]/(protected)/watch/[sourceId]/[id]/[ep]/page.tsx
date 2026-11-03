@@ -226,7 +226,7 @@ export default async function WatchPage({ params }: Props) {
       <section className="w-full max-w-7xl mx-auto px-2 sm:px-4 lg:px-6">
         <div className="w-full max-w-3xl space-y-6">
           <div className="flex items-end gap-4">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+            <h1 className="typography-heading min-w-0 text-4xl md:text-6xl font-bold tracking-tight">
               {video.title}
             </h1>
             <ViewTransition>
@@ -248,7 +248,7 @@ export default async function WatchPage({ params }: Props) {
             </ViewTransition>
           </div>
 
-          <div className="flex items-center space-x-4 text-sm md:text-base text-muted-foreground font-medium">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm md:text-base text-muted-foreground font-medium tabular-nums">
             {video.year && <span>{video.year}</span>}
             <span>•</span>
             <span>{video.genre.join(", ")}</span>
@@ -260,7 +260,7 @@ export default async function WatchPage({ params }: Props) {
             )}
           </div>
 
-          <p className="text-lg text-foreground/90 leading-relaxed line-clamp-4">
+          <p className="text-lg text-foreground/90 leading-8 text-pretty wrap-anywhere line-clamp-4">
             {video.description}
           </p>
         </div>

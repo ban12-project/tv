@@ -52,6 +52,11 @@ const server = createServer((request, response) => {
     return;
   }
 
+  if (url.pathname === "/functions/v1/douban/top250") {
+    json(response, { count: 0, subject_collection_items: [] });
+    return;
+  }
+
   if (url.pathname === "/poster.svg") {
     response.writeHead(200, {
       "access-control-allow-origin": "*",

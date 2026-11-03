@@ -37,7 +37,7 @@ To ensure correct API usage, please refer to these specific versions:
 - **Authentication**: Powered by Better Auth. Supports anonymous login and passkey upgrades.
 - **Database**: PostgreSQL with Drizzle ORM. Schema and migrations are located in `lib/db`.
 - **Internationalization**: Uses `i18n-config.ts` and `dictionaries/`. The `proxy.ts` handles locale detection.
-- **Video Playback**: Uses `hls.js` (`^1.6.15`) for streaming.
+- **Video Playback**: Uses native HLS where available and `hls.js` (`^1.7.3`) elsewhere.
 - **Theme**: Supports light/dark modes via `next-themes`.
 
 ## Building and Running

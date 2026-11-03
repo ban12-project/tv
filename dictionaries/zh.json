@@ -21,6 +21,11 @@
     "search-view-all-results": "带上来！查看全部 {count} 个",
     "search-no-results-found": "坏了，\"{query}\" 被麻匪劫走了！",
     "search-try-searching": "换个搜法？站着把片子搜了！",
+    "search-tagline": {
+      "opening": "换个搜法？",
+      "ending": "站着把片子搜了",
+      "punctuation": "！"
+    },
     "verify-cms": "山头",
     "recommended": "师爷推荐",
     "douban-top250": "风云榜 (豆瓣250)"
@@ -71,7 +76,7 @@
     "sources-list": "换个码头 (切换源)",
     "no-source": "这地界儿没搜到能放的，再等等？",
     "ad-skip-label": "自动解毒 (自动跳过广告)",
-    "ad-skip-description": "如果出现播放器卡顿请尝试关闭自动跳过广告可能会缓解",
+    "ad-skip-description": "放映机卡顿？先关掉自动解毒试试。AirPlay 等投屏期间，自动解毒歇一歇。",
     "ad-skip-info": "自动解毒说明",
     "ad-feedback": {
       "title": "自动解毒验尸单",
