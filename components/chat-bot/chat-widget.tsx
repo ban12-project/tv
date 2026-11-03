@@ -1,11 +1,17 @@
 "use client";
 
+import { lazy, Suspense, useState } from "react";
 import { Drawer } from "vaul";
 import type { Messages } from "@/get-dictionary";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useChatStore } from "@/lib/store/chat-store";
 import { cn } from "@/lib/utils";
-import { ChatInterface } from "./chat-interface";
+
+const ChatInterface = lazy(() =>
+  import("./chat-interface").then((module) => ({
+    default: module.ChatInterface,
+  })),
+);
 
 export function ChatWidget({
   className,
@@ -16,6 +22,14 @@ export function ChatWidget({
 }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const { isOpen, setOpen } = useChatStore();
+  const [hasOpened, setHasOpened] = useState(isOpen);
+  if (isOpen && !hasOpened) setHasOpened(true);
+
+  const chat = hasOpened ? (
+    <Suspense fallback={<p role="status">{dictionary.common.loading}</p>}>
+      <ChatInterface isDesktop={isDesktop} dictionary={dictionary} />
+    </Suspense>
+  ) : null;
 
   if (isDesktop) {
     return (
@@ -27,7 +41,7 @@ export function ChatWidget({
           className,
         )}
       >
-        <ChatInterface isDesktop={isDesktop} dictionary={dictionary} />
+        {chat}
       </aside>
     );
   }
@@ -43,9 +57,7 @@ export function ChatWidget({
             {dictionary.chat["drawer-description"]}
           </Drawer.Description>
 
-          <div className="flex-1 overflow-hidden h-full">
-            <ChatInterface isDesktop={isDesktop} dictionary={dictionary} />
-          </div>
+          <div className="flex-1 overflow-hidden h-full">{chat}</div>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

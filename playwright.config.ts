@@ -17,6 +17,9 @@ const baseURL = `http://localhost:${port}`;
 const fixtureBaseURL = `http://127.0.0.1:${fixturePort}`;
 const appEnv = {
   ACCESS_MODE: accessMode,
+  E2E_BUILD: "1",
+  SUPABASE_ENDPOINT: "",
+  SUPABASE_ANON_KEY: "",
   BETTER_AUTH_URL: baseURL,
   MAC_CMS_SOURCES: JSON.stringify([
     {
@@ -52,7 +55,8 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `pnpm exec next dev -p ${port}`,
+      command: `node node_modules/next/dist/bin/next build && node node_modules/next/dist/bin/next start -p ${port}`,
+      timeout: 240_000,
       env: appEnv,
       url: baseURL,
       reuseExistingServer: false,

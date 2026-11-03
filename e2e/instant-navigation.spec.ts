@@ -46,7 +46,11 @@ test("public watch route navigates instantly when configured", async ({
     async () => {
       await page.goto("/en/watch/fixture/1001/1");
       await expect(page.locator("main")).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Bullet Train" }),
+      ).toHaveCount(0);
     },
     { baseURL },
   );
+  await expect(page.getByRole("heading", { name: "Bullet Train" })).toBeVisible();
 });
