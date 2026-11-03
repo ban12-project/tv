@@ -38,4 +38,21 @@ test.describe("public content", () => {
     await expect(page.getByRole("tab", { name: "Frequency List" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Fixture CMS/ })).toBeVisible();
   });
+
+  test("preserves Chinese routes across episode changes and history", async ({
+    page,
+  }) => {
+    await page.goto("/zh?q=dispatch");
+    await page.getByRole("link", { name: /ECheng Dispatch/ }).click();
+    await expect(page).toHaveURL(/\/zh\/watch\/fixture\/1002\/1$/);
+    await page.locator('a[href="/zh/watch/fixture/1002/2"]').click();
+    await expect(page).toHaveURL(/\/zh\/watch\/fixture\/1002\/2$/);
+    await expect(
+      page.getByRole("heading", { name: "ECheng Dispatch" }),
+    ).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/zh\/watch\/fixture\/1002\/1$/);
+    await page.goForward();
+    await expect(page).toHaveURL(/\/zh\/watch\/fixture\/1002\/2$/);
+  });
 });
