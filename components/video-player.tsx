@@ -34,7 +34,6 @@ import { cn, formatTime } from "@/lib/utils";
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
 const SKIP_END_EPSILON_SECONDS = 0.05;
-const SKIP_DUPLICATE_GUARD_MS = 250;
 const SKIP_PROBE_RECHECK_DISTANCE_SECONDS = 45;
 const AD_DEBUG_PLAYLIST_EXCERPT_LIMIT = 12_000;
 const AD_DEBUG_PLAYLIST_CONTEXT_MARGIN = 3000;
@@ -242,10 +241,6 @@ export default function VideoPlayer({
   const hlsErrorsRef = React.useRef<AdSkipRuntimeEvent[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
-  const lastAutoSkipRef = React.useRef<{
-    targetEnd: number;
-    atMs: number;
-  } | null>(null);
   const lastProbedPlaybackTimeRef = React.useRef<number | null>(null);
   const latestPlaylistTextRef = React.useRef<string | undefined>(undefined);
   const latestPlaylistUrlRef = React.useRef<string | undefined>(undefined);
@@ -381,16 +376,6 @@ export default function VideoPlayer({
             : targetEnd;
 
         if (currentTime < effectiveEnd - SKIP_END_EPSILON_SECONDS) {
-          const now = Date.now();
-          const lastSkip = lastAutoSkipRef.current;
-          if (
-            lastSkip &&
-            now - lastSkip.atMs < SKIP_DUPLICATE_GUARD_MS &&
-            effectiveEnd <= lastSkip.targetEnd + SKIP_END_EPSILON_SECONDS
-          ) {
-            return false;
-          }
-
           const mappedRange: TimelineMappedRange = {
             start: firstRange.start,
             end: targetEnd,
@@ -402,10 +387,6 @@ export default function VideoPlayer({
             }`,
           );
           isAutoSkippingRef.current = true;
-          lastAutoSkipRef.current = {
-            targetEnd: effectiveEnd,
-            atMs: now,
-          };
           const nextTime = effectiveEnd;
           const resolvedPlaylistText =
             options?.latestPlaylistText ?? latestPlaylistTextRef.current;
@@ -462,7 +443,6 @@ export default function VideoPlayer({
       return;
     }
 
-    lastAutoSkipRef.current = null;
     isSeekingRef.current = true;
     if (seekTimeoutRef.current) clearTimeout(seekTimeoutRef.current);
 
@@ -586,7 +566,6 @@ export default function VideoPlayer({
     hlsErrorsRef.current = [];
     isSeekingRef.current = false;
     isAutoSkippingRef.current = false;
-    lastAutoSkipRef.current = null;
     lastProbedPlaybackTimeRef.current = null;
     latestPlaylistTextRef.current = undefined;
     latestPlaylistUrlRef.current = undefined;
