@@ -8,10 +8,20 @@ const MANIFEST_LINE_BREAK = /\r\n|\r|\n/;
 const MANIFEST_TAG_PREFIX = "#";
 const DEFAULT_MEDIA_FINGERPRINT_PROBE_BYTES = 262_144;
 const DEFAULT_MEDIA_FINGERPRINT_PROBE_WINDOW_SECONDS = 120;
+const DEFAULT_MEDIA_FINGERPRINT_LOOKBACK_SECONDS = 30;
 const BASELINE_SAMPLE_LIMIT = 12;
+const MAX_BASELINE_SAMPLES_PER_SHORT_BLOCK = 2;
 const DISCONTINUITY_PROBE_LIMIT = 40;
 const MIN_ANOMALY_SEGMENTS = 2;
-const MAX_ANOMALY_SEGMENTS = 12;
+const MAX_ANOMALY_SEGMENTS = 25;
+const INITIAL_CANDIDATE_PROBE_SEGMENTS = 3;
+const MAX_AD_BLOCK_DURATION_SECONDS = 60;
+const MAX_CUE_OUT_SLACK_RATIO = 2;
+const MAX_CUE_OUT_SLACK_SECONDS = 15;
+const DOMINANT_TIMELINE_SHARE_THRESHOLD = 0.7;
+const FOREIGN_ISLAND_MAX_TIMELINE_SHARE = 0.25;
+const MIN_DOMINANT_TIMELINE_SECONDS = 30;
+const MAX_TAIL_SEGMENT_BRIDGE_SECONDS = 1.25;
 const MEDIA_FINGERPRINT_PROBE_CACHE_LIMIT = 500;
 const MEDIA_FINGERPRINT_PROBE_CONCURRENCY = 4;
 const MEDIA_FINGERPRINT_PROBE_TIMEOUT_MS = 8_000;
@@ -54,6 +64,22 @@ interface SegmentTimelineEntry {
   end: number;
   url: string;
   startsAfterDiscontinuity: boolean;
+  discontinuityGroup: number;
+  keyId: string | null;
+  mapUri: string | null;
+}
+
+interface DiscontinuityBlock {
+  groupIndex: number;
+  startIndex: number;
+  endIndex: number;
+  start: number;
+  end: number;
+  duration: number;
+  segments: SegmentTimelineEntry[];
+  urlFamilyKey: string;
+  keyId: string | null;
+  mapUri: string | null;
 }
 
 interface PlaylistParseResult {
@@ -345,7 +371,7 @@ function getUrlFamilyKey(url: string): string {
   } catch {
     const [path] = url.split(/[?#]/, 1);
     const slashIndex = path.lastIndexOf("/");
-    return slashIndex > -1 ? path.slice(0, slashIndex) : path;
+    return slashIndex > -1 ? path.slice(0, slashIndex) : "";
   }
 }
 
@@ -594,12 +620,20 @@ function parseH264SpsInfo(nal: Uint8Array): H264CodecInfo | null {
       profileIdc,
       constraintFlags,
       levelIdc,
-      spsHash: hashBytes(nal),
+      spsHash: hashBytes(trimTrailingZeroBytes(nal)),
       ppsHash: null,
     };
   } catch {
     return null;
   }
+}
+
+function trimTrailingZeroBytes(bytes: Uint8Array): Uint8Array {
+  let end = bytes.length;
+  while (end > 1 && bytes[end - 1] === 0x00) {
+    end -= 1;
+  }
+  return end === bytes.length ? bytes : bytes.subarray(0, end);
 }
 
 function getNalStartCodeLength(
@@ -648,7 +682,9 @@ function parseNalInfo(
   if (nalType === 8) {
     return {
       h264: null,
-      ppsHash: hashBytes(bytes.subarray(nalStart, nalEnd)),
+      ppsHash: hashBytes(
+        trimTrailingZeroBytes(bytes.subarray(nalStart, nalEnd)),
+      ),
     };
   }
 
@@ -796,13 +832,29 @@ function parsePmtInfo(
   return { audioPid, pcrPid, streams, videoPid };
 }
 
+function findTsSyncOffset(bytes: Uint8Array): number {
+  const packetSize = 188;
+  const maxStart = Math.min(packetSize - 1, bytes.length - 1);
+  for (let offset = 0; offset <= maxStart; offset++) {
+    if (bytes[offset] !== 0x47) continue;
+    if (
+      offset + packetSize >= bytes.length ||
+      bytes[offset + packetSize] === 0x47
+    ) {
+      return offset;
+    }
+  }
+  return 0;
+}
+
 function findTsProgramInfo(bytes: Uint8Array): TsProgramInfo {
   const packetSize = 188;
   let pmtPid: number | null = null;
   let programNumber: number | null = null;
+  const syncOffset = findTsSyncOffset(bytes);
 
   for (
-    let offset = 0;
+    let offset = syncOffset;
     offset + packetSize <= bytes.length;
     offset += packetSize
   ) {
@@ -858,6 +910,7 @@ function extractTsPayload(bytes: Uint8Array, pid: number | null): Uint8Array {
   );
   let payloadIndex = 0;
   const packetSize = 188;
+  const syncOffset = findTsSyncOffset(bytes);
 
   const appendPayload = (chunk: Uint8Array) => {
     const requiredLength = payloadIndex + chunk.length;
@@ -875,7 +928,7 @@ function extractTsPayload(bytes: Uint8Array, pid: number | null): Uint8Array {
   };
 
   for (
-    let offset = 0;
+    let offset = syncOffset;
     offset + packetSize <= bytes.length;
     offset += packetSize
   ) {
@@ -1011,6 +1064,44 @@ function createTimeoutSignal(parentSignal: AbortSignal | undefined): {
   };
 }
 
+async function readPartialResponseBytes(
+  response: Response,
+  maxBytes: number,
+): Promise<Uint8Array | null> {
+  if (!response.body) {
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer.slice(0, maxBytes));
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalRead = 0;
+
+  try {
+    while (totalRead < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      const remaining = maxBytes - totalRead;
+      const slice =
+        value.byteLength > remaining ? value.subarray(0, remaining) : value;
+      chunks.push(slice);
+      totalRead += slice.byteLength;
+      if (totalRead >= maxBytes) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+
+  if (totalRead === 0) return null;
+  const combined = new Uint8Array(totalRead);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return combined;
+}
+
 async function probeSegmentFingerprint(
   segment: SegmentTimelineEntry,
   options: {
@@ -1040,16 +1131,35 @@ async function probeSegmentFingerprint(
       return null;
     }
 
-    if (response.status !== 206) {
+    let bytes: Uint8Array | null = null;
+    let totalBytes: number | null = null;
+
+    if (response.status === 206) {
+      totalBytes = getContentRangeTotalBytes(
+        response.headers.get("Content-Range"),
+      );
+      bytes = new Uint8Array(await response.arrayBuffer());
+    } else if (response.status === 200) {
+      const contentLength = Number.parseInt(
+        response.headers.get("Content-Length") ?? "",
+        10,
+      );
+      totalBytes =
+        Number.isFinite(contentLength) && contentLength > 0
+          ? contentLength
+          : null;
+      bytes = await readPartialResponseBytes(response, options.byteLength);
+    } else {
       await response.body?.cancel();
       options.cache.set(segment.url, null);
       return null;
     }
 
-    const totalBytes = getContentRangeTotalBytes(
-      response.headers.get("Content-Range"),
-    );
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (!bytes || bytes.byteLength === 0) {
+      options.cache.set(segment.url, null);
+      return null;
+    }
+
     const fingerprint = buildSegmentFingerprint(bytes, {
       duration: segment.end - segment.start,
       totalBytes,
@@ -1100,6 +1210,219 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+function resolveSegmentUrl(line: string, playlistUrl?: string): string {
+  if (!playlistUrl) return line;
+  try {
+    return new URL(line, playlistUrl).toString();
+  } catch {
+    return line;
+  }
+}
+
+function getNormalizedSegmentToken(url: string): string {
+  const withoutQuery = url.split(/[?#]/, 1)[0];
+  const slashIndex = withoutQuery.lastIndexOf("/");
+  return slashIndex > -1 ? withoutQuery.slice(slashIndex + 1) : withoutQuery;
+}
+
+function buildDiscontinuityBlocks(
+  segments: SegmentTimelineEntry[],
+): DiscontinuityBlock[] {
+  if (segments.length === 0) return [];
+
+  const blocks: DiscontinuityBlock[] = [];
+  let blockStartIndex = 0;
+
+  const pushBlock = (startIndex: number, endIndex: number) => {
+    const blockSegments = segments.slice(startIndex, endIndex + 1);
+    if (blockSegments.length === 0) return;
+
+    const first = blockSegments[0];
+    const last = blockSegments[blockSegments.length - 1];
+    const familyKey =
+      getModalValue(blockSegments.map((seg) => getUrlFamilyKey(seg.url))) ??
+      getUrlFamilyKey(first.url);
+    const keyId = getModalValue(blockSegments.map((seg) => seg.keyId));
+    const mapUri = getModalValue(blockSegments.map((seg) => seg.mapUri));
+
+    blocks.push({
+      groupIndex: first.discontinuityGroup,
+      startIndex,
+      endIndex,
+      start: first.start,
+      end: last.end,
+      duration: Math.max(0, last.end - first.start),
+      segments: blockSegments,
+      urlFamilyKey: familyKey,
+      keyId,
+      mapUri,
+    });
+  };
+
+  for (let index = 1; index < segments.length; index++) {
+    if (
+      segments[index].discontinuityGroup !==
+      segments[index - 1].discontinuityGroup
+    ) {
+      pushBlock(blockStartIndex, index - 1);
+      blockStartIndex = index;
+    }
+  }
+  pushBlock(blockStartIndex, segments.length - 1);
+
+  return blocks;
+}
+
+function getDominantTimelineKey(
+  blocks: DiscontinuityBlock[],
+  totalDuration: number,
+  extractor: (block: DiscontinuityBlock) => string | null,
+): {
+  dominantKey: string | null;
+  durationsByKey: Map<string, number>;
+} {
+  const durationsByKey = new Map<string, number>();
+  for (const block of blocks) {
+    const key = extractor(block);
+    if (key === null) continue;
+    durationsByKey.set(key, (durationsByKey.get(key) ?? 0) + block.duration);
+  }
+
+  let dominantKey: string | null = null;
+  let dominantDuration = 0;
+  for (const [key, duration] of durationsByKey.entries()) {
+    if (duration > dominantDuration) {
+      dominantDuration = duration;
+      dominantKey = key;
+    }
+  }
+
+  if (
+    dominantKey === null ||
+    totalDuration < MIN_DOMINANT_TIMELINE_SECONDS ||
+    dominantDuration / totalDuration < DOMINANT_TIMELINE_SHARE_THRESHOLD
+  ) {
+    return { dominantKey: null, durationsByKey };
+  }
+
+  return { dominantKey, durationsByKey };
+}
+
+function inferStructuralDiscontinuitySkipRanges(
+  segments: SegmentTimelineEntry[],
+): SkipRange[] {
+  const blocks = buildDiscontinuityBlocks(segments);
+  if (blocks.length < 2) return [];
+
+  const totalDuration = blocks.reduce((sum, block) => sum + block.duration, 0);
+  if (totalDuration <= 0) return [];
+
+  const ranges: SkipRange[] = [];
+  const { dominantKey: dominantUrlFamily, durationsByKey: urlFamilyDurations } =
+    getDominantTimelineKey(blocks, totalDuration, (block) =>
+      block.urlFamilyKey.length > 0 ? block.urlFamilyKey : null,
+    );
+  const { dominantKey: dominantKeyId, durationsByKey: keyIdDurations } =
+    getDominantTimelineKey(
+      blocks,
+      totalDuration,
+      (block) => block.keyId ?? "NONE",
+    );
+  const { dominantKey: dominantMapUri, durationsByKey: mapUriDurations } =
+    getDominantTimelineKey(
+      blocks,
+      totalDuration,
+      (block) => block.mapUri ?? "NONE",
+    );
+
+  // Track repeated short discontinuity block signatures (e.g. identical spliced ad segments)
+  const blockUrlSignatures = new Map<string, DiscontinuityBlock[]>();
+  for (const block of blocks) {
+    if (
+      block.duration <= 0 ||
+      block.duration > MAX_AD_BLOCK_DURATION_SECONDS ||
+      block.duration >= totalDuration * 0.25 ||
+      block.segments.length > MAX_ANOMALY_SEGMENTS
+    ) {
+      continue;
+    }
+
+    const signature =
+      block.segments.length >= MIN_ANOMALY_SEGMENTS
+        ? block.segments
+            .map((segment) => getNormalizedSegmentToken(segment.url))
+            .join("|")
+        : block.segments
+            .map((segment) => segment.url.split(/[?#]/, 1)[0])
+            .join("|");
+    if (!signature) continue;
+
+    const list = blockUrlSignatures.get(signature);
+    if (list) {
+      list.push(block);
+    } else {
+      blockUrlSignatures.set(signature, [block]);
+    }
+  }
+
+  for (const repeatedBlocks of blockUrlSignatures.values()) {
+    if (repeatedBlocks.length < 2) continue;
+    const repeatedTotalDuration = repeatedBlocks.reduce(
+      (sum, block) => sum + block.duration,
+      0,
+    );
+    if (repeatedTotalDuration / totalDuration <= 0.3) {
+      for (const block of repeatedBlocks) {
+        ranges.push({ start: block.start, end: block.end });
+      }
+    }
+  }
+
+  for (const block of blocks) {
+    if (
+      block.duration <= 0 ||
+      block.duration > MAX_AD_BLOCK_DURATION_SECONDS ||
+      block.segments.length > MAX_ANOMALY_SEGMENTS
+    ) {
+      continue;
+    }
+
+    // Foreign URL directory island between discontinuities
+    if (
+      dominantUrlFamily !== null &&
+      block.urlFamilyKey.length > 0 &&
+      block.urlFamilyKey !== dominantUrlFamily
+    ) {
+      const familyDuration = urlFamilyDurations.get(block.urlFamilyKey) ?? 0;
+      if (familyDuration / totalDuration <= FOREIGN_ISLAND_MAX_TIMELINE_SHARE) {
+        ranges.push({ start: block.start, end: block.end });
+        continue;
+      }
+    }
+
+    // Foreign #EXT-X-KEY island between discontinuities (e.g. unencrypted ad in AES-128 VOD)
+    const blockKeyId = block.keyId ?? "NONE";
+    if (dominantKeyId !== null && blockKeyId !== dominantKeyId) {
+      const keyDuration = keyIdDurations.get(blockKeyId) ?? 0;
+      if (keyDuration / totalDuration <= FOREIGN_ISLAND_MAX_TIMELINE_SHARE) {
+        ranges.push({ start: block.start, end: block.end });
+        continue;
+      }
+    }
+
+    // Foreign #EXT-X-MAP init segment island between discontinuities
+    const blockMapUri = block.mapUri ?? "NONE";
+    if (dominantMapUri !== null && blockMapUri !== dominantMapUri) {
+      const mapDuration = mapUriDurations.get(blockMapUri) ?? 0;
+      if (mapDuration / totalDuration <= FOREIGN_ISLAND_MAX_TIMELINE_SHARE) {
+        ranges.push({ start: block.start, end: block.end });
+      }
+    }
+  }
+
+  return mergeSkipRanges(ranges);
+}
+
 function parsePlaylistText(
   text: string,
   options: ParsePlaylistTextOptions = {},
@@ -1114,25 +1437,68 @@ function parsePlaylistText(
   let activeCueOutStart: number | null = null;
   let activeCueOutDuration = Number.NaN;
   let pendingDiscontinuity = false;
+  let currentDiscontinuityGroup = 0;
+  let currentKeyId: string | null = null;
+  let currentMapUri: string | null = null;
+  let hasEndList = false;
+  const discontinuityBoundaries: number[] = [];
   const ranges: SkipRange[] = [];
   const segments: SegmentTimelineEntry[] = [];
   const activeDaterangeStarts = new Map<string, number>();
 
-  const closeCueOut = (end: number) => {
+  const findBoundedOpenRangeEnd = (start: number, fallbackEnd: number) => {
+    const nextDiscontinuity = discontinuityBoundaries.find(
+      (boundary) =>
+        boundary > start && boundary - start <= MAX_AD_BLOCK_DURATION_SECONDS,
+    );
+    if (nextDiscontinuity !== undefined) {
+      return nextDiscontinuity;
+    }
+    if (fallbackEnd - start <= MAX_AD_BLOCK_DURATION_SECONDS) {
+      return fallbackEnd;
+    }
+    return start;
+  };
+
+  const closeCueOut = (
+    end: number,
+    closeOptions?: { explicitCueIn?: boolean; isEof?: boolean },
+  ) => {
     if (activeCueOutStart === null) return;
-    const cueOutEnd =
-      Number.isFinite(activeCueOutDuration) && activeCueOutDuration > 0
-        ? Math.min(activeCueOutStart + activeCueOutDuration, end)
-        : end;
-    ranges.push({ start: activeCueOutStart, end: cueOutEnd });
+    const explicitCueIn = closeOptions?.explicitCueIn ?? false;
+    const isEof = closeOptions?.isEof ?? false;
+    let cueOutEnd = end;
+
+    if (Number.isFinite(activeCueOutDuration) && activeCueOutDuration > 0) {
+      const actualDuration = end - activeCueOutStart;
+      const maxAllowedDuration = Math.max(
+        activeCueOutDuration * MAX_CUE_OUT_SLACK_RATIO,
+        activeCueOutDuration + MAX_CUE_OUT_SLACK_SECONDS,
+      );
+      if (explicitCueIn && actualDuration <= maxAllowedDuration) {
+        cueOutEnd = end;
+      } else {
+        cueOutEnd = Math.min(activeCueOutStart + activeCueOutDuration, end);
+      }
+    } else if (isEof && hasEndList) {
+      cueOutEnd = findBoundedOpenRangeEnd(activeCueOutStart, end);
+    }
+
+    if (cueOutEnd > activeCueOutStart) {
+      ranges.push({ start: activeCueOutStart, end: cueOutEnd });
+    }
     activeCueOutStart = null;
     activeCueOutDuration = Number.NaN;
   };
 
-  const closeDaterange = (id: string, end: number) => {
+  const closeDaterange = (id: string, end: number, isEof = false) => {
     const start = activeDaterangeStarts.get(id);
     if (start === undefined) return;
-    ranges.push({ start, end });
+    const resolvedEnd =
+      isEof && hasEndList ? findBoundedOpenRangeEnd(start, end) : end;
+    if (resolvedEnd > start) {
+      ranges.push({ start, end: resolvedEnd });
+    }
     activeDaterangeStarts.delete(id);
   };
 
@@ -1167,6 +1533,31 @@ function parsePlaylistText(
         continue;
       }
 
+      if (line.startsWith("#EXT-X-ENDLIST")) {
+        hasEndList = true;
+        continue;
+      }
+
+      if (line.startsWith("#EXT-X-KEY")) {
+        const attrs = parseTagAttributes(line.replace(/^#EXT-X-KEY/, ""));
+        const method = (
+          getTagAttribute(attrs, "METHOD") ?? "NONE"
+        ).toUpperCase();
+        if (method === "NONE") {
+          currentKeyId = null;
+        } else {
+          const uri = getTagAttribute(attrs, "URI") ?? "";
+          currentKeyId = `${method}:${uri}`;
+        }
+        continue;
+      }
+
+      if (line.startsWith("#EXT-X-MAP")) {
+        const attrs = parseTagAttributes(line.replace(/^#EXT-X-MAP/, ""));
+        currentMapUri = getTagAttribute(attrs, "URI") ?? null;
+        continue;
+      }
+
       if (line.startsWith("#EXT-X-PROGRAM-DATE-TIME")) {
         const raw = line.replace(/^#EXT-X-PROGRAM-DATE-TIME:/, "");
         const dateMs = Date.parse(raw);
@@ -1181,9 +1572,15 @@ function parsePlaylistText(
       }
 
       if (line.startsWith("#EXT-X-DISCONTINUITY")) {
-        programDateTimeAnchorMs = null;
-        programDateTimeAnchorTimeline = null;
-        pendingDiscontinuity = true;
+        if (!line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
+          programDateTimeAnchorMs = null;
+          programDateTimeAnchorTimeline = null;
+          pendingDiscontinuity = true;
+          if (segments.length > 0) {
+            currentDiscontinuityGroup += 1;
+            discontinuityBoundaries.push(currentTime);
+          }
+        }
         continue;
       }
 
@@ -1208,14 +1605,24 @@ function parsePlaylistText(
         continue;
       }
 
+      if (line.startsWith("#EXT-X-CUE-SPAN")) {
+        const duration = parseCueDurationFromLine(line, "#EXT-X-CUE-SPAN");
+        if (duration !== null && duration > 0) {
+          ranges.push({ start: currentTime, end: currentTime + duration });
+        }
+        continue;
+      }
+
       if (line.startsWith("#EXT-X-CUE-IN")) {
-        closeCueOut(currentTime);
+        closeCueOut(currentTime, { explicitCueIn: true });
         continue;
       }
 
       if (line.startsWith("#EXT-X-DATERANGE")) {
         const attrs = parseTagAttributes(line.replace(/^#EXT-X-DATERANGE/, ""));
-        if (!isAdLikeDaterange(attrs)) {
+        const id = attrs.ID;
+        const isClosingExisting = Boolean(id && activeDaterangeStarts.has(id));
+        if (!isAdLikeDaterange(attrs) && !isClosingExisting) {
           continue;
         }
 
@@ -1227,11 +1634,17 @@ function parsePlaylistText(
         const mappedStart = mapProgramDateTimeToTimeline(startDate);
         const rangeStart = mappedStart ?? currentTime;
 
+        if (isClosingExisting && id && attrs["SCTE35-IN"]) {
+          closeDaterange(id, currentTime);
+          continue;
+        }
+
         if (duration !== null && Number.isFinite(duration)) {
           ranges.push({
             start: rangeStart,
             end: rangeStart + duration,
           });
+          if (id) activeDaterangeStarts.delete(id);
           continue;
         }
 
@@ -1248,20 +1661,19 @@ function parsePlaylistText(
               start: rangeStart,
               end: mappedEnd ?? rangeStart + (endMs - startMs) / 1000,
             });
+            if (id) activeDaterangeStarts.delete(id);
             continue;
           }
         }
 
-        const id = attrs.ID;
         if (id) {
           if (activeDaterangeStarts.has(id)) {
             closeDaterange(id, currentTime);
           } else {
             activeDaterangeStarts.set(id, rangeStart);
           }
-        } else {
-          continue;
         }
+        continue;
       }
 
       continue;
@@ -1270,27 +1682,30 @@ function parsePlaylistText(
     if (pendingSegmentDuration !== null) {
       const start = currentTime;
       currentTime += pendingSegmentDuration;
-      if (options.playlistUrl) {
-        segments.push({
-          start,
-          end: currentTime,
-          url: new URL(line, options.playlistUrl).toString(),
-          startsAfterDiscontinuity: pendingDiscontinuity,
-        });
-      }
+      segments.push({
+        start,
+        end: currentTime,
+        url: resolveSegmentUrl(line, options.playlistUrl),
+        startsAfterDiscontinuity: pendingDiscontinuity,
+        discontinuityGroup: currentDiscontinuityGroup,
+        keyId: currentKeyId,
+        mapUri: currentMapUri,
+      });
       pendingSegmentDuration = null;
       pendingDiscontinuity = false;
     }
   }
 
-  closeCueOut(currentTime);
+  closeCueOut(currentTime, { isEof: true });
 
   activeDaterangeStarts.forEach((_start, id) => {
-    closeDaterange(id, currentTime);
+    closeDaterange(id, currentTime, true);
   });
 
+  const structuralRanges = inferStructuralDiscontinuitySkipRanges(segments);
+
   return {
-    ranges: mergeSkipRanges(ranges),
+    ranges: mergeSkipRanges([...ranges, ...structuralRanges]),
     segments,
   };
 }
@@ -1372,7 +1787,9 @@ function getSegmentAnomalyEvidence(
     strong += 1;
   }
   if (compareNullableValue(fingerprint.ppsHash, baseline.ppsHash)) {
-    strong += 1;
+    // Chunked VOD encoders frequently vary pic_init_qp in PPS across segments
+    // while keeping SPS, resolution, codec, audio, and PID layout identical.
+    weak += 1;
   }
   if (compareNullableValue(fingerprint.audioKey, baseline.audioKey)) {
     strong += 1;
@@ -1402,38 +1819,145 @@ function getSegmentAnomalyEvidence(
   return { strong, weak };
 }
 
-function isAnomalousSegment(
-  segment: SegmentTimelineEntry,
-  evidence: SegmentAnomalyEvidence,
+function isAnomalousSegment(evidence: SegmentAnomalyEvidence): boolean {
+  return evidence.strong > 0 || evidence.weak >= 2;
+}
+
+function overlapsSkipRanges(
+  start: number,
+  end: number,
+  ranges: SkipRange[],
 ): boolean {
-  const duration = segment.end - segment.start;
-  return (
-    (evidence.strong > 0 && duration >= MIN_STRONG_ANOMALY_SECONDS) ||
-    evidence.strong > 1 ||
-    evidence.weak >= 2
+  const epsilon = 0.01;
+  return ranges.some(
+    (range) => start < range.end - epsilon && end > range.start + epsilon,
   );
 }
 
-function findDiscontinuityCandidateIndex(
+function selectBaselineSegments(
   segments: SegmentTimelineEntry[],
-  index: number,
-): number | null {
-  for (let current = index; current >= 0; current--) {
-    if (segments[current].startsAfterDiscontinuity) {
-      return current;
+  blocks: DiscontinuityBlock[],
+  playbackTime: number,
+  excludedRanges: SkipRange[],
+): SegmentTimelineEntry[] {
+  const totalDuration = blocks.reduce((sum, block) => sum + block.duration, 0);
+  const { dominantKey: dominantUrlFamily } = getDominantTimelineKey(
+    blocks,
+    totalDuration,
+    (block) => (block.urlFamilyKey.length > 0 ? block.urlFamilyKey : null),
+  );
+  const { dominantKey: dominantKeyId } = getDominantTimelineKey(
+    blocks,
+    totalDuration,
+    (block) => block.keyId ?? "NONE",
+  );
+
+  const isEligibleSegment = (segment: SegmentTimelineEntry) => {
+    if (overlapsSkipRanges(segment.start, segment.end, excludedRanges)) {
+      return false;
+    }
+    if (
+      dominantUrlFamily !== null &&
+      getUrlFamilyKey(segment.url) !== dominantUrlFamily
+    ) {
+      return false;
+    }
+    if (dominantKeyId !== null && (segment.keyId ?? "NONE") !== dominantKeyId) {
+      return false;
+    }
+    return true;
+  };
+
+  if (blocks.length >= 2) {
+    const candidateBlocks = blocks
+      .map((block) => ({
+        block,
+        eligibleSegments: block.segments.filter(isEligibleSegment),
+      }))
+      .filter((entry) => entry.eligibleSegments.length > 0);
+
+    // Long blocks (> 60s) are guaranteed main content; otherwise sample at most
+    // 2 segments per block across multiple blocks to prevent any single ad block
+    // from poisoning the modal baseline.
+    const sortedBlocks = candidateBlocks.slice().sort((left, right) => {
+      const leftLong =
+        left.block.duration > MAX_AD_BLOCK_DURATION_SECONDS ? 1 : 0;
+      const rightLong =
+        right.block.duration > MAX_AD_BLOCK_DURATION_SECONDS ? 1 : 0;
+      if (leftLong !== rightLong) return rightLong - leftLong;
+
+      const leftBefore = left.block.end <= playbackTime ? 1 : 0;
+      const rightBefore = right.block.end <= playbackTime ? 1 : 0;
+      if (leftBefore !== rightBefore) return rightBefore - leftBefore;
+
+      const leftDistance =
+        left.block.end <= playbackTime
+          ? playbackTime - left.block.end
+          : Math.max(0, left.block.start - playbackTime);
+      const rightDistance =
+        right.block.end <= playbackTime
+          ? playbackTime - right.block.end
+          : Math.max(0, right.block.start - playbackTime);
+      return (
+        leftDistance - rightDistance ||
+        right.block.duration - left.block.duration
+      );
+    });
+
+    const selected: SegmentTimelineEntry[] = [];
+    for (const { block, eligibleSegments } of sortedBlocks) {
+      if (selected.length >= BASELINE_SAMPLE_LIMIT) break;
+
+      const isLongBlock =
+        block.duration > MAX_AD_BLOCK_DURATION_SECONDS ||
+        eligibleSegments.length > MAX_ANOMALY_SEGMENTS ||
+        candidateBlocks.length <= 2;
+      const perBlockLimit = isLongBlock
+        ? BASELINE_SAMPLE_LIMIT - selected.length
+        : Math.min(
+            MAX_BASELINE_SAMPLES_PER_SHORT_BLOCK,
+            BASELINE_SAMPLE_LIMIT - selected.length,
+          );
+
+      const orderedSegments =
+        block.end <= playbackTime
+          ? eligibleSegments
+              .filter((seg) => seg.end <= playbackTime)
+              .slice(-perBlockLimit)
+          : eligibleSegments.slice(0, perBlockLimit);
+      for (const seg of orderedSegments) {
+        selected.push(seg);
+        if (selected.length >= BASELINE_SAMPLE_LIMIT) break;
+      }
     }
 
-    if (index - current >= MAX_ANOMALY_SEGMENTS) break;
+    if (selected.length >= MIN_ANOMALY_SEGMENTS) {
+      return selected;
+    }
   }
 
-  return null;
+  const eligibleAll = segments.filter(isEligibleSegment);
+  const previous = eligibleAll
+    .filter((segment) => segment.end <= playbackTime)
+    .slice(-BASELINE_SAMPLE_LIMIT);
+  if (previous.length >= MIN_ANOMALY_SEGMENTS) {
+    return previous;
+  }
+
+  return eligibleAll.slice(0, BASELINE_SAMPLE_LIMIT);
 }
 
 async function inferMediaFingerprintSkipRanges(
   segments: SegmentTimelineEntry[],
   options: ParsePlaylistTextOptions,
+  existingRanges: SkipRange[] = [],
 ): Promise<SkipRange[]> {
   if (!isMediaFingerprintProbeEnabled(options) || segments.length === 0) {
+    return [];
+  }
+
+  const blocks = buildDiscontinuityBlocks(segments);
+  if (blocks.length < 2) {
     return [];
   }
 
@@ -1444,6 +1968,10 @@ async function inferMediaFingerprintSkipRanges(
 
   const byteLength = getMediaFingerprintProbeByteLength(options);
   const playbackTime = Math.max(0, options.playbackTime ?? 0);
+  const probeStartTime =
+    playbackTime > 0
+      ? Math.max(0, playbackTime - DEFAULT_MEDIA_FINGERPRINT_LOOKBACK_SECONDS)
+      : 0;
   const probeEndTime =
     playbackTime + DEFAULT_MEDIA_FINGERPRINT_PROBE_WINDOW_SECONDS;
   const probe = (segment: SegmentTimelineEntry) =>
@@ -1453,56 +1981,57 @@ async function inferMediaFingerprintSkipRanges(
       cache: mediaFingerprintProbeCache,
     });
 
-  const previousSegments = segments
-    .filter((segment) => segment.end <= playbackTime)
-    .slice(-BASELINE_SAMPLE_LIMIT);
-  if (previousSegments.length < MIN_ANOMALY_SEGMENTS) {
+  const baselineSegments = selectBaselineSegments(
+    segments,
+    blocks,
+    playbackTime,
+    existingRanges,
+  );
+  if (baselineSegments.length < MIN_ANOMALY_SEGMENTS) {
     return [];
   }
 
   const baseline = buildFingerprintBaseline(
     await mapWithConcurrency(
-      previousSegments,
+      baselineSegments,
       MEDIA_FINGERPRINT_PROBE_CONCURRENCY,
       probe,
     ),
   );
   if (!baseline) return [];
 
-  const ranges: SkipRange[] = [];
+  const ranges: SkipRange[] = [...existingRanges];
   let checkedDiscontinuities = 0;
-  const checkedStartIndexes = new Set<number>();
 
-  for (let index = 0; index < segments.length; index++) {
-    const candidateStartIndex = segments[index].startsAfterDiscontinuity
-      ? index
-      : segments[index].start <= playbackTime &&
-          segments[index].end > playbackTime
-        ? findDiscontinuityCandidateIndex(segments, index)
-        : null;
-    if (candidateStartIndex === null) continue;
-    if (checkedStartIndexes.has(candidateStartIndex)) continue;
-    checkedStartIndexes.add(candidateStartIndex);
-
-    const segment = segments[candidateStartIndex];
-    if (segment.start > probeEndTime) continue;
-
-    const candidateEnd =
-      segments[
-        Math.min(segments.length, candidateStartIndex + MAX_ANOMALY_SEGMENTS) -
-          1
-      ].end;
-    if (candidateEnd <= playbackTime) continue;
+  for (const block of blocks) {
+    const isCandidateDiscontinuityBlock =
+      block.groupIndex > 0 ||
+      (block.groupIndex === 0 &&
+        blocks.length >= 2 &&
+        block.duration <= MAX_AD_BLOCK_DURATION_SECONDS);
+    if (!isCandidateDiscontinuityBlock) continue;
+    if (block.end <= probeStartTime) continue;
+    if (block.start > probeEndTime) continue;
+    if (
+      block.duration > MAX_AD_BLOCK_DURATION_SECONDS ||
+      block.segments.length > MAX_ANOMALY_SEGMENTS
+    ) {
+      continue;
+    }
+    if (overlapsSkipRanges(block.start, block.end, existingRanges)) {
+      continue;
+    }
 
     checkedDiscontinuities += 1;
     if (checkedDiscontinuities > DISCONTINUITY_PROBE_LIMIT) break;
 
-    const candidateSegments = segments.slice(
-      candidateStartIndex,
-      Math.min(segments.length, candidateStartIndex + MAX_ANOMALY_SEGMENTS),
+    const candidateSegments = block.segments;
+    const initialCount = Math.min(
+      candidateSegments.length,
+      INITIAL_CANDIDATE_PROBE_SEGMENTS,
     );
-    const candidateFingerprints = await mapWithConcurrency(
-      candidateSegments,
+    const initialFingerprints = await mapWithConcurrency(
+      candidateSegments.slice(0, initialCount),
       MEDIA_FINGERPRINT_PROBE_CONCURRENCY,
       probe,
     );
@@ -1510,8 +2039,33 @@ async function inferMediaFingerprintSkipRanges(
       throw new DOMException("Aborted", "AbortError");
     }
 
+    const firstEvidence = getSegmentAnomalyEvidence(
+      initialFingerprints[0] ?? null,
+      baseline,
+    );
+    if (!isAnomalousSegment(firstEvidence)) {
+      continue;
+    }
+
+    const remainingFingerprints =
+      candidateSegments.length > initialCount
+        ? await mapWithConcurrency(
+            candidateSegments.slice(initialCount),
+            MEDIA_FINGERPRINT_PROBE_CONCURRENCY,
+            probe,
+          )
+        : [];
+    if (signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
+    const candidateFingerprints = [
+      ...initialFingerprints,
+      ...remainingFingerprints,
+    ];
     const anomalySegments: SegmentTimelineEntry[] = [];
     let hasStrongAnomaly = false;
+
     for (
       let probeIndex = 0;
       probeIndex < candidateSegments.length;
@@ -1519,32 +2073,49 @@ async function inferMediaFingerprintSkipRanges(
     ) {
       const currentSegment = candidateSegments[probeIndex];
       const fingerprint = candidateFingerprints[probeIndex];
-      if (signal?.aborted) {
-        throw new DOMException("Aborted", "AbortError");
-      }
-
       const evidence = getSegmentAnomalyEvidence(fingerprint, baseline);
-      if (!isAnomalousSegment(currentSegment, evidence)) {
-        break;
+
+      if (isAnomalousSegment(evidence)) {
+        hasStrongAnomaly ||= evidence.strong > 0;
+        anomalySegments.push(currentSegment);
+        continue;
       }
 
-      hasStrongAnomaly ||= evidence.strong > 0;
-      anomalySegments.push(currentSegment);
+      // Bridge a short tail segment (< 1.25s) at the end of an anomalous
+      // discontinuity block when it does not match the main content's SPS hash.
+      const isLastSegmentInBlock = probeIndex === candidateSegments.length - 1;
+      const tailDuration = currentSegment.end - currentSegment.start;
+      const matchesBaselineSps =
+        fingerprint?.spsHash !== null &&
+        fingerprint?.spsHash !== undefined &&
+        baseline.spsHash !== null &&
+        fingerprint.spsHash === baseline.spsHash;
+      if (
+        isLastSegmentInBlock &&
+        anomalySegments.length >= MIN_ANOMALY_SEGMENTS &&
+        tailDuration <= MAX_TAIL_SEGMENT_BRIDGE_SECONDS &&
+        !matchesBaselineSps
+      ) {
+        anomalySegments.push(currentSegment);
+      }
+      break;
     }
 
-    const anomalyDuration =
-      anomalySegments[anomalySegments.length - 1]?.end && anomalySegments[0]
-        ? anomalySegments[anomalySegments.length - 1].end -
-          anomalySegments[0].start
-        : 0;
+    if (anomalySegments.length === 0) continue;
+
+    const first = anomalySegments[0];
+    const last = anomalySegments[anomalySegments.length - 1];
+    const anomalyDuration = last.end - first.start;
+    const abutsPreviousAnomaly = ranges.some(
+      (range) => Math.abs(range.end - first.start) <= 0.05,
+    );
+
     if (
       anomalySegments.length >= MIN_ANOMALY_SEGMENTS ||
-      (hasStrongAnomaly && anomalyDuration >= MIN_STRONG_ANOMALY_SECONDS)
+      (hasStrongAnomaly && anomalyDuration >= MIN_STRONG_ANOMALY_SECONDS) ||
+      (abutsPreviousAnomaly && hasStrongAnomaly)
     ) {
-      const first = anomalySegments[0];
-      const last = anomalySegments[anomalySegments.length - 1];
       ranges.push({ start: first.start, end: last.end });
-      index = Math.max(index, candidateStartIndex + anomalySegments.length - 1);
     }
   }
 
@@ -1559,6 +2130,7 @@ async function buildSkipRangesFromPlaylistText(
   const mediaFingerprintRanges = await inferMediaFingerprintSkipRanges(
     result.segments,
     options,
+    result.ranges,
   );
 
   return mergeSkipRanges([...result.ranges, ...mediaFingerprintRanges]);
