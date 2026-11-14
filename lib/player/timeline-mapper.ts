@@ -1,5 +1,6 @@
-const TIMELINE_SAMPLE_LIMIT = 2_000;
-const TIMELINE_BOUNDARY_EPSILON_SECONDS = 0.025;
+const TIMELINE_SAMPLE_LIMIT = 10_000;
+const TIMELINE_BOUNDARY_EPSILON_SECONDS = 0.05;
+const TIMELINE_BOUNDARY_CONVERGENCE_SECONDS = 0.25;
 
 export interface HlsFragmentLike {
   cc?: number;
@@ -67,12 +68,21 @@ export function upsertFragmentTimelineSample(
   if (sample.playlistEnd <= sample.playlistStart) return unchanged;
 
   const existing = samples.get(sample.key);
-  const playlistStart = sample.playlistStart;
-  const playlistEnd = sample.playlistEnd;
-  const mediaStart = sample.mediaStart ?? existing?.mediaStart;
-  const mediaEnd = sample.mediaEnd ?? existing?.mediaEnd;
   const wasIndexed =
     isFiniteNumber(existing?.mediaStart) && isFiniteNumber(existing?.mediaEnd);
+  const preserveOriginalPlaylistBounds =
+    wasIndexed &&
+    existing !== undefined &&
+    sample.mediaStart === undefined &&
+    sample.mediaEnd === undefined;
+  const playlistStart = preserveOriginalPlaylistBounds
+    ? existing.playlistStart
+    : sample.playlistStart;
+  const playlistEnd = preserveOriginalPlaylistBounds
+    ? existing.playlistEnd
+    : sample.playlistEnd;
+  const mediaStart = sample.mediaStart ?? existing?.mediaStart;
+  const mediaEnd = sample.mediaEnd ?? existing?.mediaEnd;
   const willBeIndexed = isFiniteNumber(mediaStart) && isFiniteNumber(mediaEnd);
 
   if (
@@ -158,60 +168,11 @@ export function buildTimelineSampleIndex(
     .sort((left, right) => left.playlistStart - right.playlistStart);
 }
 
-function getBoundaryDistance(sample: FragmentTimelineSample, time: number) {
-  return Math.min(
-    Math.abs(time - sample.playlistStart),
-    Math.abs(time - sample.playlistEnd),
-  );
-}
-
-function findTimelineSampleForPlaylistTime(
-  samples: TimelineSampleIndex,
+function interpolateSampleMediaTime(
+  sample: FragmentTimelineSample,
   time: number,
-) {
-  let low = 0;
-  let high = samples.length - 1;
-  let insertionIndex = 0;
-
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-    const sample = samples[middle];
-    if (time < sample.playlistStart) {
-      high = middle - 1;
-      insertionIndex = middle;
-    } else if (time > sample.playlistEnd) {
-      low = middle + 1;
-      insertionIndex = low;
-    } else {
-      return sample;
-    }
-  }
-
-  let nearest: FragmentTimelineSample | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const sample of [samples[insertionIndex - 1], samples[insertionIndex]]) {
-    if (!sample) continue;
-
-    const distance = getBoundaryDistance(sample, time);
-    if (distance < nearestDistance) {
-      nearest = sample;
-      nearestDistance = distance;
-    }
-  }
-
-  return nearestDistance <= TIMELINE_BOUNDARY_EPSILON_SECONDS ? nearest : null;
-}
-
-function mapPlaylistTimeToMediaTime(
-  samples: TimelineSampleIndex,
-  time: number,
-) {
-  const sample = findTimelineSampleForPlaylistTime(samples, time);
-  if (
-    !sample ||
-    !isFiniteNumber(sample.mediaStart) ||
-    !isFiniteNumber(sample.mediaEnd)
-  ) {
+): number | null {
+  if (!isFiniteNumber(sample.mediaStart) || !isFiniteNumber(sample.mediaEnd)) {
     return null;
   }
 
@@ -226,12 +187,152 @@ function mapPlaylistTimeToMediaTime(
   return sample.mediaStart + ratio * mediaDuration;
 }
 
+function findMatchingSamplesForPlaylistTime(
+  samples: TimelineSampleIndex,
+  time: number,
+): FragmentTimelineSample[] {
+  if (samples.length === 0) return [];
+
+  let low = 0;
+  let high = samples.length - 1;
+  let pivot = 0;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const sample = samples[middle];
+    if (time < sample.playlistStart) {
+      high = middle - 1;
+      pivot = middle;
+    } else if (time > sample.playlistEnd) {
+      low = middle + 1;
+      pivot = low;
+    } else {
+      pivot = middle;
+      break;
+    }
+  }
+
+  const matches: FragmentTimelineSample[] = [];
+  const startIdx = Math.max(0, pivot - 2);
+  const endIdx = Math.min(samples.length - 1, pivot + 2);
+  for (let index = startIdx; index <= endIdx; index++) {
+    const sample = samples[index];
+    if (
+      time >= sample.playlistStart - TIMELINE_BOUNDARY_EPSILON_SECONDS &&
+      time <= sample.playlistEnd + TIMELINE_BOUNDARY_EPSILON_SECONDS
+    ) {
+      matches.push(sample);
+    }
+  }
+
+  return matches;
+}
+
+function mapPlaylistTimeToMediaTime(
+  samples: TimelineSampleIndex,
+  time: number,
+  role: "start" | "end",
+): number | null {
+  const matches = findMatchingSamplesForPlaylistTime(samples, time);
+  if (matches.length === 0) return null;
+
+  let endingCandidate: number | null = null;
+  let startingCandidate: number | null = null;
+  let interiorCandidate: number | null = null;
+
+  for (const sample of matches) {
+    const mapped = interpolateSampleMediaTime(sample, time);
+    if (mapped === null) continue;
+
+    const distToEnd = Math.abs(time - sample.playlistEnd);
+    const distToStart = Math.abs(time - sample.playlistStart);
+    if (
+      distToEnd <= TIMELINE_BOUNDARY_EPSILON_SECONDS &&
+      distToEnd < distToStart
+    ) {
+      endingCandidate =
+        endingCandidate === null ? mapped : Math.max(endingCandidate, mapped);
+    } else if (
+      distToStart <= TIMELINE_BOUNDARY_EPSILON_SECONDS &&
+      distToStart <= distToEnd
+    ) {
+      startingCandidate =
+        startingCandidate === null
+          ? mapped
+          : Math.min(startingCandidate, mapped);
+    } else {
+      interiorCandidate = mapped;
+    }
+  }
+
+  if (endingCandidate !== null && startingCandidate !== null) {
+    if (
+      Math.abs(startingCandidate - endingCandidate) <=
+      TIMELINE_BOUNDARY_CONVERGENCE_SECONDS
+    ) {
+      return role === "end"
+        ? Math.max(endingCandidate, startingCandidate)
+        : Math.min(endingCandidate, startingCandidate);
+    }
+    return role === "start" ? startingCandidate : endingCandidate;
+  }
+
+  if (role === "start") {
+    return startingCandidate ?? interiorCandidate ?? endingCandidate;
+  }
+  return endingCandidate ?? startingCandidate ?? interiorCandidate;
+}
+
 function mapSkipRangeToMediaTime(
   samples: TimelineSampleIndex,
   range: { start: number; end: number },
 ): TimelineMappedRange {
-  const mappedStart = mapPlaylistTimeToMediaTime(samples, range.start);
-  const mappedEnd = mapPlaylistTimeToMediaTime(samples, range.end);
+  const rawDuration = range.end - range.start;
+  if (rawDuration <= 0) {
+    return { ...range, calibrated: false };
+  }
+
+  let mappedStart = mapPlaylistTimeToMediaTime(samples, range.start, "start");
+  let mappedEnd = mapPlaylistTimeToMediaTime(samples, range.end, "end");
+
+  if (mappedStart !== null && mappedEnd === null) {
+    // When the start of the ad is buffered/calibrated but its end is further ahead,
+    // use the latest calibrated sample inside the ad range (or mappedStart) to
+    // extrapolate the PTS drift so we neither skip late nor land short.
+    let anchorPlaylistTime = range.start;
+    let anchorMediaTime = mappedStart;
+    for (const sample of samples) {
+      if (
+        sample.playlistEnd > anchorPlaylistTime &&
+        sample.playlistEnd <= range.end + TIMELINE_BOUNDARY_EPSILON_SECONDS &&
+        isFiniteNumber(sample.mediaEnd)
+      ) {
+        anchorPlaylistTime = sample.playlistEnd;
+        anchorMediaTime = sample.mediaEnd;
+      }
+    }
+    mappedEnd = anchorMediaTime + Math.max(0, range.end - anchorPlaylistTime);
+  } else if (mappedStart === null && mappedEnd !== null) {
+    let anchorPlaylistTime = range.end;
+    let anchorMediaTime = mappedEnd;
+    for (const sample of samples) {
+      if (
+        sample.playlistStart >=
+          range.start - TIMELINE_BOUNDARY_EPSILON_SECONDS &&
+        sample.playlistStart < anchorPlaylistTime &&
+        isFiniteNumber(sample.mediaStart)
+      ) {
+        anchorPlaylistTime = sample.playlistStart;
+        anchorMediaTime = sample.mediaStart;
+        break;
+      }
+    }
+    mappedStart = Math.max(
+      0,
+      anchorMediaTime - Math.max(0, anchorPlaylistTime - range.start),
+    );
+  }
+
   if (mappedStart === null || mappedEnd === null || mappedEnd <= mappedStart) {
     return { ...range, calibrated: false };
   }

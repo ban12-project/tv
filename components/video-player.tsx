@@ -33,6 +33,8 @@ import { cn, formatTime } from "@/lib/utils";
 
 const SKIP_RANGE_REFRESH_INTERVAL_MS = 5_000;
 const SKIP_RANGE_PRE_ROLL_SECONDS = 0.08;
+const SKIP_END_EPSILON_SECONDS = 0.05;
+const SKIP_PROBE_RECHECK_DISTANCE_SECONDS = 45;
 const AD_DEBUG_PLAYLIST_EXCERPT_LIMIT = 12_000;
 const AD_DEBUG_PLAYLIST_CONTEXT_MARGIN = 3000;
 const AD_DEBUG_RECENT_EVENT_LIMIT = 50;
@@ -152,6 +154,31 @@ function getPlaylistDebugExcerpt(
   return playlistText.slice(start, start + AD_DEBUG_PLAYLIST_EXCERPT_LIMIT);
 }
 
+function mergeRawSkipRanges(
+  existing: { start: number; end: number }[],
+  incoming: { start: number; end: number }[],
+) {
+  const combined = [...existing, ...incoming]
+    .filter((range) => range.end > range.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+  const merged: { start: number; end: number }[] = [];
+
+  for (const range of combined) {
+    const last = merged[merged.length - 1];
+    if (!last) {
+      merged.push({ ...range });
+      continue;
+    }
+    if (range.start <= last.end + SKIP_END_EPSILON_SECONDS) {
+      last.end = Math.max(last.end, range.end);
+    } else {
+      merged.push({ ...range });
+    }
+  }
+
+  return merged;
+}
+
 function parseAspectRatio(value?: string | null) {
   if (!value) return null;
 
@@ -214,6 +241,9 @@ export default function VideoPlayer({
   const hlsErrorsRef = React.useRef<AdSkipRuntimeEvent[]>([]);
   const isSeekingRef = React.useRef<boolean>(false);
   const isAutoSkippingRef = React.useRef<boolean>(false);
+  const lastProbedPlaybackTimeRef = React.useRef<number | null>(null);
+  const latestPlaylistTextRef = React.useRef<string | undefined>(undefined);
+  const latestPlaylistUrlRef = React.useRef<string | undefined>(undefined);
   const seekTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
   const lastSaveTimeRef = React.useRef<number>(0);
@@ -316,18 +346,52 @@ export default function VideoPlayer({
       }
 
       const currentTime = video.currentTime;
-      for (const mappedRange of mappedSkipRangesRef.current) {
+      if (!Number.isFinite(currentTime)) return false;
+
+      const mappedRanges = mappedSkipRangesRef.current;
+      for (let index = 0; index < mappedRanges.length; index++) {
+        const firstRange = mappedRanges[index];
         const skipStart = video.paused
-          ? mappedRange.start
-          : Math.max(0, mappedRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
-        if (currentTime >= skipStart && currentTime < mappedRange.end) {
+          ? firstRange.start
+          : Math.max(0, firstRange.start - SKIP_RANGE_PRE_ROLL_SECONDS);
+        if (currentTime < skipStart) continue;
+
+        // Chain back-to-back or overlapping ad ranges into a single jump
+        let targetEnd = firstRange.end;
+        let calibrated = firstRange.calibrated;
+        while (index + 1 < mappedRanges.length) {
+          const nextRange = mappedRanges[index + 1];
+          if (nextRange.start <= targetEnd + SKIP_RANGE_PRE_ROLL_SECONDS) {
+            targetEnd = Math.max(targetEnd, nextRange.end);
+            calibrated = calibrated && nextRange.calibrated;
+            index += 1;
+          } else {
+            break;
+          }
+        }
+
+        const effectiveEnd =
+          Number.isFinite(video.duration) && video.duration > 0
+            ? Math.min(targetEnd, video.duration)
+            : targetEnd;
+
+        if (currentTime < effectiveEnd - SKIP_END_EPSILON_SECONDS) {
+          const mappedRange: TimelineMappedRange = {
+            start: firstRange.start,
+            end: targetEnd,
+            calibrated,
+          };
           console.log(
             `[VideoPlayer] Skipping ad range: ${mappedRange.start.toFixed(1)} - ${mappedRange.end.toFixed(1)}${
               mappedRange.calibrated ? " (calibrated)" : ""
             }`,
           );
           isAutoSkippingRef.current = true;
-          const nextTime = mappedRange.end;
+          const nextTime = effectiveEnd;
+          const resolvedPlaylistText =
+            options?.latestPlaylistText ?? latestPlaylistTextRef.current;
+          const resolvedPlaylistUrl =
+            options?.latestPlaylistUrl ?? latestPlaylistUrlRef.current;
           onAdSkip?.({
             autoSkip,
             createdAt: new Date().toISOString(),
@@ -335,10 +399,10 @@ export default function VideoPlayer({
             hlsErrors: hlsErrorsRef.current.slice(),
             hlsEvents: hlsEventsRef.current.slice(),
             latestPlaylistTextExcerpt: getPlaylistDebugExcerpt(
-              options?.latestPlaylistText,
+              resolvedPlaylistText,
               currentTime,
             ),
-            latestPlaylistUrl: options?.latestPlaylistUrl,
+            latestPlaylistUrl: resolvedPlaylistUrl,
             mappedRange,
             mappedSkipRanges: mappedSkipRangesRef.current.slice(),
             pageUrl: window.location.href,
@@ -386,6 +450,16 @@ export default function VideoPlayer({
       isSeekingRef.current = false;
       // Check if we seeked into an ad and skip it immediately
       performSkip();
+      const video = videoRef.current;
+      const lastProbed = lastProbedPlaybackTimeRef.current;
+      if (
+        video &&
+        (lastProbed === null ||
+          Math.abs(video.currentTime - lastProbed) >
+            SKIP_PROBE_RECHECK_DISTANCE_SECONDS)
+      ) {
+        refreshSkipPlaybackRef.current?.();
+      }
     }, 200);
   });
 
@@ -481,6 +555,7 @@ export default function VideoPlayer({
     let latestPlaylistText: string | undefined;
     let latestPlaylistUrl: string | undefined;
     let latestPlaylistTimelineStart = 0;
+    let previousTimelineStart: number | undefined;
     let deferredShortDramaSkipLoadStarted = false;
     const manifestParseController = new AbortController();
     skipRangesRef.current = [];
@@ -491,6 +566,9 @@ export default function VideoPlayer({
     hlsErrorsRef.current = [];
     isSeekingRef.current = false;
     isAutoSkippingRef.current = false;
+    lastProbedPlaybackTimeRef.current = null;
+    latestPlaylistTextRef.current = undefined;
+    latestPlaylistUrlRef.current = undefined;
     setPlayerStatus("loading");
 
     const getNativeTimelineStart = () => {
@@ -584,12 +662,19 @@ export default function VideoPlayer({
       playlistText?: string;
       playlistUrl?: string;
       timelineStart?: number;
+      enableMediaFingerprintProbe?: boolean;
     }) => {
       if (!isAutoSkipEnabled() || isRemotePlaybackActive(video)) return;
       const requestId = ++latestSkipRangeRequestId;
       try {
         const timelineStart = options?.timelineStart;
-        const playbackTime = video.currentTime;
+        const playbackTime =
+          video.currentTime > 0 ? video.currentTime : startingProgress;
+        const enableMediaFingerprintProbe =
+          options?.enableMediaFingerprintProbe ?? true;
+        if (enableMediaFingerprintProbe) {
+          lastProbedPlaybackTimeRef.current = playbackTime;
+        }
         const ranges = options?.playlistText
           ? await parseAdSkipRangesFromPlaylistTextWithSideChannel(
               options.playlistText,
@@ -598,14 +683,14 @@ export default function VideoPlayer({
                 playlistUrl: options.playlistUrl ?? videoUrl,
                 signal: manifestParseController.signal,
                 playbackTime,
-                enableMediaFingerprintProbe: true,
+                enableMediaFingerprintProbe,
               },
             )
           : await parseAdSkipRangesFromManifest(videoUrl, {
               signal: manifestParseController.signal,
               timelineStart,
               playbackTime,
-              enableMediaFingerprintProbe: true,
+              enableMediaFingerprintProbe,
             });
         if (
           manifestParseController.signal.aborted ||
@@ -614,10 +699,24 @@ export default function VideoPlayer({
           return;
         }
 
-        skipRangesRef.current = ranges;
+        const normalizedTimelineStart = isFiniteNumber(timelineStart)
+          ? timelineStart
+          : 0;
+        const sameTimeline =
+          previousTimelineStart === undefined ||
+          Math.abs(normalizedTimelineStart - previousTimelineStart) <=
+            SKIP_END_EPSILON_SECONDS;
+        previousTimelineStart = normalizedTimelineStart;
+
+        skipRangesRef.current = sameTimeline
+          ? mergeRawSkipRanges(skipRangesRef.current, ranges)
+          : ranges;
         refreshMappedSkipRanges();
 
-        performSkip();
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
         queueSkipWatch();
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -784,6 +883,10 @@ export default function VideoPlayer({
           start: data.frag?.start,
           url: data.frag?.url,
         });
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
       });
 
       hls.on(Hls.Events.LEVEL_PTS_UPDATED, (_event, data) => {
@@ -796,6 +899,10 @@ export default function VideoPlayer({
         recordHlsEvent(Hls.Events.LEVEL_PTS_UPDATED, {
           fragmentCount: fragments.length,
         });
+        performSkip({
+          latestPlaylistText,
+          latestPlaylistUrl,
+        });
       });
 
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -804,6 +911,8 @@ export default function VideoPlayer({
         const timelineStart = data.details.fragmentStart;
         latestPlaylistText = data.details.m3u8;
         latestPlaylistUrl = data.details.url;
+        latestPlaylistTextRef.current = latestPlaylistText;
+        latestPlaylistUrlRef.current = latestPlaylistUrl;
         latestPlaylistTimelineStart = Number.isFinite(timelineStart)
           ? timelineStart
           : 0;
@@ -823,6 +932,12 @@ export default function VideoPlayer({
         }, SKIP_RANGE_REFRESH_INTERVAL_MS);
         if (!isAutoSkipEnabled() || isRemotePlaybackActive(video)) return;
         if (sessionProfile === "short-drama" && video.currentTime < 2) {
+          void updateSkipRanges({
+            playlistText: latestPlaylistText,
+            playlistUrl: latestPlaylistUrl,
+            timelineStart: latestPlaylistTimelineStart,
+            enableMediaFingerprintProbe: false,
+          });
           return;
         }
         void updateSkipRanges({
@@ -946,7 +1061,6 @@ export default function VideoPlayer({
         if (
           sessionProfile === "short-drama" &&
           !deferredShortDramaSkipLoadStarted &&
-          skipRangesRef.current.length === 0 &&
           latestPlaylistText &&
           video.currentTime > 2
         ) {
